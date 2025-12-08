@@ -87,11 +87,11 @@ export default function MarketPage() {
   useEffect(() => {
     const fetchTopData = async () => {
       setLoadingTop(true);
-      const { data: newData } = await supabase.from('tracks').select('*').order('created_at', { ascending: false }).limit(5);
+      const { data: newData } = await supabase.from('tracks').select('*').order('created_at', { ascending: false }).limit(10);
       setNewTracks(newData || []);
       const { data: allData } = await supabase.from('tracks').select('*').eq('is_minted', true).limit(20);
       setInvestTracks((allData || []).slice(0, 5));
-      const { data: creatorData } = await supabase.from('profiles').select('*').limit(8);
+      const { data: creatorData } = await supabase.from('profiles').select('*').limit(10);
       setCreators(creatorData || []);
       setLoadingTop(false);
     };
@@ -235,7 +235,7 @@ export default function MarketPage() {
 
       {/* Sidebar */}
       <aside className="w-64 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col p-6">
-         <div className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 cursor-pointer">UNLISTED</div>
+         <div className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 cursor-pointer">unlisted</div>
          <Link href="/upload"><button className="w-full bg-white text-black font-bold py-3 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-105 transition"><UploadCloud size={20}/> Upload</button></Link>
          <nav className="space-y-6">
              <div>
@@ -442,7 +442,7 @@ export default function MarketPage() {
                     </div>
                     <div className="overflow-hidden">
                         <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
-                        <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name || 'Unlisted Artist'}</div>
+                        <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name || 'unlisted Artist'}</div>
                     </div>
                 </div>
                 <div className="flex flex-col items-center gap-2 w-1/3">

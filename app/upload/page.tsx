@@ -11,9 +11,6 @@ import { getCroppedImg } from '@/utils/image'; // 아까 만든 유틸
 import toast from 'react-hot-toast';
 import { useReadContract, useActiveAccount,useSendTransaction } from "thirdweb/react";
 
-
-
-
 type Contributor = { address: string; share: string; role: string; };
 
 export default function UploadPage() {
@@ -28,9 +25,9 @@ export default function UploadPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [lyrics, setLyrics] = useState('');
-  const [creationType, setCreationType] = useState<'human' | 'ai'>('human');
+  const [creationType, setCreationType] = useState<'ai' | 'human'>('ai');
   
-  // --- Image State ---
+  // --- Image State ---ß
   const [imageSrc, setImageSrc] = useState<string | null>(null); // 원본 이미지 경로
   const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null); // 자른 이미지 결과물
   const [crop, setCrop] = useState({ x: 0, y: 0 });

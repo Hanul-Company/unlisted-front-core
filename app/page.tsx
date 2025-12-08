@@ -137,16 +137,16 @@ export default function LandingPage() {
                         <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mb-6 text-blue-400">
                             <Headphones size={24} />
                         </div>
-                        <h3 className="text-xl font-bold mb-3 text-white">1. Listen & Earn</h3>
+                        <h3 className="text-xl font-bold mb-3 text-white">1. Upload & Earn</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            <span className="text-blue-300 font-semibold">unlisted Player</span>에서 음악을 들으면 
-                            <span className="text-white font-bold mx-1">pMLD</span>포인트가 자동으로 쌓입니다. 
-                            무료로 감상하고 포인트를 채굴하세요.
+                            <span className="text-blue-300 font-semibold">unlisted Player</span>에 음악을 등록하면 
+                            <span className="text-white font-bold mx-1">MLD</span>가 자동으로 쌓입니다. 
+                            지금 당신의 곡을 공유하고 포인트를 채굴하세요.
                         </p>
                         <div className="bg-black/40 rounded-xl p-4 border border-white/5">
                             <div className="flex justify-between items-center text-xs mb-2">
                                 <span className="text-zinc-500">Reward</span>
-                                <span className="text-blue-400 font-bold">+10 pMLD / hour</span>
+                                <span className="text-blue-400 font-bold">+10 MLD / hour</span>
                             </div>
                             <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                                 <div className="bg-blue-500 h-full w-2/3 animate-pulse"></div>
@@ -173,7 +173,7 @@ export default function LandingPage() {
                         </div>
                         <h3 className="text-xl font-bold mb-3 text-white">2. Rent to Own</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            모은 <span className="text-white font-bold mx-1">pMLD</span>로 좋아하는 곡을 
+                            광고 시청으로 모은 <span className="text-white font-bold mx-1">MLD</span>로 좋아하는 곡을 
                             <span className="text-cyan-300 font-semibold mx-1">Rental</span>하세요.
                             나만의 컬렉션을 완성하고 더 높은 등급의 투자 자격을 얻으세요.
                         </p>
@@ -234,7 +234,7 @@ export default function LandingPage() {
                                 <Coins className="text-yellow-400"/> Token System
                              </h3>
                              <p className="text-zinc-400 text-sm mb-6">
-                                unlisted는 두 가지 재화로 움직입니다. 헷갈리지 마세요!
+                                unlisted는 두 가지 토큰이 하이브리드로 움직입니다.
                              </p>
                              
                              <div className="space-y-4">
