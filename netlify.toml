@@ -1,0 +1,8 @@
+[build]
+  command = "npm run build"
+  publish = "out"  # Next.js export 결과물 폴더
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
