@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - master # main 브랜치에 푸시될 때만 실행 (브랜치명이 master면 master로 변경)
+      - master
 
 jobs:
   deploy:
@@ -20,7 +20,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            # 1. 프로젝트 폴더로 이동 (폴더명 본인 것으로 수정 필수!)
+            # 1. 프로젝트 폴더로 이동
             cd /home/ec2-user/unlisted-front-core 
 
             # 2. 최신 코드 받기
@@ -33,4 +33,4 @@ jobs:
             npm run build
 
             # 5. 서버 재시작 (PM2 사용)
-            pm2 reload next-app
+            pm2 reload unlisted-front
