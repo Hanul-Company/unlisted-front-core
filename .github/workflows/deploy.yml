@@ -1,0 +1,36 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - master # main 브랜치에 푸시될 때만 실행 (브랜치명이 master면 master로 변경)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            # 1. 프로젝트 폴더로 이동 (폴더명 본인 것으로 수정 필수!)
+            cd /home/ubuntu/unlisted-front-core 
+
+            # 2. 최신 코드 받기
+            git pull origin master
+
+            # 3. 의존성 설치
+            npm install
+
+            # 4. Next.js 빌드
+            npm run build
+
+            # 5. 서버 재시작 (PM2 사용)
+            pm2 reload next-app
