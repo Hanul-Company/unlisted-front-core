@@ -246,7 +246,7 @@ export default function LandingPage() {
                                     <div>
                                         <h4 className="font-bold text-blue-400 text-sm">pMLD (Points)</h4>
                                         <p className="text-xs text-zinc-500 mt-1">
-                                            음악 감상으로 무료 채굴. 렌탈에 사용되는 포인트. (Web2 Off-chain)
+                                            음악 감상과 렌탈에 사용되는 포인트. 광고 시청으로 무료 채굴가능 (Web2 Points)
                                         </p>
                                     </div>
                                 </div>
@@ -259,7 +259,7 @@ export default function LandingPage() {
                                     <div>
                                         <h4 className="font-bold text-indigo-400 text-sm">MLD (Token)</h4>
                                         <p className="text-xs text-zinc-500 mt-1">
-                                            거래소에서 구매하거나 에어드랍으로 획득. 실제 투자는 이걸로! (ERC20 On-chain)
+                                            음악 감상과 렌탈, 투자 및 현금화까지 가능한 토큰 (Web3 Token)
                                         </p>
                                     </div>
                                 </div>
