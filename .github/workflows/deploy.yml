@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ec2-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
           port: 22
           script: |
             # 1. 프로젝트 폴더로 이동 (폴더명 본인 것으로 수정 필수!)
-            cd /home/ubuntu/unlisted-front-core 
+            cd /home/ec2-user/unlisted-front-core 
 
             # 2. 최신 코드 받기
             git pull origin master
