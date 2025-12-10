@@ -27,7 +27,7 @@ jobs:
             git pull origin master
 
             # 3. 의존성 설치
-            npm install
+            npm install --legacy-peer-deps
 
             # 4. Next.js 빌드
             npm run build
