@@ -9,7 +9,7 @@ import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useSendTransaction, useReadContract } from "thirdweb/react";
 import { client, chain } from "@/utils/thirdweb";import toast from 'react-hot-toast';
 import Link from 'next/link';
-import { MUSIC_GENRES, MUSIC_MOODS } from '../constants';
+import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_SCENARIOS } from '../constants';
 import HeaderProfile from '../components/HeaderProfile';
 import RentalModal from '../components/RentalModal';
 
@@ -40,6 +40,7 @@ export default function RadioPage() {
 
   // States
   const [step, setStep] = useState<'onboarding' | 'playing'>('onboarding');
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   
@@ -94,16 +95,44 @@ export default function RadioPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 1. 추천 로직
+// 1. 추천 로직 (fetchRecommendations)
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_random_tracks_v3', {
-        user_wallet: address,
-        filter_genre: selectedGenre,
-        filter_mood: selectedMood,
-        limit_count: 5 
-      });
+      let data: any[] | null = [];
+      let error = null;
+
+      // ✅ [수정] 시나리오가 선택되었다면 태그 기반 검색 우선
+      if (selectedScenario) {
+        const scenario = MUSIC_SCENARIOS.find(s => s.id === selectedScenario);
+        if (scenario) {
+          // context_tags 배열 중 하나라도 겹치는(overlaps) 곡 검색
+          const { data: tagData, error: tagError } = await supabase
+            .from('tracks')
+            .select('*, artist:profiles(*)')
+            .overlaps('context_tags', scenario.tags)
+            .limit(10); // 넉넉히 가져옴
+            
+          data = tagData;
+          error = tagError;
+          
+          // 데이터가 적으면 랜덤 섞기 (JS 레벨에서)
+          if (data) {
+             data = data.sort(() => Math.random() - 0.5);
+          }
+        }
+      } else {
+        // 기존 RPC 방식 (장르/무드)
+        const res = await supabase.rpc('get_random_tracks_v3', {
+          user_wallet: address,
+          filter_genre: selectedGenre,
+          filter_mood: selectedMood,
+          limit_count: 5 
+        });
+        data = res.data;
+        error = res.error;
+      }
+
       if (error) throw error;
       
       if (data && data.length > 0) {
@@ -112,15 +141,29 @@ export default function RadioPage() {
         setStep('playing');
         setIsPlaying(true);
 
-        if (selectedGenre) {
+        if (!selectedScenario && selectedGenre) {
             const hasMatching = data.some((t: any) => t.genre === selectedGenre);
             if (!hasMatching) toast("조건에 맞는 곡이 없어 랜덤 믹스를 재생합니다 🔀", { icon: '📡' });
         }
       } else {
-        toast.error("재생할 곡이 없습니다.");
+        toast.error("재생할 곡이 없습니다. (조건을 변경해보세요)");
       }
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { 
+        console.error(e); 
+        toast.error("트랙 로딩 중 오류가 발생했습니다.");
+    } finally { 
+        setLoading(false); 
+    }
   };
+
+   // ✅ [추가] 시나리오 선택 시 자동 재생 트리거 (UX 향상)
+  // 사용자가 시나리오 카드를 클릭하자마자 재생하고 싶다면 아래 useEffect 주석 해제
+  
+  useEffect(() => {
+    if (selectedScenario) {
+        fetchRecommendations();
+    }
+  }, [selectedScenario]);
 
   // 2. 오디오 컨트롤
   useEffect(() => {
@@ -405,34 +448,77 @@ export default function RadioPage() {
                     What is your flavor?
                 </h1>
                 
-                <div className="space-y-6">
+                <div className="space-y-8">
+                    {/* ✅ [추가] 시나리오 선택 UI */}
                     <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Select Genre</label>
-                        <div className="flex flex-wrap justify-center gap-2">
-                            {MUSIC_GENRES.map(g => (
-                                <button 
-                                    key={g} 
-                                    onClick={() => setSelectedGenre(g===selectedGenre?null:g)} 
-                                    className={`px-4 py-2 rounded-full text-xs font-bold border transition ${selectedGenre===g ? 'bg-white text-black border-white shadow-lg shadow-white/20':'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600'}`}
+                         <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest flex items-center justify-center gap-2">
+                             <span className="w-10 h-px bg-blue-500/50"></span>
+                             RECOMMENDED SCENARIOS
+                             <span className="w-10 h-px bg-blue-500/50"></span>
+                         </label>
+                         <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide justify-start md:justify-center px-4 snap-x">
+                            {MUSIC_SCENARIOS.map((scenario) => (
+                                <button
+                                    key={scenario.id}
+                                    onClick={() => {
+                                        const newValue = selectedScenario === scenario.id ? null : scenario.id;
+                                        setSelectedScenario(newValue);
+                                        if(newValue) {
+                                            setSelectedGenre(null);
+                                            setSelectedMood(null);
+                                        }
+                                    }}
+                                    className={`
+                                        flex-shrink-0 px-5 py-4 rounded-2xl border transition-all duration-300 flex flex-col items-center gap-2 min-w-[100px] snap-center
+                                        ${selectedScenario === scenario.id 
+                                        ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_20px_rgba(37,99,235,0.6)] scale-105' 
+                                        : 'bg-zinc-900/80 border-white/5 text-zinc-400 hover:bg-zinc-800 hover:border-white/20 hover:text-white'
+                                        }
+                                    `}
                                 >
-                                    {g}
+                                    <span className="text-3xl filter drop-shadow-md">{scenario.emoji}</span>
+                                    <span className="text-xs font-bold whitespace-nowrap">{scenario.title}</span>
                                 </button>
                             ))}
                         </div>
                     </div>
-                    
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Select Mood</label>
-                        <div className="flex flex-wrap justify-center gap-2">
-                            {MUSIC_MOODS.map(m => (
-                                <button 
-                                    key={m} 
-                                    onClick={() => setSelectedMood(m===selectedMood?null:m)} 
-                                    className={`px-4 py-2 rounded-full text-xs font-bold border transition ${selectedMood===m ? 'bg-cyan-500 text-black border-cyan-500 shadow-lg shadow-cyan-500/30':'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600'}`}
-                                >
-                                    {m}
-                                </button>
-                            ))}
+
+                    <div className="flex items-center justify-center gap-4 opacity-50">
+                        <div className="h-px bg-zinc-800 w-full max-w-[100px]"></div>
+                        <span className="text-[10px] text-zinc-600 font-bold uppercase">OR CUSTOMIZE</span>
+                        <div className="h-px bg-zinc-800 w-full max-w-[100px]"></div>
+                    </div>
+
+                    {/* 기존 장르/무드 선택 (시나리오 선택 시 비활성화 스타일 적용) */}
+                    <div className={`space-y-6 transition-opacity duration-300 ${selectedScenario ? 'opacity-30 pointer-events-none grayscale' : 'opacity-100'}`}>
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Select Genre</label>
+                            <div className="flex flex-wrap justify-center gap-2">
+                                {MUSIC_GENRES.map(g => (
+                                    <button 
+                                        key={g} 
+                                        onClick={() => setSelectedGenre(g===selectedGenre?null:g)} 
+                                        className={`px-4 py-2 rounded-full text-xs font-bold border transition ${selectedGenre===g ? 'bg-white text-black border-white shadow-lg shadow-white/20':'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600'}`}
+                                    >
+                                        {g}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Select Mood</label>
+                            <div className="flex flex-wrap justify-center gap-2">
+                                {MUSIC_MOODS.map(m => (
+                                    <button 
+                                        key={m} 
+                                        onClick={() => setSelectedMood(m===selectedMood?null:m)} 
+                                        className={`px-4 py-2 rounded-full text-xs font-bold border transition ${selectedMood===m ? 'bg-cyan-500 text-black border-cyan-500 shadow-lg shadow-cyan-500/30':'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600'}`}
+                                    >
+                                        {m}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>

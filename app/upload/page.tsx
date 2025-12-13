@@ -1,8 +1,8 @@
 'use client';
 
-import { MUSIC_GENRES, MUSIC_MOODS } from '@/app/constants'; // 또는 '../constants'
+import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants'; // 또는 '../constants'
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Zap, Bot, Globe, Database, UploadCloud, Music, Loader2, ArrowLeft, CheckCircle, Plus, Trash2, User, Image as ImageIcon, X } from 'lucide-react';
+import { Search, Hash, Zap, Bot, Globe, Database, UploadCloud, Music, Loader2, ArrowLeft, CheckCircle, Plus, Trash2, User, Image as ImageIcon, X } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -10,6 +10,7 @@ import Cropper from 'react-easy-crop'; // 크롭 라이브러리
 import { getCroppedImg } from '@/utils/image'; // 아까 만든 유틸
 import toast from 'react-hot-toast';
 import { useReadContract, useActiveAccount,useSendTransaction } from "thirdweb/react";
+import * as mm from 'music-metadata-browser'; // ✅ MP3 분석용
 
 type Contributor = { address: string; share: string; role: string; };
 
@@ -40,6 +41,15 @@ export default function UploadPage() {
     { address: '', share: '100', role: 'Main Artist' } 
   ]);
 
+  // --- [NEW] Optional Meta Data ---
+  const [bpm, setBpm] = useState<string>(''); // BPM 입력 (숫자지만 입력 편의상 string)
+  
+  // --- [NEW] Tag System ---
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tagSearch, setTagSearch] = useState('');
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+  const tagInputRef = useRef<HTMLDivElement>(null); // 드롭다운 감지용 Ref
+
   const [genre, setGenre] = useState(MUSIC_GENRES[0]); // 기본값
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
 
@@ -61,13 +71,29 @@ export default function UploadPage() {
     }
   }, [address]);
 
-  // 오디오 파일 선택
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+// 오디오 파일 선택
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => { // 👈 1. 여기에 async 추가
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       if (!selectedFile.type.startsWith('audio/')) return toast.error('오디오 파일만 가능합니다.');
+      
       setFile(selectedFile);
       setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
+
+      // ✅ MP3 메타데이터에서 커버 이미지 추출 로직
+      try {
+        const metadata = await mm.parseBlob(selectedFile);
+        const picture = metadata.common.picture?.[0];
+
+        if (picture) {
+          // 👈 2. picture.data를 new Uint8Array()로 감싸서 타입 에러 해결
+          const blob = new Blob([new Uint8Array(picture.data)], { type: picture.format });
+          setCroppedImageBlob(blob); 
+          toast.success("MP3에 포함된 커버 이미지를 가져왔습니다! 🎨");
+        }
+      } catch (error) {
+        console.log("메타데이터 추출 실패 (무시됨):", error);
+      }
     }
   };
 
@@ -109,6 +135,40 @@ export default function UploadPage() {
       setSelectedMoods([...selectedMoods, mood]);
     }
   };
+
+  // --- [NEW] Tag Logic Start ---
+  
+  // 검색어에 맞는 태그 필터링 (이미 선택된 건 제외)
+  const filteredTags = MUSIC_TAGS.filter(tag => 
+    tag.toLowerCase().includes(tagSearch.toLowerCase()) && 
+    !selectedTags.includes(tag)
+  );
+
+  // 태그 추가
+  const handleTagAdd = (tag: string) => {
+    if (selectedTags.length >= 10) return toast.error("태그는 최대 10개까지만 가능합니다.");
+    setSelectedTags([...selectedTags, tag]);
+    setTagSearch(''); // 검색어 초기화
+    // setIsTagDropdownOpen(false); // 연속 선택을 위해 닫지 않음 (원하면 주석 해제)
+  };
+
+  // 태그 삭제
+  const handleTagRemove = (tagToRemove: string) => {
+    setSelectedTags(selectedTags.filter(t => t !== tagToRemove));
+  };
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (tagInputRef.current && !tagInputRef.current.contains(event.target as Node)) {
+        setIsTagDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // --- [NEW] Tag Logic End ---
 
   // 업로드 실행
   const handleUpload = async () => {
@@ -154,8 +214,16 @@ export default function UploadPage() {
         const { data: { publicUrl } } = supabase.storage.from('music_assets').getPublicUrl(imageName);
         coverUrl = publicUrl;
       }
+      else {
+        // ✅ B. 아무것도 없을 때 디폴트 이미지 사용
+        // (public 폴더에 있는 이미지는 도메인 주소로 접근해야 함)
+        // 로컬 개발 환경과 배포 환경을 모두 고려해 상대 경로 or 절대 경로 사용
+        // 보통 Supabase DB에 저장할 때는 풀 URL을 선호하지만, 프론트에서 보여줄 땐 '/images/...'도 동작함.
+        // 여기서는 간단하게 프로젝트 내부 경로를 저장합니다.
+        coverUrl = '/images/default_cover.jpg'; 
+      }
 
-      // 3. DB 저장
+     // 3. DB 저장 부분 수정
       const { data: newTrack, error: dbError } = await supabase
         .from('tracks')
         .insert([{
@@ -163,13 +231,18 @@ export default function UploadPage() {
             description: description,
             lyrics: lyrics,
             audio_url: audioUrl,
-            cover_image_url: coverUrl, // [추가됨]
+            cover_image_url: coverUrl,
             genre: genre,
             moods: selectedMoods,
+            
+            // ✅ [추가] BPM 및 태그 저장
+            bpm: bpm ? parseInt(bpm) : null,
+            context_tags: selectedTags, 
+            
             uploader_address: address,
             artist_name: artistName,
             creation_type: creationType,
-            artist_id: artistId, // [핵심] 이제 Foreign Key가 연결됩니다!
+            artist_id: artistId,
         }])
         .select().single();
 
@@ -499,6 +572,81 @@ export default function UploadPage() {
                   {m}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* --- [NEW] BPM & Context Tags Section --- */}
+          <div className="mt-6 space-y-6 border-t border-zinc-800 pt-6">
+            
+            {/* 1. BPM Input */}
+            <div>
+              <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider">
+                BPM (Optional)
+              </label>
+              <input
+                type="number"
+                value={bpm}
+                onChange={(e) => setBpm(e.target.value)}
+                placeholder="e.g. 120"
+                className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white text-sm focus:outline-none focus:border-cyan-500/80 font-mono"
+              />
+            </div>
+
+            {/* 2. Tag Input System */}
+            <div ref={tagInputRef} className="relative z-20"> {/* z-index 중요 */}
+                <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center justify-between">
+                    <span>Context Tags</span>
+                    <span className="text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">Max 10</span>
+                </label>
+                
+                {/* Selected Tags Display */}
+                <div className="flex flex-wrap gap-2 mb-2 min-h-[2rem] py-2">
+                    {selectedTags.length === 0 && (
+                        <span className="text-xs text-zinc-600 italic py-1">선택된 태그가 없습니다.</span>
+                    )}
+                    {selectedTags.map(tag => (
+                        <span key={tag} className="bg-blue-900/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
+                            <Hash size={10} className="opacity-50"/>
+                            {tag}
+                            <button onClick={() => handleTagRemove(tag)} className="ml-1 hover:text-white"><X size={12}/></button>
+                        </span>
+                    ))}
+                </div>
+
+                {/* Search Input */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-3 text-zinc-500" size={16} />
+                    <input 
+                        type="text"
+                        value={tagSearch}
+                        onFocus={() => setIsTagDropdownOpen(true)}
+                        onChange={(e) => { setTagSearch(e.target.value); setIsTagDropdownOpen(true); }}
+                        className="w-full bg-black border border-zinc-700 rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-green-500 text-sm placeholder:text-zinc-600"
+                        placeholder="Search vibe tags (e.g. workout, coding, lofi...)"
+                    />
+                </div>
+
+                {/* Dropdown Results */}
+                {isTagDropdownOpen && (
+                    <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent">
+                        {filteredTags.length > 0 ? (
+                            filteredTags.map(tag => (
+                                <button 
+                                    key={tag}
+                                    onClick={() => handleTagAdd(tag)}
+                                    className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center justify-between group transition border-b border-zinc-800/50 last:border-0"
+                                >
+                                    <span className="text-sm text-zinc-300 group-hover:text-white font-medium">#{tag}</span>
+                                    <Plus size={14} className="text-zinc-600 group-hover:text-green-400"/>
+                                </button>
+                            ))
+                        ) : (
+                            <div className="px-4 py-3 text-xs text-zinc-500 text-center">
+                                {tagSearch ? "일치하는 태그가 없습니다." : "검색어를 입력하세요."}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
           </div>
 

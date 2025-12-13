@@ -164,3 +164,36 @@ export const MUSIC_MOODS = [
   "Late Night",
   "Groovy",
 ];
+
+// ✅ [추가] 킬러 시나리오 매트릭스
+export const MUSIC_SCENARIOS = [
+  { id: 'coding', emoji: '💻', title: 'Deep Focus', tags: ['coding', 'focus', 'lofi'] },
+  { id: 'workout', emoji: '💪', title: 'Beast Mode', tags: ['workout', 'gym', 'phonk'] },
+  { id: 'drive', emoji: '🌃', title: 'Night Drive', tags: ['drive', 'synthwave', 'night'] },
+  { id: 'healing', emoji: '🍂', title: 'Healing', tags: ['healing', 'ballad', 'emotional'] },
+  { id: 'cafe', emoji: '☕', title: 'Trendy Cafe', tags: ['cafe', 'rnb', 'groove'] },
+  { id: 'retro', emoji: '📻', title: '2000s Vibes', tags: ['nostalgia', 'retro', 'acoustic'] },
+  { id: 'romantic', emoji: '🍷', title: 'Red Light', tags: ['romantic', 'slowjam', 'sexy'] },
+  { id: 'morning', emoji: '☀️', title: 'Miracle Morning', tags: ['morning', 'acoustic', 'fresh'] },
+  { id: 'lounge', emoji: '🏖️', title: 'Luxury Lounge', tags: ['lounge', 'house', 'luxury'] },
+  { id: 'sleep', emoji: '😴', title: 'Deep Sleep', tags: ['sleep', 'ambient', 'calm'] },
+];
+
+export const MUSIC_TAGS = [
+  "coding", "focus", "study", "reading", "writing", "work", "productivity",
+  "workout", "gym", "training", "running", "yoga", "meditation", "sleep", "relax",
+  "drive", "travel", "commute", "party", "dance", "club", "gaming", "parenting",
+  "morning", "afternoon", "evening", "night", "dawn", "sunset", "midnight",
+  "weekday", "weekend", "city", "subway", "cafe", "lounge", "bedroom", "home",
+  "office", "beach", "roadtrip", "rooftop", "rainy", "afterrain",
+  "lofi", "acoustic", "ambient", "electronic", "synthwave", "house", "techno",
+  "trap", "phonk", "rnb", "hiphop", "jazz", "jazzhiphop", "ballad", "slowjam",
+  "indie", "pop", "citypop", "retro", "vinyl", "analog", "reverb", "distortion",
+  "minimal", "orchestral", "japanese", "jpop", "anime", "shibuya", "uk",
+  "britpop", "grime", "french", "latin", "korean", "kpop", "focusflow", "energy",
+  "groove", "chill", "calm", "healing", "comfort", "emotional", "sentimental",
+  "nostalgia", "dreamy", "romantic", "sexy", "sensual", "happy", "uplifting",
+  "fresh", "hype", "dark", "moody", "gloomy", "melancholic", "rainvibes",
+  "luxury", "trendy", "couple", "love", "breakup", "selfcare", "mindfulness",
+  "latevibes", "nightdrive", "urban", "smooth", "warm", "cool"
+];
