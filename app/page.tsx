@@ -139,14 +139,14 @@ export default function LandingPage() {
                         </div>
                         <h3 className="text-xl font-bold mb-3 text-white">1. Upload & Earn</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            <span className="text-blue-300 font-semibold">unlisted Player</span>에 음악을 등록하면 
+                            <span className="text-blue-300 font-semibold">unlisted</span>에 음악을 발매하기만해도 리스너들이 지불한
                             <span className="text-white font-bold mx-1">MLD</span>가 자동으로 쌓입니다. 
-                            지금 당신의 곡을 공유하고 포인트를 채굴하세요.
+                            지금 당신의 곡을 발매하고 포인트를 채굴하세요.
                         </p>
                         <div className="bg-black/40 rounded-xl p-4 border border-white/5">
                             <div className="flex justify-between items-center text-xs mb-2">
                                 <span className="text-zinc-500">Reward</span>
-                                <span className="text-blue-400 font-bold">+10 MLD / hour</span>
+                                <span className="text-blue-400 font-bold">1 MLD for 1 Collect</span>
                             </div>
                             <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                                 <div className="bg-blue-500 h-full w-2/3 animate-pulse"></div>
@@ -171,16 +171,16 @@ export default function LandingPage() {
                          <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mb-6 text-cyan-400">
                             <Sparkles size={24} />
                         </div>
-                        <h3 className="text-xl font-bold mb-3 text-white">2. Rent to Own</h3>
+                        <h3 className="text-xl font-bold mb-3 text-white">2. Pay for collection</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            광고 시청으로 모은 <span className="text-white font-bold mx-1">MLD</span>로 좋아하는 곡을 
-                            <span className="text-cyan-300 font-semibold mx-1">Rental</span>하세요.
-                            나만의 컬렉션을 완성하고 더 높은 등급의 투자 자격을 얻으세요.
+                            무료로 음악을 감상하며 <span className="text-white font-bold mx-1">MLD</span>로 마음에 드는 곡을 
+                            <span className="text-cyan-300 font-semibold mx-1">Collect</span>하세요.
+                            나만의 컬렉션을 완성하고 소중한 음악을 언제든 감상하세요.
                         </p>
                         <ul className="space-y-2 text-xs text-zinc-400">
                             <li className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                                <span>곡을 렌탈하면 내 컬렉션에 추가됩니다.</span>
+                                <span>곡을 Collecg하면 내 컬렉션에 추가됩니다.</span>
                             </li>
                             <li className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
@@ -208,8 +208,8 @@ export default function LandingPage() {
                         </div>
                         <h3 className="text-xl font-bold mb-3 text-white">3. Invest & Trade</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            이제 <span className="text-indigo-300 font-bold mx-1">MLD 토큰</span>으로 
-                            음악의 지분(Shares)을 실제로 구매하세요. 주식처럼 거래하고 시세 차익을 노리세요.
+                            이제 감상과 수집을 넘어<span className="text-indigo-300 font-bold mx-1">MLD </span>로 
+                            음악의 지분(Shares)을 실제로 구매하세요. 직접 음악의 주인이 되어 수익을 분배받고, 차익을 실현하세요.
                         </p>
                         <Link href="/market">
                             <button className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold transition flex items-center justify-center gap-2">
