@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import { Radius, Book, Disc, PlayCircle, Download, X, UploadCloud, LayoutGrid, TrendingUp, Coins, Heart, Zap } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { usePWA } from '../context/PWAContext';

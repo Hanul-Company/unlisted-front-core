@@ -16,7 +16,7 @@ import { formatEther } from "viem";
 
 import { supabase } from '@/utils/supabase';
 import { User, LogOut, Wallet, ChevronDown, Settings, ShieldCheck, Link as LinkIcon, Coins, Zap, CheckCircle, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI, UNLISTED_STOCK_ADDRESS } from '@/app/constants';
 

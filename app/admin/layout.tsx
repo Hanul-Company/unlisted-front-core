@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/utils/supabase';
-import { useRouter } from 'next/navigation';
+import { useRouter } from "@/lib/i18n";
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -58,5 +58,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 }
 
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';

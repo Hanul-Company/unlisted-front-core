@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
 import { Loader2, Heart, Play, Pause, Plus, Trash2, Music, ListMusic, MoreHorizontal, Search, X, Shuffle, SkipForward, SkipBack, Repeat, Repeat1, Disc, Volume2, VolumeX, Menu } from 'lucide-react';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import HeaderProfile from '../components/HeaderProfile';
 import MobileSidebar from '../components/MobileSidebar'; 

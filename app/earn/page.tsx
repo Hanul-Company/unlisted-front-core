@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import { Loader2, Coins, Zap, Timer, CheckCircle, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import AdBanner from '../components/AdBanner';
 

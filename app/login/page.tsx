@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { supabase } from '@/utils/supabase';
-import { useRouter } from 'next/navigation';
+import { useRouter } from "@/lib/i18n";
 import { Mail, Lock, Loader2, ArrowRight, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 
 export default function LoginPage() {
   const router = useRouter();

@@ -8,7 +8,7 @@ import { ListMusic, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, Vo
 import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useSendTransaction, useReadContract } from "thirdweb/react";
 import { client, chain } from "@/utils/thirdweb";import toast from 'react-hot-toast';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_SCENARIOS } from '../constants';
 import HeaderProfile from '../components/HeaderProfile';
 import RentalModal from '../components/RentalModal';

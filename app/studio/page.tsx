@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import { Loader2, Coins, Zap, ArrowRight, Activity, TrendingUp, DollarSign, Wallet } from 'lucide-react';
 import HeaderProfile from '../components/HeaderProfile'; 
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 
 // [Thirdweb Imports]

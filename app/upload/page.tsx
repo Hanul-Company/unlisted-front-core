@@ -4,8 +4,8 @@ import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants'; // 또�
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, Hash, Zap, Bot, Globe, Database, UploadCloud, Music, Loader2, ArrowLeft, CheckCircle, Plus, Trash2, User, Image as ImageIcon, X } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from "../../lib/i18n";
+import { Link } from "../../lib/i18n";
 import Cropper from 'react-easy-crop'; // 크롭 라이브러리
 import { getCroppedImg } from '@/utils/image'; // 아까 만든 유틸
 import toast from 'react-hot-toast';

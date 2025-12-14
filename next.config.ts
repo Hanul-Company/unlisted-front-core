@@ -1,3 +1,4 @@
+// [수정 후: 깔끔해진 코드]
 import type { NextConfig } from "next";
 
 const withPWA = require("@ducanh2912/next-pwa").default({
@@ -9,13 +10,13 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   disable: process.env.NODE_ENV === "development",
   workboxOptions: {
     disableDevLogs: true,
-    // [추가] 이 파일들은 캐싱하지 마라 (404 에러 방지)
     exclude: [/_redirects/, /_headers/, /netlify.toml/], 
   },
 });
 
 const nextConfig: NextConfig = {
-  output: 'export',
+  // output: 'export', // (필요하면 주석 해제)
+  reactStrictMode: true,
   
   webpack: (config) => {
     config.resolve.fallback = { 

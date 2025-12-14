@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import { useActiveAccount} from "thirdweb/react";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "@/lib/i18n";
 import { Camera, Save, Loader2, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 
 // [추가] 장르 및 무드 상수
 const GENRES = [

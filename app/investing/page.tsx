@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import { Loader2, TrendingUp, ArrowUpRight, Play } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import { formatEther } from 'viem';
 import TradeModal from '../components/TradeModal';
 

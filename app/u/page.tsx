@@ -5,7 +5,7 @@ import { supabase } from '@/utils/supabase';
 import { useActiveAccount } from "thirdweb/react";
 import { Loader2, User, UserPlus, UserCheck, Disc } from 'lucide-react';
 import { useSearchParams } from 'next/navigation'; // [변경] useParams -> useSearchParams
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 
 // [중요] useSearchParams는 Suspense로 감싸야 빌드 에러가 안 납니다.

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import { useActiveAccount } from "thirdweb/react";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "@/lib/i18n";
 import { Camera, ArrowRight, Loader2, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES } from '../constants';

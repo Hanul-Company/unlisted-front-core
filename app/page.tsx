@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import { Play, Radio, Download, ArrowRight, Coins, Headphones, Sparkles, TrendingUp, Gift } from 'lucide-react';
 import { usePWA } from './context/PWAContext';
 import { motion, Variants } from 'framer-motion';
@@ -246,7 +246,7 @@ export default function LandingPage() {
                                     <div>
                                         <h4 className="font-bold text-blue-400 text-sm">pMLD (Points)</h4>
                                         <p className="text-xs text-zinc-500 mt-1">
-                                            음악 감상과 렌탈에 사용되는 포인트. 광고 시청으로 무료 채굴가능 (Web2 Points)
+                                            음악 감상과 콜렉팅에 사용되는 포인트. 광고 시청으로 무료 채굴가능 (Web2 Points)
                                         </p>
                                     </div>
                                 </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { Link } from "@/lib/i18n";
 import { motion } from 'framer-motion';
 import { Play, TrendingUp, Mic2, Radio, ArrowRight, Sparkles } from 'lucide-react';
 
