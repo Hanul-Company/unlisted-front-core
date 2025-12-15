@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import { Loader2, TrendingUp, DollarSign, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-react';
-import HeaderProfile from '../components/HeaderProfile'; 
+import HeaderProfile from '../components/HeaderProfile';
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import { formatEther } from 'viem';
@@ -66,7 +66,7 @@ export default function PortfolioPage() {
         return;
       }
 
-      // 편의상 상위 컴포넌트에서는 트랙 리스트만 넘겨줍니다. 
+      // 편의상 상위 컴포넌트에서는 트랙 리스트만 넘겨줍니다.
       // (각 AssetRow가 자신의 잔고를 직접 조회하도록 설계됨)
       setAssets(tracks.map(t => ({ ...t, sharesOwned: BigInt(0), currentValue: BigInt(0) })));
       setIsLoading(false);
@@ -85,12 +85,12 @@ export default function PortfolioPage() {
 
     sendTransaction(transaction, {
         onSuccess: () => {
-            toast.success("매도 성공! 수익이 실현되었습니다.");
+            toast.success("Sell successful! Profit realized.");
             window.location.reload(); // 잔고 갱신을 위해 리로드
         },
         onError: (err) => {
             console.error(err);
-            toast.error("매도 실패");
+            toast.error("Sell failed.");
         }
     });
   };
@@ -126,10 +126,10 @@ export default function PortfolioPage() {
                   <tr><td colSpan={4} className="p-10 text-center text-zinc-500">No assets found. Go invest!</td></tr>
                ) : (
                   assets.map((track) => (
-                    <AssetRow 
-                      key={track.id} 
-                      track={track} 
-                      address={address!} 
+                    <AssetRow
+                      key={track.id}
+                      track={track}
+                      address={address!}
                       isPending={isPending}
                       onSell={handleSell}
                     />
@@ -144,7 +144,7 @@ export default function PortfolioPage() {
 
 // [개별 트랙 컴포넌트] Thirdweb Hooks로 교체
 function AssetRow({ track, address, isPending, onSell }: { track: any, address: string, isPending: boolean, onSell: (id:number, amt:bigint)=>void }) {
-  
+
   const tokenIdBigInt = BigInt(track.token_id || track.id);
 
   // 1. 내 지분 읽기

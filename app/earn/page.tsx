@@ -68,7 +68,7 @@ export default function EarnPage() {
         const { data: { user } } = await supabase.auth.getUser();
         // 로그인 체크 (지갑 혹은 이메일)
         if (!user && !address) {
-            toast.error("로그인이 필요합니다.");
+            toast.error("Login is required.");
             setLoading(false);
             return;
         }
@@ -76,14 +76,14 @@ export default function EarnPage() {
         const { error } = await supabase.rpc('claim_pmld_faucet', { amount: 10 });
         if (error) throw error;
         
-        toast.success("10 pMLD 적립 완료!");
+        toast.success("10 pMLD credited!");
         setLoading(false);
         resetTimer();
 
       } else {
         // [Web3] MLD Mint
         if (!address) {
-            toast.error("지갑 연결이 필요합니다.");
+            toast.error("Wallet Connection Required.");
             setLoading(false);
             return;
         }
@@ -97,12 +97,12 @@ export default function EarnPage() {
         // 트랜잭션 전송 (비동기) - loading 상태는 트랜잭션 시작 시 해제하고, txPending으로 넘어감
         sendTransaction(transaction, {
             onSuccess: () => {
-                toast.success("10 MLD가 지갑으로 전송되었습니다!");
+                toast.success("10 MLD has been sent to your wallet!");
                 resetTimer();
             },
             onError: (err) => {
                 console.error(err);
-                toast.error("전송 실패");
+                toast.error("Transaction failed.");
             }
         });
         // 광고 시청 로딩은 끝남 (이제 지갑 서명 대기)
@@ -149,7 +149,7 @@ export default function EarnPage() {
             <AdBanner />
             
             <p className="text-center text-zinc-500 text-xs my-4">
-                광고를 5초간 시청하면 보상이 지급됩니다.
+                  Watch an ad for 5 seconds to receive a reward.
             </p>
 
             {/* Reward Type Selector */}
@@ -186,7 +186,7 @@ export default function EarnPage() {
                 ) : isTxPending ? (
                     <>
                         <Loader2 className="animate-spin" size={20}/> 
-                        Signing Transaction...
+                        Waiting for wallet signature...
                     </>
                 ) : !canClaim ? (
                     <>Cooldown active...</>
@@ -200,7 +200,7 @@ export default function EarnPage() {
         <div className="text-center text-zinc-600 text-xs">
             {rewardType === 'MLD' && !address ? (
                 <div className="flex flex-col items-center gap-2 mt-4">
-                    <p>MLD를 받으려면 지갑을 연결하세요.</p>
+                    <p>Please connect your wallet to receive MLD.</p>
                     <ConnectButton 
                         client={client}
                         wallets={wallets}
@@ -212,7 +212,7 @@ export default function EarnPage() {
                     />
                 </div>
             ) : (
-                <p className="mt-4">하루 최대 10회 참여 가능합니다.</p>
+                <p className="mt-4">You can free pMLD 10 times a day.</p>
             )}
         </div>
       </div>

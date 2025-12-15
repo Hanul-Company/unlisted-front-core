@@ -65,8 +65,8 @@ function ProfileContent() {
   };
 
   const toggleFollow = async () => {
-    if (!myAddress) return toast.error("지갑 연결 필요");
-    if (myAddress === targetWallet) return toast.error("본인 팔로우 불가");
+    if (!myAddress) return toast.error("Connect Wallet Required");
+    if (myAddress === targetWallet) return toast.error("You can not follow yourself.");
 
     if (isFollowing) {
         await supabase.from('creator_follows').delete().match({ follower_address: myAddress, creator_address: targetWallet });

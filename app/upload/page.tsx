@@ -75,8 +75,8 @@ export default function UploadPage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => { // 👈 1. 여기에 async 추가
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
-      if (!selectedFile.type.startsWith('audio/')) return toast.error('오디오 파일만 가능합니다.');
-      
+      if (!selectedFile.type.startsWith('audio/')) return toast.error('Audio files only.');
+
       setFile(selectedFile);
       setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
 
@@ -88,11 +88,11 @@ export default function UploadPage() {
         if (picture) {
           // 👈 2. picture.data를 new Uint8Array()로 감싸서 타입 에러 해결
           const blob = new Blob([new Uint8Array(picture.data)], { type: picture.format });
-          setCroppedImageBlob(blob); 
-          toast.success("MP3에 포함된 커버 이미지를 가져왔습니다! 🎨");
+          setCroppedImageBlob(blob);
+          toast.success("Found embedded cover art in the MP3.");
         }
       } catch (error) {
-        console.log("메타데이터 추출 실패 (무시됨):", error);
+        console.log("Metadata extraction failed (ignored):", error);
       }
     }
   };
@@ -131,7 +131,7 @@ export default function UploadPage() {
     if (selectedMoods.includes(mood)) {
       setSelectedMoods(selectedMoods.filter(m => m !== mood));
     } else {
-      if (selectedMoods.length >= 3) return toast.error("무드는 최대 3개까지 선택 가능합니다.");
+      if (selectedMoods.length >= 3) return toast.error("You can select up to 3 moods.");
       setSelectedMoods([...selectedMoods, mood]);
     }
   };
@@ -146,7 +146,7 @@ export default function UploadPage() {
 
   // 태그 추가
   const handleTagAdd = (tag: string) => {
-    if (selectedTags.length >= 10) return toast.error("태그는 최대 10개까지만 가능합니다.");
+    if (selectedTags.length >= 10) return toast.error("You can add up to 10 tags.");
     setSelectedTags([...selectedTags, tag]);
     setTagSearch(''); // 검색어 초기화
     // setIsTagDropdownOpen(false); // 연속 선택을 위해 닫지 않음 (원하면 주석 해제)
@@ -172,9 +172,9 @@ export default function UploadPage() {
 
   // 업로드 실행
   const handleUpload = async () => {
-    if (!file || !title) return toast.error("파일과 제목을 입력해주세요.");
+    if (!file || !title) return toast.error("Please choose a file and enter a title.");
     const totalShare = contributors.reduce((sum, c) => sum + Number(c.share), 0);
-    if (totalShare !== 100) return toast.error("지분율 합계는 100%여야 합니다.");
+    if (totalShare !== 100) return toast.error("Revenue split must total 100%.");
 
     try {
       setUploading(true);
@@ -216,11 +216,7 @@ export default function UploadPage() {
       }
       else {
         // ✅ B. 아무것도 없을 때 디폴트 이미지 사용
-        // (public 폴더에 있는 이미지는 도메인 주소로 접근해야 함)
-        // 로컬 개발 환경과 배포 환경을 모두 고려해 상대 경로 or 절대 경로 사용
-        // 보통 Supabase DB에 저장할 때는 풀 URL을 선호하지만, 프론트에서 보여줄 땐 '/images/...'도 동작함.
-        // 여기서는 간단하게 프로젝트 내부 경로를 저장합니다.
-        coverUrl = '/images/default_cover.jpg'; 
+        coverUrl = '/images/default_cover.jpg';
       }
 
      // 3. DB 저장 부분 수정
@@ -256,11 +252,11 @@ export default function UploadPage() {
       await supabase.from('track_contributors').insert(contributorsData);
 
       // 5. AI 분석
-      toast.success('업로드 완료! 서버가 곧 분석을 시작합니다.');
+      toast.success('Upload complete! The server will start analysis shortly.');
       router.push('/market');
 
     } catch (error: any) {
-      toast.error(`업로드 실패: ${error.message}`);
+      toast.error(`Upload failed: ${error.message}`);
     } finally {
       setUploading(false);
     }
@@ -381,7 +377,7 @@ export default function UploadPage() {
               Upload Masterpiece
             </h1>
             <p className="text-xs text-zinc-500 mt-1">
-              Unlisted 생태계에 마스터 트랙을 업로드합니다.
+              Upload your master track to the unlisted ecosystem.
             </p>
           </div>
         </div>
@@ -448,7 +444,7 @@ export default function UploadPage() {
                     Upload MP3 / WAV
                   </p>
                   <p className="text-[10px] text-zinc-500 mt-1">
-                    Drag & drop 지원 예정
+                    Drag & drop coming soon
                   </p>
                 </>
               )}
@@ -480,7 +476,7 @@ export default function UploadPage() {
               <div>
                 <div className="font-bold text-sm">Gen AI</div>
                 <div className="text-[10px] mt-1 opacity-70 leading-tight">
-                  Unlisted Native<br />(생태계 전용 독점 자산)
+                  Unlisted Native<br />(ecosystem-only exclusive asset)
                 </div>
               </div>
             </button>
@@ -502,7 +498,7 @@ export default function UploadPage() {
               <div>
                 <div className="font-bold text-sm">Human</div>
                 <div className="text-[10px] mt-1 opacity-70 leading-tight">
-                  Real-world Ready<br />(Spotify/Melon 확장 가능)
+                  Real-world Ready<br />(can expand to Spotify/Melon)
                 </div>
               </div>
             </button>
@@ -530,7 +526,7 @@ export default function UploadPage() {
                 value={lyrics}
                 onChange={(e) => setLyrics(e.target.value)}
                 className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white h-24 resize-none text-sm focus:outline-none focus:border-cyan-500/80"
-                placeholder="가사 전체를 넣어주세요 (선택)."
+                placeholder="Paste full lyrics here (optional)."
               />
             </div>
           </div>
@@ -577,7 +573,6 @@ export default function UploadPage() {
 
           {/* --- [NEW] BPM & Context Tags Section --- */}
           <div className="mt-6 space-y-6 border-t border-zinc-800 pt-6">
-            
             {/* 1. BPM Input */}
             <div>
               <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider">
@@ -593,7 +588,7 @@ export default function UploadPage() {
             </div>
 
             {/* 2. Tag Input System */}
-            <div ref={tagInputRef} className="relative z-20"> {/* z-index 중요 */}
+            <div ref={tagInputRef} className="relative z-20">
                 <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center justify-between">
                     <span>Context Tags</span>
                     <span className="text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">Max 10</span>
@@ -602,7 +597,7 @@ export default function UploadPage() {
                 {/* Selected Tags Display */}
                 <div className="flex flex-wrap gap-2 mb-2 min-h-[2rem] py-2">
                     {selectedTags.length === 0 && (
-                        <span className="text-xs text-zinc-600 italic py-1">선택된 태그가 없습니다.</span>
+                        <span className="text-xs text-zinc-600 italic py-1">No tags selected.</span>
                     )}
                     {selectedTags.map(tag => (
                         <span key={tag} className="bg-blue-900/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
@@ -642,7 +637,7 @@ export default function UploadPage() {
                             ))
                         ) : (
                             <div className="px-4 py-3 text-xs text-zinc-500 text-center">
-                                {tagSearch ? "일치하는 태그가 없습니다." : "검색어를 입력하세요."}
+                                {tagSearch ? "No matching tags." : "Type to search."}
                             </div>
                         )}
                     </div>
@@ -656,7 +651,7 @@ export default function UploadPage() {
               Revenue Split
             </label>
             <p className="text-[11px] text-zinc-500 mb-3">
-              기본적으로 내 지분은 100%에서 시작하며, 다른 컨트리뷰터의 지분을 입력하면 내 지분이 자동으로 줄어듭니다. 총합은 100%를 유지해야 업로드할 수 있습니다.
+              Your share starts at 100%. When you enter other contributors’ shares, your share decreases automatically. Total must remain 100% to publish.
             </p>
 
             <div className="space-y-2">
@@ -737,7 +732,7 @@ export default function UploadPage() {
                 image={imageSrc!}
                 crop={crop}
                 zoom={zoom}
-                aspect={1} // 1:1 정방형 고정
+                aspect={1}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onCropComplete={onCropComplete}

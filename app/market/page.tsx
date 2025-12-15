@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Radius, Book, PlayCircle, Play, Pause, TrendingUp, Loader2, UploadCloud, Music as MusicIcon, Trash2, ExternalLink, Coins, CheckCircle, User, Heart, Mic2, LayoutGrid, Disc, SkipForward, SkipBack, Volume2, Star, Zap, ArrowRight, Search, Menu } from 'lucide-react';
 import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI, MELODY_IP_ADDRESS, MELODY_IP_ABI } from '../constants';
-import { supabase } from '@/utils/supabase'; 
+import { supabase } from '@/utils/supabase';
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import HeaderProfile from '../components/HeaderProfile';
@@ -27,7 +27,7 @@ const melodyIpContract = getContract({ client, chain, address: MELODY_IP_ADDRESS
 type Track = {
   id: number;
   title: string;
-  artist_name: string; 
+  artist_name: string;
   audio_url: string;
   cover_image_url: string | null;
   is_minted: boolean;
@@ -38,7 +38,7 @@ type Track = {
 };
 
 type Profile = { wallet_address: string; username: string; avatar_url: string | null; };
-const PAGE_SIZE = 15; 
+const PAGE_SIZE = 15;
 
 export default function MarketPage() {
   // [Web3 Hook 교체] Wagmi useAccount -> Thirdweb useActiveAccount
@@ -59,7 +59,7 @@ export default function MarketPage() {
   const [investTracks, setInvestTracks] = useState<Track[]>([]);
   const [creators, setCreators] = useState<Profile[]>([]);
   const [browseTracks, setBrowseTracks] = useState<Track[]>([]);
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -67,7 +67,7 @@ export default function MarketPage() {
   const [loadingTop, setLoadingTop] = useState(true);
   const [processingTrackId, setProcessingTrackId] = useState<number | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
-  
+
   // Mobile UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobilePlayerOpen, setMobilePlayerOpen] = useState(false);
@@ -129,18 +129,18 @@ export default function MarketPage() {
   // --- Handlers (Thirdweb 전환 핵심) ---
 
   const handleRegister = async (track: Track) => {
-    if (!address) return toast.error("지갑 연결 필요");
+    if (!address) return toast.error("Wallet connection required.");
     if (processingTrackId) return; // 중복 방지
 
     setProcessingTrackId(track.id);
-    const uniqueHash = `${track.melody_hash || 'hash'}_${track.id}_${Date.now()}`; 
+    const uniqueHash = `${track.melody_hash || 'hash'}_${track.id}_${Date.now()}`;
 
     try {
-      toast.loading("서명 요청 중...", { id: 'register-toast' });
-      
+      toast.loading("Signature required...", { id: 'register-toast' });
+
       const { data: contributors } = await supabase.from('track_contributors').select('*').eq('track_id', track.id);
       let payees: string[] = [address]; let shares: bigint[] = [BigInt(10000)];
-      
+
       if (contributors && contributors.length > 0) {
         const valid = contributors.filter(c => c.wallet_address && c.wallet_address.startsWith('0x'));
         if (valid.length > 0) {
@@ -165,37 +165,37 @@ export default function MarketPage() {
             // 성공 시 DB 업데이트
             const { error } = await supabase.from('tracks').update({ is_minted: true, token_id: track.id }).eq('id', track.id); // token_id 임시 매핑
             if (!error) {
-                toast.success("등록 완료!", { id: 'register-toast' });
+                toast.success("Registered!", { id: 'register-toast' });
                 setBrowseTracks(prev => prev.map(t => t.id === track.id ? { ...t, is_minted: true } : t));
                 setNewTracks(prev => prev.map(t => t.id === track.id ? { ...t, is_minted: true } : t));
             } else {
-                toast.error("DB 업데이트 실패", { id: 'register-toast' });
+                toast.error("Database update failed.", { id: 'register-toast' });
             }
             setProcessingTrackId(null);
         },
         onError: (err) => {
             console.error(err);
-            toast.error("트랜잭션 실패", { id: 'register-toast' });
+            toast.error("Transaction failed.", { id: 'register-toast' });
             setProcessingTrackId(null);
         }
       });
 
-    } catch (e) { 
-        console.error(e); 
-        toast.error("오류 발생", { id: 'register-toast' });
-        setProcessingTrackId(null); 
+    } catch (e) {
+        console.error(e);
+        toast.error("An error occurred.", { id: 'register-toast' });
+        setProcessingTrackId(null);
     }
   };
 
   const handleInvest = (track: Track) => {
-    if (!address) return toast.error("지갑을 연결해주세요.");
+    if (!address) return toast.error("Please connect your wallet.");
     setSelectedTrack(track);
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("삭제하시겠습니까?")) return;
+    if (!confirm("Delete this track?")) return;
     const { error } = await supabase.from('tracks').delete().eq('id', id);
-    if (!error) { toast.success("삭제됨"); setBrowseTracks(prev => prev.filter(t => t.id !== id)); setNewTracks(prev => prev.filter(t => t.id !== id)); }
+    if (!error) { toast.success("Deleted."); setBrowseTracks(prev => prev.filter(t => t.id !== id)); setNewTracks(prev => prev.filter(t => t.id !== id)); }
     else toast.error(error.message);
   };
 
@@ -205,7 +205,7 @@ export default function MarketPage() {
     if (!audio) return;
     if (currentTrack) {
         if (audio.src !== currentTrack.audio_url) { audio.src = currentTrack.audio_url; setCurrentTime(0); }
-        if (isPlaying) { const p = audio.play(); if(p !== undefined) p.catch(console.error); } 
+        if (isPlaying) { const p = audio.play(); if(p !== undefined) p.catch(console.error); }
         else audio.pause();
     } else audio.pause();
   }, [currentTrack, isPlaying]);
@@ -216,7 +216,7 @@ export default function MarketPage() {
     const idx = list.findIndex(t => t.id === currentTrack.id);
     if (idx !== -1 && idx < list.length - 1) setCurrentTrack(list[idx + 1]);
   };
-  
+
   const handlePrev = () => {
     if (!currentTrack) return;
     const list = browseTracks.length > 0 ? browseTracks : newTracks;
@@ -225,7 +225,6 @@ export default function MarketPage() {
   };
 
   const formatTime = (time: number) => { if(isNaN(time)) return "0:00"; const min = Math.floor(time / 60); const sec = Math.floor(time % 60); return `${min}:${sec < 10 ? '0' : ''}${sec}`; };
-
 
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden font-sans">
@@ -242,7 +241,7 @@ export default function MarketPage() {
                  <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Discover</h3>
                  <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800 text-white cursor-pointer hover:bg-zinc-700 transition"><Disc size={18}/><span className="text-sm font-medium"> Explore</span></div>
                  <Link href="/radio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Radius size={18}/><span className="text-sm font-medium"> unlisted Player</span></div></Link>
-                 
+
                  <Link href="/investing"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><TrendingUp size={18}/><span className="text-sm font-medium"> Charts</span></div></Link>
              </div>
              <div>
@@ -387,10 +386,10 @@ export default function MarketPage() {
             </div>
         )}
       </main>
-      
+
       {/* 5. Mobile Full Player */}
       {currentTrack && mobilePlayerOpen && (
-            <MobilePlayer 
+            <MobilePlayer
                 track={currentTrack}
                 isPlaying={isPlaying}
                 onPlayPause={() => setIsPlaying(!isPlaying)}
@@ -406,11 +405,11 @@ export default function MarketPage() {
                 onSeek={(val) => { if(audioRef.current) audioRef.current.currentTime = val; }}
             />
       )}
-      
+
       {/* 6. Mobile Mini Player */}
       {currentTrack && !mobilePlayerOpen && (
-             <div 
-                className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" 
+             <div
+                className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40"
                 onClick={() => setMobilePlayerOpen(true)}
              >
                  <div className="flex items-center gap-3 overflow-hidden">
@@ -423,8 +422,8 @@ export default function MarketPage() {
                      </div>
                  </div>
                  <div className="flex items-center gap-3 pr-1">
-                     <button 
-                        onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} 
+                     <button
+                        onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }}
                         className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black"
                      >
                         {isPlaying ? <Pause size={16} fill="black"/> : <Play size={16} fill="black" className="ml-0.5"/>}
@@ -465,10 +464,10 @@ export default function MarketPage() {
       )}
 
       {selectedTrack && (
-        <TradeModal 
-            isOpen={!!selectedTrack} 
-            onClose={() => setSelectedTrack(null)} 
-            track={selectedTrack} 
+        <TradeModal
+            isOpen={!!selectedTrack}
+            onClose={() => setSelectedTrack(null)}
+            track={selectedTrack}
         />
       )}
     </div>

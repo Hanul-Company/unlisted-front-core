@@ -9,11 +9,11 @@ export default function PWAPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // 1. 브라우저가 설치 가능하다고 신호를 보내면 잡습니다.
+    // 1) Capture the browser signal that the app is installable.
     const handler = (e: any) => {
-      e.preventDefault(); // 기본 바(mini-infobar) 뜨지 않게 막음
-      setDeferredPrompt(e); // 이벤트 저장해두기
-      setShowPrompt(true); // 우리만의 UI 띄우기
+      e.preventDefault(); // Prevent the default mini-infobar
+      setDeferredPrompt(e); // Save the event
+      setShowPrompt(true); // Show our custom UI
     };
 
     window.addEventListener('beforeinstallprompt', handler);
@@ -24,16 +24,16 @@ export default function PWAPrompt() {
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
 
-    // 2. 저장해둔 설치 프롬프트 실행
+    // 2) Trigger the saved install prompt
     deferredPrompt.prompt();
 
-    // 3. 유저의 응답 기다리기
+    // 3) Wait for the user's choice
     const { outcome } = await deferredPrompt.userChoice;
-    
+
     if (outcome === 'accepted') {
-      toast.success("앱 설치를 시작합니다!");
+      toast.success("Starting app installation!");
     } else {
-      toast("설치를 취소했습니다.");
+      toast("Installation canceled.");
     }
 
     setDeferredPrompt(null);
@@ -51,23 +51,24 @@ export default function PWAPrompt() {
           </div>
           <div>
             <h3 className="font-bold text-sm text-white">Install App</h3>
-            <p className="text-xs text-zinc-400">홈 화면에 추가하고 더 빠르게 접속하세요.</p>
+            <p className="text-xs text-zinc-400">Add to your home screen for faster access.</p>
           </div>
         </div>
-        
+
         <div className="flex gap-2">
-            <button 
-                onClick={() => setShowPrompt(false)}
-                className="p-2 text-zinc-500 hover:text-white transition"
-            >
-                <X size={18}/>
-            </button>
-            <button 
-                onClick={handleInstallClick}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-full transition shadow-lg shadow-cyan-900/20"
-            >
-                Install
-            </button>
+          <button
+            onClick={() => setShowPrompt(false)}
+            className="p-2 text-zinc-500 hover:text-white transition"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+          <button
+            onClick={handleInstallClick}
+            className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-full transition shadow-lg shadow-cyan-900/20"
+          >
+            Install
+          </button>
         </div>
       </div>
     </div>

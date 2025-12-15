@@ -43,17 +43,17 @@ export default function IOSInstallPrompt() {
           <div className="space-y-2 flex-1">
             <h3 className="font-bold text-sm text-white">Install Unlisted App</h3>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              앱으로 설치하여 더 쾌적하게 즐기세요.
+              Install the app for a smoother experience.
             </p>
             
             {/* 가이드 스텝 */}
             <div className="flex flex-col gap-2 mt-2 text-xs text-zinc-300">
-                <div className="flex items-center gap-2">
-                    1. Tap <Share size={14} className="text-blue-400"/> button below.
-                </div>
-                <div className="flex items-center gap-2">
-                    2. Select <span className="font-bold text-white flex items-center gap-1"><PlusSquare size={14}/> Add to Home Screen</span>.
-                </div>
+              <div className="flex items-center gap-2">
+                1. Tap <Share size={14} className="text-blue-400"/> button below.
+              </div>
+              <div className="flex items-center gap-2">
+                2. Select <span className="font-bold text-white flex items-center gap-1"><PlusSquare size={14}/> Add to Home Screen</span>.
+              </div>
             </div>
           </div>
         </div>

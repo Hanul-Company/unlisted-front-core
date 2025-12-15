@@ -34,12 +34,12 @@ export default function LoginPage() {
 
         // [핵심] 세션이 바로 생기면(인증 불필요 설정 시) -> 바로 이동
         if (data.session) {
-            toast.success("가입 성공! 환영합니다.");
-            router.push('/onboarding');
+          toast.success("Sign up successful! Welcome.");
+          router.push('/onboarding');
         } 
         // [핵심] 세션이 없으면(이메일 인증 필요 시) -> 토스트 띄우고 대기
         else if (data.user && !data.session) {
-            toast.success("인증 메일을 발송했습니다! 메일함을 확인해주세요.", {
+            toast.success("Verification email sent! Please check your inbox.", {
                 duration: 6000,
                 icon: '📧',
             });
@@ -55,7 +55,7 @@ export default function LoginPage() {
 
         if (error) throw error;
 
-        toast.success("로그인되었습니다!");
+        toast.success("Logged in successfully!");
         
         // 프로필이 있는지 확인 후 없으면 온보딩, 있으면 마켓으로
         const { data: profile } = await supabase.from('profiles').select('id').eq('auth_user_id', data.user.id).maybeSingle();
@@ -78,9 +78,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-400 mb-2">
-            UNLISTED
+            unlisted
           </h1>
-          <p className="text-zinc-400">The Future of Music Investment</p>
+          <p className="text-zinc-400">The Music Never Existed.</p>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">

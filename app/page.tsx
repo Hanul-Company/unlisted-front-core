@@ -6,7 +6,6 @@ import { Play, Radio, Download, ArrowRight, Coins, Headphones, Sparkles, Trendin
 import { usePWA } from './context/PWAContext';
 import { motion, Variants } from 'framer-motion';
 
-// ✅ [수정] Variant 선언을 컴포넌트 바깥 최상단으로 이동 (오류 해결 핵심)
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -17,7 +16,6 @@ const stagger = {
   animate: { transition: { staggerChildren: 0.1 } }
 };
 
-// 2. 여기에 : Variants 타입 명시
 const cardVariant: Variants = {
   hidden: { opacity: 0, y: 30 },
   visible: { 
@@ -28,12 +26,10 @@ const cardVariant: Variants = {
 };
 
 export default function LandingPage() {
-  // PWA 설치 기능 가져오기
   const { isInstallable, installApp } = usePWA();
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30 overflow-hidden">
-      
       {/* Background Gradients */}
       <div className="fixed inset-0 pointer-events-none z-0">
           <div className="absolute top-[-10%] left-[-20%] w-[70%] h-[70%] rounded-full bg-blue-900/10 blur-[120px] animate-pulse-slow"/>
@@ -43,13 +39,17 @@ export default function LandingPage() {
       {/* Header Nav */}
       <header className="fixed top-0 w-full z-50 p-6 backdrop-blur-md border-b border-white/5 flex justify-between items-center bg-black/50">
         <div className="text-2xl font-black tracking-tighter flex items-center gap-2">
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 lowercase">
-              unlisted
-            </span>
+        <img
+            src="/icon-192.png"
+            alt="unlisted logo"
+            className="h-[1em] w-[1em] rounded-[0.2em] object-contain"
+        />
+        <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 lowercase leading-none">
+            unlisted
+        </span>
         </div>
         
         <div className="flex gap-4">
-            {/* ✅ [수정] PC(md 이상)에서는 Install 버튼 숨김 (모바일에서만 노출) */}
             <button 
                 onClick={installApp}
                 className="flex md:hidden items-center gap-2 px-5 py-2 rounded-full bg-white text-black hover:scale-105 transition text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
@@ -62,7 +62,6 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative min-h-[90vh] flex flex-col justify-center items-center px-6 pt-20">
         <motion.div variants={stagger} initial="initial" animate="animate" className="text-center max-w-4xl mx-auto space-y-6 z-10">
-            
             <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-900/30 border border-blue-500/30 backdrop-blur-md text-xs font-medium text-blue-300 mb-2">
                 <Radio size={14} className="animate-pulse"/> The music never existed
             </motion.div>
@@ -72,8 +71,8 @@ export default function LandingPage() {
             </motion.h1>
             
             <motion.p variants={fadeInUp} className="text-lg font-light text-zinc-400 max-w-xl mx-auto leading-relaxed tracking-wide">
-                Stream for free, Invest for fun. <br className="hidden md:block"/>
-                <span className="text-cyan-200">unlisted</span> is a music market never existed.
+                Stream for free. Invest for fun. <br className="hidden md:block"/>
+                <span className="text-cyan-200">unlisted</span> is a music market that never existed.
             </motion.p>
 
             <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6 w-full">
@@ -114,15 +113,13 @@ export default function LandingPage() {
                     How to <span className="text-blue-500 font-semibold">Play</span> & <span className="text-cyan-400 font-semibold">Earn</span>
                 </h2>
                 <p className="text-zinc-400 max-w-2xl mx-auto">
-                    unlisted는 음악을 듣는 행위가 투자가 되는 새로운 시장입니다.<br/>
-                    리스너에서 투자자로 성장하는 과정을 확인하세요.
+                    unlisted is a new kind of music market where listening can become investing.<br/>
+                    See how you grow from listener to investor.
                 </p>
             </motion.div>
 
-            {/* Bento Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* Card 1: Radio & pMLD */}
+                {/* Card 1 */}
                 <motion.div 
                     variants={cardVariant}
                     initial="hidden"
@@ -139,14 +136,14 @@ export default function LandingPage() {
                         </div>
                         <h3 className="text-xl font-bold mb-3 text-white">1. Upload & Earn</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            <span className="text-blue-300 font-semibold">unlisted</span>에 음악을 발매하기만해도 리스너들이 지불한
-                            <span className="text-white font-bold mx-1">MLD</span>가 자동으로 쌓입니다. 
-                            지금 당신의 곡을 발매하고 포인트를 채굴하세요.
+                            Just publish your music on <span className="text-blue-300 font-semibold">unlisted</span>, and the
+                            <span className="text-white font-bold mx-1">MLD</span> paid by listeners accumulates automatically. 
+                            Upload now and start mining rewards.
                         </p>
                         <div className="bg-black/40 rounded-xl p-4 border border-white/5">
                             <div className="flex justify-between items-center text-xs mb-2">
                                 <span className="text-zinc-500">Reward</span>
-                                <span className="text-blue-400 font-bold">1 MLD for 1 Collect</span>
+                                <span className="text-blue-400 font-bold">1 MLD per 1 Collect</span>
                             </div>
                             <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                                 <div className="bg-blue-500 h-full w-2/3 animate-pulse"></div>
@@ -155,7 +152,7 @@ export default function LandingPage() {
                     </div>
                 </motion.div>
 
-                {/* Card 2: Rental & Collection */}
+                {/* Card 2 */}
                 <motion.div 
                     variants={cardVariant}
                     initial="hidden"
@@ -171,26 +168,26 @@ export default function LandingPage() {
                          <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mb-6 text-cyan-400">
                             <Sparkles size={24} />
                         </div>
-                        <h3 className="text-xl font-bold mb-3 text-white">2. Pay for collection</h3>
+                        <h3 className="text-xl font-bold mb-3 text-white">2. Pay to Collect</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            무료로 음악을 감상하며 <span className="text-white font-bold mx-1">MLD</span>로 마음에 드는 곡을 
-                            <span className="text-cyan-300 font-semibold mx-1">Collect</span>하세요.
-                            나만의 컬렉션을 완성하고 소중한 음악을 언제든 감상하세요.
+                            Listen for free, then use <span className="text-white font-bold mx-1">MLD</span> to
+                            <span className="text-cyan-300 font-semibold mx-1">Collect</span> songs you love.
+                            Build your library and enjoy your picks anytime.
                         </p>
                         <ul className="space-y-2 text-xs text-zinc-400">
                             <li className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                                <span>곡을 Collecg하면 내 컬렉션에 추가됩니다.</span>
+                                <span>Collecting adds the track to your library.</span>
                             </li>
                             <li className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                                <span>pMLD가 부족하면 MLD로도 결제 가능!</span>
+                                <span>If pMLD is not enough, you can also pay with MLD.</span>
                             </li>
                         </ul>
                     </div>
                 </motion.div>
 
-                 {/* Card 3: Investment (Wide) */}
+                 {/* Card 3 */}
                  <motion.div 
                     variants={cardVariant}
                     initial="hidden"
@@ -208,8 +205,8 @@ export default function LandingPage() {
                         </div>
                         <h3 className="text-xl font-bold mb-3 text-white">3. Invest & Trade</h3>
                         <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            이제 감상과 수집을 넘어<span className="text-indigo-300 font-bold mx-1">MLD </span>로 
-                            음악의 지분(Shares)을 실제로 구매하세요. 직접 음악의 주인이 되어 수익을 분배받고, 차익을 실현하세요.
+                            Go beyond listening and collecting—use <span className="text-indigo-300 font-bold mx-1">MLD</span> to
+                            buy music shares. Become an owner, earn distributions, and realize gains.
                         </p>
                         <Link href="/market">
                             <button className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold transition flex items-center justify-center gap-2">
@@ -219,7 +216,7 @@ export default function LandingPage() {
                     </div>
                 </motion.div>
 
-                {/* Card 4: Token Economy Guide (Full Width) */}
+                {/* Card 4 */}
                 <motion.div 
                     variants={cardVariant}
                     initial="hidden"
@@ -234,11 +231,10 @@ export default function LandingPage() {
                                 <Coins className="text-yellow-400"/> Token System
                              </h3>
                              <p className="text-zinc-400 text-sm mb-6">
-                                unlisted는 두 가지 토큰이 하이브리드로 움직입니다.
+                                unlisted runs on a hybrid system of two tokens.
                              </p>
                              
                              <div className="space-y-4">
-                                {/* pMLD Info */}
                                 <div className="flex items-start gap-4 p-4 rounded-xl bg-black/40 border border-white/5">
                                     <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
                                         <span className="text-blue-400 font-bold text-xs">P</span>
@@ -246,12 +242,11 @@ export default function LandingPage() {
                                     <div>
                                         <h4 className="font-bold text-blue-400 text-sm">pMLD (Points)</h4>
                                         <p className="text-xs text-zinc-500 mt-1">
-                                            음악 감상과 콜렉팅에 사용되는 포인트. 광고 시청으로 무료 채굴가능 (Web2 Points)
+                                            Points used for listening and collecting. You can mine them for free via ads (Web2 Points).
                                         </p>
                                     </div>
                                 </div>
 
-                                {/* MLD Info */}
                                 <div className="flex items-start gap-4 p-4 rounded-xl bg-black/40 border border-white/5">
                                     <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
                                         <span className="text-indigo-400 font-bold text-xs">M</span>
@@ -259,21 +254,20 @@ export default function LandingPage() {
                                     <div>
                                         <h4 className="font-bold text-indigo-400 text-sm">MLD (Token)</h4>
                                         <p className="text-xs text-zinc-500 mt-1">
-                                            음악 감상과 렌탈, 투자 및 현금화까지 가능한 토큰 (Web3 Token)
+                                            A token that supports listening, renting, investing, and cash-out (Web3 Token).
                                         </p>
                                     </div>
                                 </div>
                              </div>
                         </div>
 
-                        {/* Free Faucet Banner */}
                         <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 rounded-2xl p-6 border border-blue-500/30 text-center relative overflow-hidden">
                              <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-r from-transparent via-white/10 to-transparent rotate-45 animate-shine pointer-events-none"/>
                              
                              <Gift size={48} className="mx-auto text-yellow-400 mb-4 animate-bounce-slow"/>
                              <h4 className="text-xl font-bold text-white mb-2">Want Free Tokens?</h4>
                              <p className="text-zinc-300 text-xs mb-6">
-                                처음 오셨나요? Faucet에서 무료 pMLD와 테스트용 MLD를 받아보세요.
+                                New here? Claim free pMLD and test MLD from the faucet.
                              </p>
                              <Link href="/earn">
                                 <button className="px-8 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition shadow-lg shadow-blue-500/20 text-sm">
@@ -283,7 +277,6 @@ export default function LandingPage() {
                         </div>
                     </div>
                 </motion.div>
-
             </div>
         </div>
       </section>
