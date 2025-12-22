@@ -113,87 +113,51 @@ export const MELODY_IP_ABI = [
 ] as const;
 
 export const MUSIC_GENRES = [
-  // Pop & K
-  "Pop",
-  "K-Pop",
-  "K-Hip Hop",
-  "R&B",
-
-  // Hip-hop / Chill
-  "Hip-hop",
-  "Trap",
-  "Lo-fi",
-
-  // Rock / Band
-  "Rock",
-  "Indie Rock",
-
-  // Electronic / Dance
-  "EDM",
-  "House",
-  "Future Bass",
-
-  // Jazz / Acoustic / Film
-  "Jazz",
-  "Acoustic",
-  "Singer-Songwriter",
-  "Cinematic",
-
-  // 기타
-  "City Pop",
+  // Basic
+  'Pop', 'Hip-Hop', 'R&B', 'Electronic', 'Rock', 'Jazz', 'Lo-Fi', 'Classical', 'Ambient',
+  // Billboard & Trendy (Added from Seed)
+  'Modern Pop', 'Synthwave', 'Future Bass', 'Trap Soul', 'Alternative R&B',
+  'K-Pop', 'Pop Rock', 'Disco Pop', 'Deep House', 'Afrobeat', 'Hyperpop'
 ];
+
 export const MUSIC_MOODS = [
-  // 기본 무드
-  "Happy",
-  "Chill",
-  "Sad",
-  "Romantic",
-  "Energetic",
-  "Dark",
-
-  // 감정 디테일
-  "Melancholic",
-  "Uplifting",
-  "Dreamy",
-  "Nostalgic",
-
-  // 상황 / 용도
-  "Focus",
-  "Study",
-  "Party",
-  "Late Night",
-  "Groovy",
-];
-
-// ✅ [추가] 킬러 시나리오 매트릭스
-export const MUSIC_SCENARIOS = [
-  { id: 'coding', emoji: '💻', title: 'Deep Focus', tags: ['coding', 'focus', 'lofi'] },
-  { id: 'workout', emoji: '💪', title: 'Beast Mode', tags: ['workout', 'gym', 'phonk'] },
-  { id: 'drive', emoji: '🌃', title: 'Night Drive', tags: ['drive', 'synthwave', 'night'] },
-  { id: 'healing', emoji: '🍂', title: 'Healing', tags: ['healing', 'ballad', 'emotional'] },
-  { id: 'cafe', emoji: '☕', title: 'Trendy Cafe', tags: ['cafe', 'rnb', 'groove'] },
-  { id: 'retro', emoji: '📻', title: '2000s Vibes', tags: ['nostalgia', 'retro', 'acoustic'] },
-  { id: 'romantic', emoji: '🍷', title: 'Red Light', tags: ['romantic', 'slowjam', 'sexy'] },
-  { id: 'morning', emoji: '☀️', title: 'Miracle Morning', tags: ['morning', 'acoustic', 'fresh'] },
-  { id: 'lounge', emoji: '🏖️', title: 'Luxury Lounge', tags: ['lounge', 'house', 'luxury'] },
-  { id: 'sleep', emoji: '😴', title: 'Deep Sleep', tags: ['sleep', 'ambient', 'calm'] },
+  // Basic
+  'Happy', 'Chill', 'Sad', 'Energetic', 'Focus', 'Romantic', 'Dark', 'Dreamy',
+  // Added from Seed
+  'Sexy', 'Groovy'
+  // Note: 'Melancholic' will be mapped to 'Sad'
 ];
 
 export const MUSIC_TAGS = [
+  // --- Situational / Functional (Basic) ---
   "coding", "focus", "study", "reading", "writing", "work", "productivity",
   "workout", "gym", "training", "running", "yoga", "meditation", "sleep", "relax",
   "drive", "travel", "commute", "party", "dance", "club", "gaming", "parenting",
   "morning", "afternoon", "evening", "night", "dawn", "sunset", "midnight",
   "weekday", "weekend", "city", "subway", "cafe", "lounge", "bedroom", "home",
-  "office", "beach", "roadtrip", "rooftop", "rainy", "afterrain",
-  "lofi", "acoustic", "ambient", "electronic", "synthwave", "house", "techno",
-  "trap", "phonk", "rnb", "hiphop", "jazz", "jazzhiphop", "ballad", "slowjam",
-  "indie", "pop", "citypop", "retro", "vinyl", "analog", "reverb", "distortion",
-  "minimal", "orchestral", "japanese", "jpop", "anime", "shibuya", "uk",
-  "britpop", "grime", "french", "latin", "korean", "kpop", "focusflow", "energy",
-  "groove", "chill", "calm", "healing", "comfort", "emotional", "sentimental",
-  "nostalgia", "dreamy", "romantic", "sexy", "sensual", "happy", "uplifting",
-  "fresh", "hype", "dark", "moody", "gloomy", "melancholic", "rainvibes",
-  "luxury", "trendy", "couple", "love", "breakup", "selfcare", "mindfulness",
-  "latevibes", "nightdrive", "urban", "smooth", "warm", "cool"
+  "office", "beach", "roadtrip", "rooftop", "rainy", "afterrain", "summer",
+
+  // --- Vibe & Quality (Added from Seed) ---
+  "Chart topping", "Radio ready", "Viral hit", "Billboard top 100",
+  "High fidelity", "Modern mix", "Catchy hook", "Heavy bass",
+  "Club banger", "Summer vibe", "Late night drive", "TikTok viral",
+  "Mainstream appeal", "Dynamic production",
+
+  // --- Vocal Styles (Added from Seed) ---
+  "Female Vocals", "Male Vocals",
+  "Airy", "Breathy", "Emotional", "Narrative", // Taylor style
+  "Gritty", "Raspy", "Vibrato", // Post Malone style
+  "Soulful", "Powerful", "Diva", "Belting", // Beyonce style
+  "Falsetto", "Smooth", "High-register", // The Weeknd style
+  "Bright", "Polished", "Trendy", "Youthful", "Clean" // K-Pop style
+];
+
+// (Scenario List Keep or Update as needed - 기존 유지)
+export const MUSIC_SCENARIOS = [
+  { id: 'coding', emoji: '💻', title: 'Deep Focus Coding', tags: ['coding', 'focus', 'electronic'] },
+  { id: 'workout', emoji: '💪', title: 'High Intensity Workout', tags: ['workout', 'gym', 'phonk'] },
+  { id: 'drive', emoji: '🚗', title: 'Night City Drive', tags: ['drive', 'night', 'synthwave'] },
+  { id: 'cafe', emoji: '☕', title: 'Sunday Morning Cafe', tags: ['cafe', 'morning', 'acoustic'] },
+  { id: 'lounge', emoji: '🏖️', title: 'Luxury Lounge', tags: ['lounge', 'house', 'luxury'] },
+  { id: 'sleep', emoji: '😴', title: 'Deep Sleep', tags: ['sleep', 'ambient', 'calm'] },
 ];
