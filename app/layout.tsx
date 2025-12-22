@@ -8,7 +8,7 @@ import { AuthProvider } from './context/AuthContext';
 // [필수] PWAProvider 임포트
 import { PWAProvider } from './context/PWAContext';
 import PWAPrompt from './components/PWAPrompt';
-import IOSInstallPrompt from './components/IOSInstallPrompt'; // [추가]
+import IOSInstallPrompt from './components/IOSInstallPrompt'; // [추가]ㅇ
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit', display: 'swap' });
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' });
