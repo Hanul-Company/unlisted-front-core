@@ -32,6 +32,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${outfit.variable} ${jakarta.variable} font-sans bg-black text-white antialiased selection:bg-cyan-500/30`}>
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-MTPLHYPLD4"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-MTPLHYPLD4');
+      </script>
         <Providers>
           <AuthProvider>
             {/* [핵심] PWAProvider로 children을 감싸야 usePWA가 작동합니다 */}
