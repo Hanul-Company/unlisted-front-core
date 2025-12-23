@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-// 폰트 설정 (기존 유지)
+// 폰트 설정 (기존 유지) 
 import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
 import { Providers } from './providers';
 import { Toaster } from 'react-hot-toast';
