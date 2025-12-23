@@ -24,7 +24,7 @@ jobs:
             cd /home/ec2-user/unlisted-front-core 
 
             # 2. 최신 코드 받기
-            git pull origin master
+            git pull origin master -f
 
             # 3. 의존성 설치
             npm install --legacy-peer-deps
