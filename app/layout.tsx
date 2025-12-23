@@ -8,7 +8,8 @@ import { AuthProvider } from './context/AuthContext';
 // [필수] PWAProvider 임포트
 import { PWAProvider } from './context/PWAContext';
 import PWAPrompt from './components/PWAPrompt';
-import IOSInstallPrompt from './components/IOSInstallPrompt'; // [추가]ㅇ
+import IOSInstallPrompt from './components/IOSInstallPrompt';
+import {GoogleAnalytics} from "@next/third-parties/google"; // [추가]ㅇ
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit', display: 'swap' });
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' });
@@ -30,7 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning={true}>
+
       <body className={`${outfit.variable} ${jakarta.variable} font-sans bg-black text-white antialiased selection:bg-cyan-500/30`}>
         <Providers>
           <AuthProvider>
@@ -59,6 +61,7 @@ export default function RootLayout({
           </AuthProvider>
         </Providers>
       </body>
+      <GoogleAnalytics gaId="G-MTPLHYPLD4" />
     </html>
   );
 }
