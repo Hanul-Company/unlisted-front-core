@@ -9,7 +9,7 @@ import { AuthProvider } from './context/AuthContext';
 import { PWAProvider } from './context/PWAContext';
 import PWAPrompt from './components/PWAPrompt';
 import IOSInstallPrompt from './components/IOSInstallPrompt';
-import {GoogleAnalytics} from "@next/third-parties/google"; // [추가]ㅇ
+import {GoogleAnalytics} from "@next/third-parties/google"; // [추가]
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit', display: 'swap' });
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' });
