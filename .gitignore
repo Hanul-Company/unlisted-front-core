@@ -54,3 +54,9 @@ server/movies/
 server/*.mp3
 server/*.mp4
 server/*.jpg
+
+# PWA files
+public/sw.js
+public/sw.js.map
+public/workbox-*
+public/swe-worker-*

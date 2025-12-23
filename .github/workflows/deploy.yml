@@ -28,6 +28,7 @@ jobs:
 
             # 3. 의존성 설치
             npm install --legacy-peer-deps
+            npm ci
 
             # 4. Next.js 빌드
             npm run build
