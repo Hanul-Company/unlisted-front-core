@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { supabase } from '@/utils/supabase';
 import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants';
 import { ListMusic, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, Volume2, VolumeX, ChevronLeft } from 'lucide-react';
@@ -29,7 +29,7 @@ const tokenContract = getContract({
   abi: MELODY_TOKEN_ABI as any
 });
 
-export default function RadioPage() {
+function RadioContent() {
   const account = useActiveAccount();
   const address = account?.address;
 
@@ -815,5 +815,20 @@ export default function RadioPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// 3. 새로 'RadioPage'를 만들어서 Suspense로 감싸줍니다.
+export default function RadioPage() {
+  return (
+    // fallback에는 로딩 중에 보여줄 간단한 UI를 넣습니다.
+    <Suspense fallback={
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white">
+        <Loader2 className="animate-spin text-green-500 mb-2" size={48} />
+        <p className="text-zinc-500 font-bold animate-pulse">Initializing Radio...</p>
+      </div>
+    }>
+      <RadioContent />
+    </Suspense>
   );
 }
