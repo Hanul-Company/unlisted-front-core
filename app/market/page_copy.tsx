@@ -37,13 +37,6 @@ type Track = {
   created_at: string;
 };
 
-// 1. [추가] 플레이리스트 표시를 위한 타입 정의
-type FeaturedPlaylist = {
-  id: number; // 스키마상 bigint지만 JS에서는 number로 처리 (혹은 string)
-  name: string;
-  cover_image: string | null;
-};
-
 type Profile = { wallet_address: string; username: string; avatar_url: string | null; };
 const PAGE_SIZE = 15;
 
@@ -74,8 +67,6 @@ export default function MarketPage() {
   const [loadingTop, setLoadingTop] = useState(true);
   const [processingTrackId, setProcessingTrackId] = useState<number | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
-  // 2. [추가] 플레이리스트 State 추가
-  const [featuredPlaylists, setFeaturedPlaylists] = useState<FeaturedPlaylist[]>([]);
 
   // Mobile UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -105,51 +96,6 @@ export default function MarketPage() {
       setLoadingTop(false);
     };
     fetchTopData();
-
-    // 3. [추가] 플레이리스트 및 첫 번째 곡의 커버 이미지 로딩
-    const fetchPlaylists = async () => {
-      // playlist_items를 통해 tracks 정보를 조인해서 가져옵니다.
-      // limit(1)을 서브쿼리에 걸어주면 좋지만, supabase js sdk 특성상 
-      // 가져온 후 가공하는 것이 확실할 때가 많습니다.
-      const { data, error } = await supabase
-        .from('playlists')
-        .select(`
-          id,
-          name,
-          playlist_items (
-            added_at,
-            tracks (
-              cover_image_url
-            )
-          )
-        `)
-        // ✅ [수정] admin이 지정한(is_featured=true) 것만 가져오도록 변경
-        .eq('is_featured', true) 
-        .order('id', { ascending: false }) // 혹은 created_at
-        // limit(10)은 제거해도 됨 (어드민에서 이미 10개 제한을 뒀으므로), 안전장치로 둬도 무방.
-
-      if (error) {
-        console.error("Failed to fetch playlists:", error);
-        return;
-      }
-
-      // 데이터 가공: 첫 번째 트랙의 이미지를 대표 커버로 선정
-      const formatted: FeaturedPlaylist[] = data.map((pl: any) => {
-        // playlist_items 중 가장 먼저 추가된(혹은 아무거나) 아이템의 커버 찾기
-        const firstItem = pl.playlist_items?.[0]; 
-        const coverUrl = firstItem?.tracks?.cover_image_url || null; // 없으면 null (기본이미지 처리)
-
-        return {
-          id: pl.id,
-          name: pl.name,
-          cover_image: coverUrl
-        };
-      });
-
-      setFeaturedPlaylists(formatted);
-    };
-
-    fetchPlaylists();
   }, []);
 
   // --- Browse Data ---
@@ -334,57 +280,6 @@ export default function MarketPage() {
             <div className="flex justify-center pt-40"><Loader2 className="animate-spin text-cyan-500" size={32}/></div>
         ) : (
             <div className="pb-10 pt-4">
-                {/* 4. [수정] Playlists for you 섹션 */}
-                <section>
-                    <div className="flex items-center justify-between mb-6"> {/* mb-4 -> mb-6 (Fresh Drops와 간격 통일) */}
-                    {/* Fresh Drops 헤더와 완전히 동일한 스타일 적용 */}
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <LayoutGrid className="text-green-400" size={24} />
-                        Playlists for you
-                    </h2>
-                    </div>
-                    
-                    {/* 가로 스크롤 컨테이너 */}
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-                    {featuredPlaylists.length === 0 ? (
-                        <div className="text-zinc-500 text-sm">No playlists available yet.</div>
-                    ) : (
-                        featuredPlaylists.map((pl) => (
-                        // ✅ [수정] 클릭 시 라디오 페이지로 이동하며 playlist_id 전달
-                        <Link href={`/radio?playlist_id=${pl.id}`} key={pl.id} className="flex-shrink-0 snap-start">
-                            <div 
-                            className="
-                                relative overflow-hidden rounded-xl bg-zinc-800 group cursor-pointer 
-                                transition-transform hover:scale-105
-                                w-32 h-32              
-                                md:w-64 md:h-64        
-                            "
-                            >
-                            {/* 배경 이미지 */}
-                            {pl.cover_image ? (
-                                <img 
-                                src={pl.cover_image} 
-                                alt={pl.name} 
-                                className="w-full h-full object-cover transition-opacity group-hover:opacity-90"
-                                />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-zinc-800 bg-gradient-to-br from-zinc-700 to-zinc-900">
-                                <Disc size={32} className="text-zinc-600 md:w-16 md:h-16" />
-                                </div>
-                            )}
-
-                            {/* ✅ [수정] 텍스트 오버레이: 왼쪽 아래, 작은 글씨, 안 굵게 */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-3">
-                                <span className="text-white font-medium text-xs md:text-base drop-shadow-md break-words line-clamp-2 text-left">
-                                {pl.name}
-                                </span>
-                            </div>
-                            </div>
-                        </Link>
-                        ))
-                    )}
-                    </div>
-                </section>
                 {/* 1. Fresh Drops */}
                 <section className="py-6 border-b border-zinc-800/50">
                     <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2"><Star className="text-yellow-400" size={20}/> Fresh Drops</h2></div>
