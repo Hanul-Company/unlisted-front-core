@@ -20,6 +20,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
+            set -e
+            
             # 1. 프로젝트 폴더로 이동
             cd /home/ec2-user/unlisted-front-core 
 
