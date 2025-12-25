@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { supabase } from '@/utils/supabase';
 import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants';
 import { ListMusic, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, Volume2, VolumeX, ChevronLeft } from 'lucide-react';
@@ -13,7 +13,7 @@ import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_SCENARIOS } from '../constants';
 import HeaderProfile from '../components/HeaderProfile';
 import RentalModal from '../components/RentalModal';
 // ✅ [추가] URL 파라미터 읽기 위한 훅 import
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 const stockContract = getContract({
   client,
@@ -29,13 +29,15 @@ const tokenContract = getContract({
   abi: MELODY_TOKEN_ABI as any
 });
 
-export default function RadioPage() {
+function RadioContent() {
   const account = useActiveAccount();
   const address = account?.address;
 
   // ✅ [추가] 쿼리 파라미터 훅 사용
   const searchParams = useSearchParams();
   const targetPlaylistId = searchParams.get('playlist_id');
+  // 👇 [추가] 라우터 훅 선언
+  const router = useRouter();
 
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -646,10 +648,14 @@ export default function RadioPage() {
       <header className="flex justify-between items-center p-6 z-50 pointer-events-none relative">
         <button
           onClick={() => {
-             // 플레이리스트 모드면 URL 파라미터 날리고 초기화 (선택사항)
-             setStep('onboarding');
-             setQueue([]);
-             setIsPlaying(false);
+            // ✅ [수정] 플레이리스트 모드일 땐 Market으로 나가고, 아니면 선택 화면으로 이동
+            if (targetPlaylistId) {
+              router.push('/market');
+            } else {
+              setStep('onboarding'); 
+              setIsPlaying(false); 
+              audioRef.current?.pause();
+            }
           }}
           className="w-10 h-10 bg-black/20 backdrop-blur-md border border-white/5 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition pointer-events-auto"
         >
@@ -809,5 +815,20 @@ export default function RadioPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// 3. 새로 'RadioPage'를 만들어서 Suspense로 감싸줍니다.
+export default function RadioPage() {
+  return (
+    // fallback에는 로딩 중에 보여줄 간단한 UI를 넣습니다.
+    <Suspense fallback={
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white">
+        <Loader2 className="animate-spin text-green-500 mb-2" size={48} />
+        <p className="text-zinc-500 font-bold animate-pulse">Initializing Radio...</p>
+      </div>
+    }>
+      <RadioContent />
+    </Suspense>
   );
 }
