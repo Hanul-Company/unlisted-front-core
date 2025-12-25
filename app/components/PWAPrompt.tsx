@@ -7,40 +7,41 @@ import toast from 'react-hot-toast';
 export default function PWAPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // 1) Capture the browser signal that the app is installable.
+    const check = () => setIsMobile(window.innerWidth < 768); // md = 768px
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return; // ✅ PC에선 beforeinstallprompt 자체를 안 붙임
+
     const handler = (e: any) => {
-      e.preventDefault(); // Prevent the default mini-infobar
-      setDeferredPrompt(e); // Save the event
-      setShowPrompt(true); // Show our custom UI
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowPrompt(true);
     };
 
     window.addEventListener('beforeinstallprompt', handler);
-
     return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+  }, [isMobile]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-
-    // 2) Trigger the saved install prompt
     deferredPrompt.prompt();
-
-    // 3) Wait for the user's choice
     const { outcome } = await deferredPrompt.userChoice;
 
-    if (outcome === 'accepted') {
-      toast.success("Starting app installation!");
-    } else {
-      toast("Installation canceled.");
-    }
+    if (outcome === 'accepted') toast.success("Starting app installation!");
+    else toast("Installation canceled.");
 
     setDeferredPrompt(null);
     setShowPrompt(false);
   };
 
-  if (!showPrompt) return null;
+  if (!isMobile || !showPrompt) return null; // ✅ PC면 아예 렌더 X
 
   return (
     <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-sm animate-in slide-in-from-bottom-5 fade-in duration-500">

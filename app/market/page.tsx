@@ -359,7 +359,7 @@ export default function MarketPage() {
                                 border border-zinc-700 hover:border-white/20
                                 
                                 /* ⛔️ 중요: 여기에 hover:scale 관련 코드가 절대 없어야 합니다 */
-                                min-w-[120px] w-[120px] h-[120px]
+                                min-w-[160px] w-[120px] h-[160px]
                                 md:w-[240px] md:h-[240px]
                             "
                             >

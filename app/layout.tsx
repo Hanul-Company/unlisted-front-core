@@ -31,6 +31,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning={true}>
+      <head>
+        {/* ✅ [수정 3] 구글 애드센스 스크립트 추가 (next/script 사용) */}
+        <Script
+          id="adsense-init"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4647509027586331"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body className={`${outfit.variable} ${jakarta.variable} font-sans bg-black text-white antialiased selection:bg-cyan-500/30`}>
         <Providers>
           <AuthProvider>
@@ -62,15 +72,6 @@ export default function RootLayout({
             </PWAProvider>
           </AuthProvider>
         </Providers>
-
-        {/* ✅ [수정 3] 구글 애드센스 스크립트 추가 (next/script 사용) */}
-        <Script
-          id="adsense-init"
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4647509027586331"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
       </body>
       
       {/* Google Analytics는 body 밖(html 내부) 혹은 body 끝에 위치해도 괜찮습니다 */}
