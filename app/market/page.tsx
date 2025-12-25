@@ -322,7 +322,7 @@ export default function MarketPage() {
         <header className="flex justify-between items-center p-6 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-20 border-b border-zinc-800">
           <div className="flex items-center gap-4">
              <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white"><Menu/></button>
-             <h1 className="text-xl font-bold">Discover</h1>
+             <h1 className="text-xl font-bold">Explore</h1>
           </div>
           <div className="flex items-center gap-3">
              {address && <div className="hidden sm:block text-xs font-mono text-green-400 bg-zinc-950 px-3 py-1.5 rounded-full border border-zinc-800 shadow-inner">{balanceData ? Number(formatEther(balanceData as bigint)).toLocaleString(undefined, {maximumFractionDigits:0}) : 0} MLD</div>}
@@ -335,50 +335,54 @@ export default function MarketPage() {
         ) : (
             <div className="pb-10 pt-4">
                 {/* 4. [수정] Playlists for you 섹션 */}
-                <section>
-                    <div className="flex items-center justify-between mb-6"> {/* mb-4 -> mb-6 (Fresh Drops와 간격 통일) */}
-                    {/* Fresh Drops 헤더와 완전히 동일한 스타일 적용 */}
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <LayoutGrid className="text-green-400" size={24} />
-                        Playlists for you
-                    </h2>
+                <section className="mb-2"> {/* Fresh Drops와의 간격 조정을 위한 mb 추가 */}
+                    {/* Header: Fresh Drops와 동일한 패딩(px-6)과 마진(mb-4), 폰트 크기(text-lg) 적용 */}
+                    <div className="px-6 mb-4 flex items-center justify-between">
+                        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                            {/* 아이콘 사이즈도 Fresh Drops의 Star(20)와 동일하게 20으로 수정 */}
+                            Playlists for you
+                        </h2>
                     </div>
                     
                     {/* 가로 스크롤 컨테이너 */}
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                    <div className="flex gap-4 overflow-x-auto px-6 pb-4 scrollbar-hide snap-x pt-2"> 
+                    {/* pt-2 추가: 혹시 모를 그림자 잘림 방지용 여백 */}
+                    
                     {featuredPlaylists.length === 0 ? (
                         <div className="text-zinc-500 text-sm">No playlists available yet.</div>
                     ) : (
                         featuredPlaylists.map((pl) => (
-                        // ✅ [수정] 클릭 시 라디오 페이지로 이동하며 playlist_id 전달
-                        <Link href={`/radio?playlist_id=${pl.id}`} key={pl.id} className="flex-shrink-0 snap-start">
+                        <Link href={`/radio?playlist_id=${pl.id}`} key={pl.id} className="flex-shrink-0 snap-start block">
                             <div 
                             className="
                                 relative overflow-hidden rounded-xl bg-zinc-800 group cursor-pointer 
-                                transition-transform hover:scale-105
-                                w-32 h-32              
-                                md:w-64 md:h-64        
+                                border border-zinc-700 hover:border-white/20
+                                
+                                /* ⛔️ 중요: 여기에 hover:scale 관련 코드가 절대 없어야 합니다 */
+                                min-w-[120px] w-[120px] h-[120px]
+                                md:w-[240px] md:h-[240px]
                             "
                             >
-                            {/* 배경 이미지 */}
-                            {pl.cover_image ? (
-                                <img 
-                                src={pl.cover_image} 
-                                alt={pl.name} 
-                                className="w-full h-full object-cover transition-opacity group-hover:opacity-90"
-                                />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-zinc-800 bg-gradient-to-br from-zinc-700 to-zinc-900">
-                                <Disc size={32} className="text-zinc-600 md:w-16 md:h-16" />
-                                </div>
-                            )}
+                                {/* 배경 이미지 */}
+                                {pl.cover_image ? (
+                                    <img 
+                                    src={pl.cover_image} 
+                                    alt={pl.name} 
+                                    // ✅ [수정] 이미지만 확대되도록 설정 (틀은 고정)
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-zinc-800 bg-gradient-to-br from-zinc-700 to-zinc-900">
+                                    <Disc size={32} className="text-zinc-600 md:w-16 md:h-16" />
+                                    </div>
+                                )}
 
-                            {/* ✅ [수정] 텍스트 오버레이: 왼쪽 아래, 작은 글씨, 안 굵게 */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-3">
-                                <span className="text-white font-medium text-xs md:text-base drop-shadow-md break-words line-clamp-2 text-left">
-                                {pl.name}
-                                </span>
-                            </div>
+                                {/* 텍스트 오버레이 (이미지 위에 고정됨) */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-3 pointer-events-none">
+                                    <span className="text-white font-medium text-xs md:text-sm drop-shadow-md break-words line-clamp-2 text-left">
+                                    {pl.name}
+                                    </span>
+                                </div>
                             </div>
                         </Link>
                         ))
@@ -387,7 +391,7 @@ export default function MarketPage() {
                 </section>
                 {/* 1. Fresh Drops */}
                 <section className="py-6 border-b border-zinc-800/50">
-                    <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2"><Star className="text-yellow-400" size={20}/> Fresh Drops</h2></div>
+                    <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2">Fresh Drops</h2></div>
                     <div className="flex gap-4 overflow-x-auto px-6 pb-4 scrollbar-hide">
                         {newTracks.map((t) => (
                             <div key={t.id} className="min-w-[160px] w-[160px] group cursor-pointer" onClick={() => { setCurrentTrack(t); setIsPlaying(true); setMobilePlayerOpen(true); }}>
@@ -404,7 +408,7 @@ export default function MarketPage() {
 
                 {/* 2. Popular Creators */}
                 <section className="py-6 border-b border-zinc-800/50 bg-zinc-900/20">
-                    <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2"><User className="text-cyan-400" size={20}/> Trending Artists</h2></div>
+                    <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2">Trending Artists</h2></div>
                     <div className="flex gap-6 overflow-x-auto px-6 pb-2 scrollbar-hide">
                         {creators.map((c:any) => (
                             <Link href={`/u?wallet=${c.wallet_address}`} key={c.id}>
