@@ -68,83 +68,89 @@ export default function HeaderProfile() {
 
   // Profile sync
   useEffect(() => {
-    const syncProfile = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      setUser(authUser);
+  const syncProfile = async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    setUser(authUser);
 
-      const currentAddress = account?.address;
+    const currentAddress = account?.address;
 
-      // 1) Supabase Auth user
-      if (authUser) {
-        const { data } = await supabase.rpc('get_my_profile_with_balances');
-        if (data && data.length > 0) setProfile(data[0]);
-        return;
-      }
+    // 1) Supabase Auth user (기존 유지)
+    if (authUser) {
+      const { data } = await supabase.rpc('get_my_profile_with_balances');
+      if (data && data.length > 0) setProfile(data[0]);
+      return;
+    }
 
-      // 2) thirdweb-only (wallet-based user)
-      if (currentAddress) {
-        // (1) profile upsert
-        let { data: profileRow, error: profileError } =
-          await supabase
-            .from('profiles')
-            .select('*')
-            .eq('wallet_address', currentAddress)
-            .maybeSingle();
-
-        if (!profileRow) {
-          const { data: inserted, error: insertErr } = await supabase
-            .from('profiles')
-            .insert({
-              wallet_address: currentAddress,
-              username: `User_${currentAddress.slice(0, 4)}`,
-            })
-            .select('*')
-            .single();
-
-          if (insertErr) {
-            console.error('profile insert error', insertErr);
-            setProfile(null);
-            return;
-          }
-          profileRow = inserted;
-
-          // (2) Welcome bonus: 100 pMLD
-          const { error: pmldInsertErr } = await supabase
-            .from('p_mld_balances')
-            .insert({
-              profile_id: profileRow.id,
-              balance: 100,
-            });
-
-          if (pmldInsertErr) {
-            console.error('p_mld_balances insert error', pmldInsertErr);
-            // Don't return; read again below
-          }
-        }
-
-        // (3) Read p_mld balance (default 0)
-        const { data: balRow, error: balError } = await supabase
-          .from('p_mld_balances')
-          .select('balance')
-          .eq('profile_id', profileRow.id)
+    // 2) thirdweb-only (wallet-based user)
+    if (currentAddress) {
+      // (1) profile upsert
+      let { data: profileRow, error: profileError } =
+        await supabase
+          .from('profiles')
+          .select('*')
+          .eq('wallet_address', currentAddress)
           .maybeSingle();
 
-        if (balError) {
-          console.error('p_mld_balances select error', balError);
+      // [✨수정 핵심] 프로필이 없어서 새로 만들 때 아바타 URL 생성
+      if (!profileRow) {
+        
+        // 🎲 DiceBear API 사용 (Pixel Art 스타일)
+        // seed에 지갑 주소를 넣으면 해당 주소만의 고유한 픽셀 캐릭터가 나옵니다.
+        const randomAvatarUrl = `https://api.dicebear.com/9.x/pixel-art/svg?seed=${currentAddress}`;
+
+        const { data: inserted, error: insertErr } = await supabase
+          .from('profiles')
+          .insert({
+            wallet_address: currentAddress,
+            username: `User_${currentAddress.slice(0, 4)}`,
+            avatar_url: randomAvatarUrl, // 👈 여기에 생성한 URL 저장
+          })
+          .select('*')
+          .single();
+
+        if (insertErr) {
+          console.error('profile insert error', insertErr);
+          setProfile(null);
+          return;
         }
+        profileRow = inserted;
 
-        const balance = balRow?.balance ?? 0;
-        setProfile({
-          ...(profileRow as any),
-          p_mld_balance: balance,
-        });
-      } else {
-        setProfile(null);
+        // (2) Welcome bonus (기존 유지)
+        const { error: pmldInsertErr } = await supabase
+          .from('p_mld_balances')
+          .insert({
+            profile_id: profileRow.id,
+            balance: 100,
+          });
+
+        if (pmldInsertErr) {
+          console.error('p_mld_balances insert error', pmldInsertErr);
+        }
       }
-    };
 
-    syncProfile();
-  }, [account?.address]);
+      // ... (아래 로직 기존 유지)
+      const { data: balRow, error: balError } = await supabase
+        .from('p_mld_balances')
+        .select('balance')
+        .eq('profile_id', profileRow.id)
+        .maybeSingle();
+
+      if (balError) {
+        console.error('p_mld_balances select error', balError);
+      }
+
+      const balance = balRow?.balance ?? 0;
+      setProfile({
+        ...(profileRow as any),
+        p_mld_balance: balance,
+      });
+    } else {
+      setProfile(null);
+    }
+  };
+
+  syncProfile();
+}, [account?.address]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

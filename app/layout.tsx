@@ -1,15 +1,15 @@
 import './globals.css';
 import type { Metadata } from 'next';
-// 폰트 설정 (기존 유지) 
 import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
 import { Providers } from './providers';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
-// [필수] PWAProvider 임포
 import { PWAProvider } from './context/PWAContext';
 import PWAPrompt from './components/PWAPrompt';
 import IOSInstallPrompt from './components/IOSInstallPrompt';
-import {GoogleAnalytics} from "@next/third-parties/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
+// ✅ [수정 1] next/script 임포트
+import Script from 'next/script';
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit', display: 'swap' });
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' });
@@ -17,11 +17,10 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakart
 export const metadata: Metadata = {
   title: 'unlisted | The music never existed',
   description: 'Discover and invest in unreleased music.',
-  // [추가] manifest 파일 명시
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',
-    apple: '/icon-192.png', // 아이폰용 아이콘 지정
+    apple: '/icon-192.png',
   },
 };
 
@@ -32,15 +31,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning={true}>
-
       <body className={`${outfit.variable} ${jakarta.variable} font-sans bg-black text-white antialiased selection:bg-cyan-500/30`}>
         <Providers>
           <AuthProvider>
-            {/* [핵심] PWAProvider로 children을 감싸야 usePWA가 작동합니다 */}
             <PWAProvider>
               {children}
-              <PWAPrompt />
-              <IOSInstallPrompt /> {/* [추가] iOS용 */}
+
+              {/* ✅ [수정 2] PC(md 이상)에서는 PWA 설치 프롬프트 숨기기 */}
+              <div className="block md:hidden">
+                <PWAPrompt />
+                <IOSInstallPrompt />
+              </div>
+
               <Toaster
                 position="bottom-right"
                 toastOptions={{
@@ -60,7 +62,18 @@ export default function RootLayout({
             </PWAProvider>
           </AuthProvider>
         </Providers>
+
+        {/* ✅ [수정 3] 구글 애드센스 스크립트 추가 (next/script 사용) */}
+        <Script
+          id="adsense-init"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4647509027586331"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
       </body>
+      
+      {/* Google Analytics는 body 밖(html 내부) 혹은 body 끝에 위치해도 괜찮습니다 */}
       <GoogleAnalytics gaId="G-MTPLHYPLD4" />
     </html>
   );
