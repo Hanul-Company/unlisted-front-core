@@ -5,7 +5,7 @@ import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
 import { Providers } from './providers';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
-// [필수] PWAProvider 임포트
+// [필수] PWAProvider 임포
 import { PWAProvider } from './context/PWAContext';
 import PWAPrompt from './components/PWAPrompt';
 import IOSInstallPrompt from './components/IOSInstallPrompt';
