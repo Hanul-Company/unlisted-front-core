@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Loader2, Heart, Play, Pause, Plus, Trash2, Music, ListMusic, MoreHorizontal, Search, X, Shuffle, SkipForward, SkipBack, Repeat, Repeat1, Disc, Volume2, VolumeX, Menu } from 'lucide-react';
+import { Mic2, Loader2, Heart, Play, Pause, Plus, Trash2, Music, ListMusic, MoreHorizontal, Search, X, Shuffle, SkipForward, SkipBack, Repeat, Repeat1, Disc, Volume2, VolumeX, Menu } from 'lucide-react';
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import HeaderProfile from '../components/HeaderProfile';
@@ -70,6 +70,9 @@ export default function LibraryPage() {
 
   useEffect(() => { if (profileId) fetchPlaylists(); }, [profileId]);
   useEffect(() => { if (profileId) fetchTracks(selectedPlaylist); }, [profileId, selectedPlaylist]);
+
+  // ✅ [수정] address가 변경되어도 트랙을 다시 불러올 수 있도록 의존성 배열에 address 추가
+  useEffect(() => { if (profileId || (selectedPlaylist === 'my_songs' && address)) fetchTracks(selectedPlaylist); }, [profileId, selectedPlaylist, address]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -153,23 +156,59 @@ export default function LibraryPage() {
     return `${min}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
+// ✅ [수정 2] 'My Songs'를 기본 시스템 플레이리스트에 추가
   const fetchPlaylists = async () => {
     if (!profileId) return;
-    const defaultList: Playlist = { id: 'liked', name: 'Liked Songs', is_custom: false };
+    
+    // DB에는 없지만 프론트엔드에서만 존재하는 가상 플레이리스트들
+    const systemPlaylists: Playlist[] = [
+      { id: 'liked', name: 'Liked Songs', is_custom: false },
+      { id: 'my_songs', name: 'My Songs', is_custom: false } // 내가 업로드/참여한 곡
+    ];
+
     const { data } = await supabase.from('playlists').select('*').eq('profile_id', profileId).order('created_at', { ascending: true });
-    setPlaylists([defaultList, ...(data?.map((p: any) => ({ id: p.id, name: p.name, is_custom: true })) || [])]);
+    setPlaylists([...systemPlaylists, ...(data?.map((p: any) => ({ id: p.id, name: p.name, is_custom: true })) || [])]);
   };
 
+  // ✅ [수정 3] 'My Songs' 선택 시 track_contributors 테이블 조회
   const fetchTracks = async (playlistId: string) => {
-    if (!profileId) return;
     setLoading(true);
     setTracks([]);
     setSearchQuery("");
+
     try {
       if (playlistId === 'liked') {
+        // Liked Songs 로직 (기존 동일)
+        if (!profileId) return;
         const { data } = await supabase.from('collections').select('tracks(*)').eq('profile_id', profileId).order('created_at', { ascending: false });
         if (data) setTracks(data.map((d: any) => d.tracks).filter(Boolean));
+
+      } else if (playlistId === 'my_songs') {
+        // 🔥 [NEW] My Songs 로직
+        // track_contributors 테이블에서 내 지갑 주소가 있는 트랙들을 가져옴
+        if (!address) {
+           setTracks([]);
+           setLoading(false);
+           return;
+        }
+
+        const { data } = await supabase
+          .from('track_contributors')
+          .select('tracks(*)')
+          .eq('wallet_address', address) // 내 지갑 주소 기준
+          .order('created_at', { ascending: false });
+
+        if (data) {
+          // 중복 제거 (혹시 모르니) 및 null 필터링
+          const myTracks = data.map((d: any) => d.tracks).filter(Boolean);
+          // Set을 이용한 중복 제거 (track id 기준)
+          const uniqueTracks = Array.from(new Map(myTracks.map(item => [item.id, item])).values());
+          setTracks(uniqueTracks);
+        }
+
       } else {
+        // Custom Playlists 로직 (기존 동일)
+        if (!profileId) return;
         const { data } = await supabase.from('playlist_items').select('tracks(*)').eq('playlist_id', playlistId).order('added_at', { ascending: false });
         if (data) setTracks(data.map((d: any) => d.tracks).filter(Boolean));
       }
@@ -219,12 +258,39 @@ export default function LibraryPage() {
     setMobilePlayerOpen(true);
   };
 
+// ✅ [수정] 모달 열 때: Liked Songs + My Songs 합집합 가져오기
   const openAddSongModal = async () => {
     if (!profileId) return;
+    
     setShowAddModal(true);
     setModalSearchQuery("");
-    const { data } = await supabase.from('collections').select('tracks(*)').eq('profile_id', profileId);
-    if (data) setLikedTracks(data.map((d: any) => d.tracks).filter(Boolean));
+
+    // 1. Liked Songs 가져오기
+    const { data: likedData } = await supabase
+      .from('collections')
+      .select('tracks(*)')
+      .eq('profile_id', profileId);
+    
+    const likedList = likedData?.map((d: any) => d.tracks).filter(Boolean) || [];
+
+    // 2. My Songs 가져오기 (지갑 주소 있는 경우)
+    let myList: Track[] = [];
+    if (address) {
+      const { data: myData } = await supabase
+        .from('track_contributors')
+        .select('tracks(*)')
+        .eq('wallet_address', address);
+      
+      myList = myData?.map((d: any) => d.tracks).filter(Boolean) || [];
+    }
+
+    // 3. 합치기 및 중복 제거 (트랙 ID 기준)
+    // (내가 업로드하고 내가 좋아요 누른 경우 중복될 수 있으므로 Map 사용)
+    const combinedTracks = [...likedList, ...myList];
+    const uniqueTracks = Array.from(new Map(combinedTracks.map(t => [t.id, t])).values());
+
+    // 상태 업데이트 (변수명은 likedTracks지만 실제론 전체 라이브러리 트랙)
+    setLikedTracks(uniqueTracks);
   };
 
   const addToPlaylist = async (trackId: number) => {
@@ -305,7 +371,14 @@ export default function LibraryPage() {
               onClick={() => setSelectedPlaylist(p.id)}
             >
               <div className="flex items-center gap-3 overflow-hidden">
-                {p.id === 'liked' ? <Heart size={16} className="text-indigo-500 fill-indigo-500" /> : <ListMusic size={16} />}
+                {/* ✅ [수정 4] 시스템 플레이리스트 아이콘 구분 */}
+                {p.id === 'liked' ? (
+                   <Heart size={16} className="text-indigo-500 fill-indigo-500" />
+                ) : p.id === 'my_songs' ? (
+                   <Mic2 size={16} className="text-green-500" /> // 내 노래는 초록색 마이크
+                ) : (
+                   <ListMusic size={16} />
+                )}
                 <span className="truncate">{p.name}</span>
               </div>
               {p.is_custom && (
@@ -369,7 +442,8 @@ export default function LibraryPage() {
             ))}
           </div>
 
-          {selectedPlaylist !== 'liked' && (
+          {/* ✅ [수정] 내 노래(My Songs)나 좋아요(Liked) 리스트에는 'Add Songs to Playlist' 버튼을 보여주지 않음 */}
+          {selectedPlaylist !== 'liked' && selectedPlaylist !== 'my_songs' && (
             <div className="px-4 pb-4 w-full">
               <button
                 onClick={openAddSongModal}
@@ -401,8 +475,11 @@ export default function LibraryPage() {
               {playlistCoverImage ? (
                 <img src={playlistCoverImage} className="w-full h-full object-cover" />
               ) : (
+                // ✅ [수정] 커버 없을 때 기본 아이콘
                 selectedPlaylist === 'liked'
                   ? <Heart size={48} className="text-indigo-500 fill-indigo-500" />
+                  : selectedPlaylist === 'my_songs'
+                  ? <Mic2 size={48} className="text-green-500" />
                   : <Music size={48} className="text-zinc-600" />
               )}
             </div>
@@ -434,8 +511,7 @@ export default function LibraryPage() {
             >
               <Shuffle size={18} />
             </button>
-
-            {selectedPlaylist !== 'liked' && (
+              {selectedPlaylist !== 'liked' && selectedPlaylist !== 'my_songs' && (
               <button
                 onClick={openAddSongModal}
                 className="w-10 h-10 rounded-full border border-zinc-600 text-zinc-400 flex items-center justify-center hover:border-white hover:text-white transition"
@@ -541,7 +617,7 @@ export default function LibraryPage() {
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-zinc-900 w-full max-w-md h-[600px] rounded-2xl flex flex-col shadow-2xl border border-zinc-800">
               <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-                <h3 className="font-bold">Add from Liked Songs</h3>
+                <h3 className="font-bold">Add from Library</h3>
                 <button onClick={() => setShowAddModal(false)}>
                   <X size={20} className="text-zinc-500 hover:text-white" />
                 </button>
