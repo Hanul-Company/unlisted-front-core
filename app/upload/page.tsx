@@ -35,6 +35,8 @@ export default function UploadPage() {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [showCropModal, setShowCropModal] = useState(false); // 팝업 표시 여부
+  // ✅ [추가] 사용자가 직접 이미지를 올렸는지 확인하는 플래그
+  const [isManualImage, setIsManualImage] = useState(false);
 
   const [uploading, setUploading] = useState(false);
   const [contributors, setContributors] = useState<Contributor[]>([
@@ -72,7 +74,7 @@ export default function UploadPage() {
   }, [address]);
 
 // 오디오 파일 선택
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => { // 👈 1. 여기에 async 추가
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       if (!selectedFile.type.startsWith('audio/')) return toast.error('Audio files only.');
@@ -86,10 +88,12 @@ export default function UploadPage() {
         const picture = metadata.common.picture?.[0];
 
         if (picture) {
-          // 👈 2. picture.data를 new Uint8Array()로 감싸서 타입 에러 해결
-          const blob = new Blob([new Uint8Array(picture.data)], { type: picture.format });
-          setCroppedImageBlob(blob);
-          toast.success("Found embedded cover art in the MP3.");
+          // 🛑 [수정] 사용자가 수동으로 이미지를 설정하지 않았을 때만 MP3 커버 적용
+          if (!isManualImage) {
+            const blob = new Blob([new Uint8Array(picture.data)], { type: picture.format });
+            setCroppedImageBlob(blob);
+            toast.success("Found embedded cover art in the MP3.");
+          }
         }
       } catch (error) {
         console.log("Metadata extraction failed (ignored):", error);
@@ -120,6 +124,10 @@ export default function UploadPage() {
       if (!imageSrc || !croppedAreaPixels) return;
       const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
       setCroppedImageBlob(croppedBlob);
+      
+      // ✅ [추가] 사용자가 직접 이미지를 저장했으므로 플래그를 true로 설정
+      setIsManualImage(true); 
+      
       setShowCropModal(false);
     } catch (e) {
       console.error(e);
@@ -413,6 +421,22 @@ export default function UploadPage() {
                 </>
               )}
             </div>
+
+            {/* ✅ [추가] 이미지가 있을 때만 삭제 버튼 표시 */}
+              {croppedImageBlob && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // 부모 클릭 이벤트 방지
+                    setCroppedImageBlob(null); // 이미지 비우기
+                    setIsManualImage(false);   // 수동 모드 해제 (다시 MP3 커버 받을 수 있게 됨)
+                    if (imageInputRef.current) imageInputRef.current.value = ''; // input 초기화
+                  }}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"
+                  title="Remove cover art"
+                >
+                  <X size={14} />
+                </button>
+              )}
 
             {/* 2. 오디오 파일 업로드 */}
             <div 
