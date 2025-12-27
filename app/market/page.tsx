@@ -9,17 +9,19 @@ import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import HeaderProfile from '../components/HeaderProfile';
 import MobileSidebar from '../components/MobileSidebar';
-import MobilePlayer from '../components/MobilePlayer'; // [필수] 모바일 플레이어 임포트
+import MobilePlayer from '../components/MobilePlayer'; 
 import TradeModal from '../components/TradeModal';
-import { formatEther } from 'viem';
+import RentalModal from '../components/RentalModal'; 
+import PlaylistSelectionModal from '../components/PlaylistSelectionModal';
+import TokenBalance from '../components/TokenBalance';
+import HorizontalScroll from '../components/HorizontalScroll'; // 경로 확인
+import { formatEther, parseEther } from 'viem';
 
 // [Thirdweb Imports]
 import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useReadContract, useSendTransaction } from "thirdweb/react";
-import { client, chain } from "@/utils/thirdweb"; // 우리가 만든 설정
+import { client, chain } from "@/utils/thirdweb";
 
-// --- Contract Definitions ---
-// Thirdweb은 이렇게 계약 객체를 먼저 정의하고 씁니다.
 const melodyTokenContract = getContract({ client, chain, address: MELODY_TOKEN_ADDRESS, abi: MELODY_TOKEN_ABI as any });
 const unlistedStockContract = getContract({ client, chain, address: UNLISTED_STOCK_ADDRESS, abi: UNLISTED_STOCK_ABI as any });
 const melodyIpContract = getContract({ client, chain, address: MELODY_IP_ADDRESS, abi: MELODY_IP_ABI as any });
@@ -37,9 +39,8 @@ type Track = {
   created_at: string;
 };
 
-// 1. [추가] 플레이리스트 표시를 위한 타입 정의
 type FeaturedPlaylist = {
-  id: number; // 스키마상 bigint지만 JS에서는 number로 처리 (혹은 string)
+  id: number;
   name: string;
   cover_image: string | null;
 };
@@ -48,14 +49,11 @@ type Profile = { wallet_address: string; username: string; avatar_url: string | 
 const PAGE_SIZE = 15;
 
 export default function MarketPage() {
-  // [Web3 Hook 교체] Wagmi useAccount -> Thirdweb useActiveAccount
   const account = useActiveAccount();
   const address = account?.address;
-
-  // [Transaction Hook] Thirdweb은 이거 하나로 모든 쓰기 작업 처리 가능
   const { mutate: sendTransaction, isPending } = useSendTransaction();
 
-  // Player & Data States (기존 유지)
+  // Player & Data States
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -74,8 +72,24 @@ export default function MarketPage() {
   const [loadingTop, setLoadingTop] = useState(true);
   const [processingTrackId, setProcessingTrackId] = useState<number | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
-  // 2. [추가] 플레이리스트 State 추가
   const [featuredPlaylists, setFeaturedPlaylists] = useState<FeaturedPlaylist[]>([]);
+
+  // Like & Rental States
+  const [likedTrackIds, setLikedTrackIds] = useState<Set<number>>(new Set());
+  const [rentedTrackIds, setRentedTrackIds] = useState<Set<number>>(new Set()); // 렌탈한 트랙 ID 관리
+
+  // ... 기존 state들 ...
+
+  // [New] Rental & Payment Logic States
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false); // 플레이리스트 선택 모달
+  const [tempRentalTerms, setTempRentalTerms] = useState<{ months: number, price: number } | null>(null);
+  const [myPlaylists, setMyPlaylists] = useState<any[]>([]); // 유저의 플레이리스트 목록
+  const [userProfileId, setUserProfileId] = useState<string | null>(null); // 프로필 ID 캐싱
+  
+  // Rental Modal States
+  const [isRentalModalOpen, setIsRentalModalOpen] = useState(false);
+  const [pendingRentalTrack, setPendingRentalTrack] = useState<Track | null>(null);
+  const [isRentalLoading, setIsRentalLoading] = useState(false);
 
   // Mobile UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -84,75 +98,331 @@ export default function MarketPage() {
   const [isShuffle, setIsShuffle] = useState(false);
 
   const mainRef = useRef<HTMLDivElement>(null);
+  const toastShownRef = useRef(false); // 오디오 태그용 토스트 중복 방지
 
-  // [Read Hook] MLD 잔고 조회
-  const { data: balanceData, refetch: refetchBalance } = useReadContract({
-    contract: melodyTokenContract,
-    method: "balanceOf",
-    params: [address || "0x0000000000000000000000000000000000000000"]
-  });
+// --- 1. Fetch User Data (Likes & Collections) ---
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!address) {
+          setLikedTrackIds(new Set());
+          setRentedTrackIds(new Set());
+          return;
+      }
+      
+      try {
+        // 1) Likes 가져오기 (기존 동일)
+        const { data: likeData } = await supabase
+            .from('likes')
+            .select('track_id')
+            .eq('wallet_address', address);
+        
+        if (likeData) {
+            setLikedTrackIds(new Set(likeData.map((item: any) => item.track_id)));
+        }
 
-  // --- Initial Data Loading ---
+        // 2) Collections (렌탈) 가져오기
+        // 먼저 지갑 주소로 profile_id(UUID)를 찾습니다.
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('wallet_address', address)
+            .single();
+
+        if (profile) {
+            // 현재 시간보다 만료일이 미래이거나, 만료일이 없는(영구 소장) 항목 조회
+            const now = new Date().toISOString();
+            const { data: collectionData } = await supabase
+                .from('collections')
+                .select('track_id')
+                .eq('profile_id', profile.id)
+                .or(`expires_at.gt.${now},expires_at.is.null`); // 만료 안 된 것 OR 영구 소장
+
+            if (collectionData) {
+                setRentedTrackIds(new Set(collectionData.map((item: any) => item.track_id)));
+            }
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+    
+    fetchUserData();
+  }, [address]);
+
+  // --- 2. Like Handler (Modified Logic) ---
+  const handleToggleLike = async (track: Track) => {
+    if (!address) return toast.error("Please connect wallet first.");
+
+    // [핵심 로직] 렌탈 여부 확인
+    const isRented = rentedTrackIds.has(track.id);
+
+    // 렌탈하지 않았다면 -> 렌탈 모달 오픈 (좋아요 실행 X)
+    if (!isRented) {
+        setPendingRentalTrack(track);
+        setIsRentalModalOpen(true);
+        return;
+    }
+
+    // 렌탈했다면 -> 좋아요 토글 실행
+    const isLiked = likedTrackIds.has(track.id);
+    const nextSet = new Set(likedTrackIds);
+    if (isLiked) nextSet.delete(track.id);
+    else nextSet.add(track.id);
+    setLikedTrackIds(nextSet);
+
+    try {
+      if (isLiked) {
+        const { error } = await supabase.from('likes').delete().match({ wallet_address: address, track_id: track.id });
+        if(error) throw error;
+      } else {
+        const { error } = await supabase.from('likes').insert({ wallet_address: address, track_id: track.id });
+        if(error) throw error;
+        toast.success("Added to Liked Songs");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update like status.");
+      setLikedTrackIds(likedTrackIds); 
+    }
+  };
+
+/// ------------------------------------------------------------------
+  // [Step 1] 렌탈 조건 선택 후 -> 프로필/플레이리스트 로드 -> 모달 전환
+  // ------------------------------------------------------------------
+  const handleRentalConfirm = async (months: number, price: number) => {
+    // Market 페이지에서는 'pendingRentalTrack'이 렌탈 대상입니다.
+    const targetTrack = pendingRentalTrack; 
+
+    console.group("🚀 [Step 1] handleRentalConfirm Started");
+    console.log("Input:", { months, price });
+    console.log("Target Track:", targetTrack?.title);
+
+    // 1. 렌탈 조건 임시 저장
+    setTempRentalTerms({ months, price });
+
+    if (!address) {
+        toast.error("Wallet not connected.");
+        return;
+    }
+
+    try {
+        // 2. 프로필 조회
+        console.log("🔎 Fetching Profile for address:", address);
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('wallet_address', address)
+            .single();
+
+        if (profileError) {
+            console.error("❌ Profile Fetch Error:", profileError);
+            // 프로필 없으면 그냥 진행하지 않음 (가입 유도 필요할 수 있음)
+            toast.error("Profile load failed: " + profileError.message);
+            console.groupEnd();
+            return;
+        }
+
+        if (profile) {
+            console.log("✅ Profile Found:", profile);
+            setUserProfileId(profile.id);
+
+            // 3. 내 플레이리스트 조회
+            const { data: playlists, error: playlistError } = await supabase
+                .from('playlists')
+                .select('*')
+                .eq('profile_id', profile.id)
+                .order('created_at', { ascending: false });
+
+            if (playlistError) console.error("❌ Playlist Fetch Error:", playlistError);
+            
+            setMyPlaylists(playlists || []);
+        }
+    } catch (error) {
+        console.error("🔥 Critical Error in handleRentalConfirm:", error);
+    }
+
+    console.groupEnd();
+    
+    // 4. 모달 전환 (렌탈 모달 닫기 -> 플레이리스트 선택 모달 열기)
+    setIsRentalModalOpen(false); 
+    setShowPlaylistModal(true); 
+  };
+
+
+  // ------------------------------------------------------------------
+  // [Step 2] 최종 결제 프로세스 (pMLD 우선 차감 -> MLD 결제)
+  // ------------------------------------------------------------------
+  const processCollect = async (playlistId: string | 'liked') => {
+    // Market 페이지용 변수 매핑
+    const targetTrack = pendingRentalTrack; 
+
+    if (!targetTrack) return toast.error("No track selected for rental.");
+    if (!address) return toast.error("Wallet not connected.");
+    if (!tempRentalTerms) return toast.error("Error: Missing rental terms.");
+
+    setShowPlaylistModal(false); // 모달 닫기
+    
+    const { months, price } = tempRentalTerms;
+    const toastId = toast.loading("Processing payment...");
+
+    try {
+      // ---------------------------------------------------------
+      // [1단계] pMLD (포인트) 결제 시도 (RPC 호출)
+      // ---------------------------------------------------------
+      console.log("Attempting pMLD Payment via RPC...");
+      
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('add_to_collection_using_p_mld_by_wallet', {
+        p_wallet_address: address,
+        p_track_id: targetTrack.id,
+        p_duration_months: months
+      });
+
+      if (rpcError) {
+        console.error("❌ pMLD RPC Error:", rpcError);
+        throw rpcError;
+      }
+
+      console.log("pMLD RPC Result:", rpcResult);
+
+      // ✅ [성공 Case 1] 포인트로 결제 완료됨
+      if (rpcResult === 'OK') {
+        // 플레이리스트에 추가 (선택한 경우)
+        if (playlistId !== 'liked') {
+          await supabase.from('playlist_items').insert({ 
+            playlist_id: parseInt(playlistId),
+            track_id: targetTrack.id 
+          });
+        }
+        // 좋아요 목록에도 자동 추가
+        await supabase.from('likes').upsert({ wallet_address: address, track_id: targetTrack.id }, { onConflict: 'wallet_address, track_id' });
+
+        toast.success("Collected using pMLD!", { id: toastId });
+        
+        // 상태 초기화
+        setRentedTrackIds(prev => new Set(prev).add(targetTrack.id));
+        setTempRentalTerms(null);
+        setPendingRentalTrack(null);
+        return;
+      }
+
+      // ---------------------------------------------------------
+      // [2단계] MLD (토큰) 결제 시도 (포인트 부족 시)
+      // ---------------------------------------------------------
+      if (rpcResult === 'INSUFFICIENT_PMLD') {
+        console.log("Insufficient pMLD. Switching to MLD Token...");
+        toast.loading(`Insufficient pMLD. Requesting ${price} MLD...`, { id: toastId });
+
+        // 수령인 찾기 (아티스트 지갑 or 업로더 or 플랫폼)
+        let recipient = targetTrack.uploader_address || "0x0000000000000000000000000000000000000000"; 
+        
+        // 정확한 아티스트 지갑 조회를 위해 contributors 확인 (옵션)
+        const { data: contributors } = await supabase
+          .from('track_contributors')
+          .select('wallet_address')
+          .eq('track_id', targetTrack.id)
+          .eq('role', 'Main Artist')
+          .limit(1);
+
+        if (contributors && contributors.length > 0) {
+            recipient = contributors[0].wallet_address;
+        }
+
+        // 1. 블록체인 트랜잭션 (MLD 전송)
+        // 🔥 여기가 Radio랑 다른 부분이었던 곳입니다. parseEther를 씁니다.
+        const transaction = prepareContractCall({
+          contract: melodyTokenContract, // MarketPage 상단에 정의된 contract 확인 필요
+          method: "transfer",
+          params: [recipient, parseEther(price.toString())] 
+        });
+
+        sendTransaction(transaction, {
+          onSuccess: async () => {
+            console.log("✅ Blockchain Transaction Confirmed.");
+            toast.loading("Verifying rental...", { id: toastId });
+
+            // 2. ✅ DB 동기화: MLD 결제용 RPC 함수 호출
+            const { data: mldRpcResult, error: mldRpcError } = await supabase.rpc('add_to_collection_using_mld_by_wallet', {
+               p_wallet_address: address,
+               p_track_id: targetTrack.id,
+               p_duration_months: months,
+               p_amount_mld: price
+            });
+
+            if (mldRpcError) {
+                console.error("❌ MLD DB Sync Error:", mldRpcError);
+                toast.error("Transaction success but DB sync failed. Contact support.", { id: toastId });
+                return;
+            }
+
+            if (mldRpcResult === 'OK') {
+                // 플레이리스트 아이템 추가
+                if (playlistId !== 'liked') {
+                    await supabase.from('playlist_items').insert({ 
+                        playlist_id: parseInt(playlistId),
+                        track_id: targetTrack.id 
+                    });
+                }
+                // 좋아요 추가
+                await supabase.from('likes').upsert({ wallet_address: address, track_id: targetTrack.id }, { onConflict: 'wallet_address, track_id' });
+
+                toast.success("Payment complete! Added to collection.", { id: toastId });
+                
+                // 상태 업데이트
+                setRentedTrackIds(prev => new Set(prev).add(targetTrack.id));
+                setTempRentalTerms(null);
+                setPendingRentalTrack(null);
+            } else {
+                console.error("Unknown RPC Result:", mldRpcResult);
+                toast.error(`Error: ${mldRpcResult}`, { id: toastId });
+            }
+          },
+          onError: (err) => {
+            console.error("❌ Transaction Failed:", err);
+            toast.error("Payment transaction failed.", { id: toastId });
+            setIsRentalLoading(false);
+          }
+        });
+      } else {
+        // 그 외 RPC 에러 (NO_WALLET, NO_TRACK_ID 등)
+        toast.error(`Error: ${rpcResult}`, { id: toastId });
+        setIsRentalLoading(false);
+      }
+
+    } catch (e: any) {
+      console.error("🔥 Process Collect Error:", e);
+      toast.error(e.message || "An error occurred", { id: toastId });
+      setIsRentalLoading(false);
+    }
+  };
+
+  // --- Initial Data Loading (기존 유지) ---
   useEffect(() => {
     const fetchTopData = async () => {
       setLoadingTop(true);
-      const { data: newData } = await supabase.from('tracks').select('*').order('created_at', { ascending: false }).limit(10);
+      const { data: newData } = await supabase.from('tracks').select('*').order('created_at', { ascending: false }).limit(15);
       setNewTracks(newData || []);
       const { data: allData } = await supabase.from('tracks').select('*').eq('is_minted', true).limit(20);
       setInvestTracks((allData || []).slice(0, 5));
-      const { data: creatorData } = await supabase.from('profiles').select('*').limit(10);
+      const { data: creatorData } = await supabase.from('profiles').select('*').limit(20);
       setCreators(creatorData || []);
       setLoadingTop(false);
     };
     fetchTopData();
 
-    // 3. [추가] 플레이리스트 및 첫 번째 곡의 커버 이미지 로딩
     const fetchPlaylists = async () => {
-      // playlist_items를 통해 tracks 정보를 조인해서 가져옵니다.
-      // limit(1)을 서브쿼리에 걸어주면 좋지만, supabase js sdk 특성상 
-      // 가져온 후 가공하는 것이 확실할 때가 많습니다.
-      const { data, error } = await supabase
-        .from('playlists')
-        .select(`
-          id,
-          name,
-          playlist_items (
-            added_at,
-            tracks (
-              cover_image_url
-            )
-          )
-        `)
-        // ✅ [수정] admin이 지정한(is_featured=true) 것만 가져오도록 변경
-        .eq('is_featured', true) 
-        .order('id', { ascending: false }) // 혹은 created_at
-        // limit(10)은 제거해도 됨 (어드민에서 이미 10개 제한을 뒀으므로), 안전장치로 둬도 무방.
-
-      if (error) {
-        console.error("Failed to fetch playlists:", error);
-        return;
-      }
-
-      // 데이터 가공: 첫 번째 트랙의 이미지를 대표 커버로 선정
+      const { data, error } = await supabase.from('playlists').select(`id, name, playlist_items (added_at, tracks (cover_image_url))`).eq('is_featured', true).order('id', { ascending: false });
+      if (error) return;
       const formatted: FeaturedPlaylist[] = data.map((pl: any) => {
-        // playlist_items 중 가장 먼저 추가된(혹은 아무거나) 아이템의 커버 찾기
         const firstItem = pl.playlist_items?.[0]; 
-        const coverUrl = firstItem?.tracks?.cover_image_url || null; // 없으면 null (기본이미지 처리)
-
-        return {
-          id: pl.id,
-          name: pl.name,
-          cover_image: coverUrl
-        };
+        const coverUrl = firstItem?.tracks?.cover_image_url || null; 
+        return { id: pl.id, name: pl.name, cover_image: coverUrl };
       });
-
       setFeaturedPlaylists(formatted);
     };
-
     fetchPlaylists();
   }, []);
 
-  // --- Browse Data ---
+  // --- Browse Data (기존 유지) ---
   useEffect(() => {
     setPage(0); setBrowseTracks([]); setHasMore(true);
     fetchBrowseData(0, searchQuery, true);
@@ -180,65 +450,44 @@ export default function MarketPage() {
     }
   };
 
-  // --- Handlers (Thirdweb 전환 핵심) ---
-
   const handleRegister = async (track: Track) => {
-    if (!address) return toast.error("Wallet connection required.");
-    if (processingTrackId) return; // 중복 방지
-
-    setProcessingTrackId(track.id);
-    const uniqueHash = `${track.melody_hash || 'hash'}_${track.id}_${Date.now()}`;
-
-    try {
-      toast.loading("Signature required...", { id: 'register-toast' });
-
-      const { data: contributors } = await supabase.from('track_contributors').select('*').eq('track_id', track.id);
-      let payees: string[] = [address]; let shares: bigint[] = [BigInt(10000)];
-
-      if (contributors && contributors.length > 0) {
-        const valid = contributors.filter(c => c.wallet_address && c.wallet_address.startsWith('0x'));
-        if (valid.length > 0) {
-            payees = valid.map(c => c.wallet_address);
-            const raw = valid.map(c => Math.round(Number(c.share_percentage) * 100));
-            const sum = raw.reduce((a, b) => a + b, 0);
-            if (raw.length > 0) raw[0] += (10000 - sum);
-            shares = raw.map(s => BigInt(s));
-        }
-      }
-
-      // [Thirdweb] 트랜잭션 준비
-      const transaction = prepareContractCall({
-        contract: melodyIpContract,
-        method: "registerMusic",
-        params: [uniqueHash, payees, shares, BigInt(500), true, track.audio_url]
-      });
-
-      // [Thirdweb] 전송
-      sendTransaction(transaction, {
-        onSuccess: async () => {
-            // 성공 시 DB 업데이트
-            const { error } = await supabase.from('tracks').update({ is_minted: true, token_id: track.id }).eq('id', track.id); // token_id 임시 매핑
-            if (!error) {
-                toast.success("Registered!", { id: 'register-toast' });
-                setBrowseTracks(prev => prev.map(t => t.id === track.id ? { ...t, is_minted: true } : t));
-                setNewTracks(prev => prev.map(t => t.id === track.id ? { ...t, is_minted: true } : t));
-            } else {
-                toast.error("Database update failed.", { id: 'register-toast' });
+      // (기존 코드 유지)
+      if (!address) return toast.error("Wallet connection required.");
+      if (processingTrackId) return; 
+      setProcessingTrackId(track.id);
+      const uniqueHash = `${track.melody_hash || 'hash'}_${track.id}_${Date.now()}`;
+      try {
+        toast.loading("Signature required...", { id: 'register-toast' });
+        const { data: contributors } = await supabase.from('track_contributors').select('*').eq('track_id', track.id);
+        let payees: string[] = [address]; let shares: bigint[] = [BigInt(10000)];
+        if (contributors && contributors.length > 0) {
+            const valid = contributors.filter(c => c.wallet_address && c.wallet_address.startsWith('0x'));
+            if (valid.length > 0) {
+                payees = valid.map(c => c.wallet_address);
+                const raw = valid.map(c => Math.round(Number(c.share_percentage) * 100));
+                const sum = raw.reduce((a, b) => a + b, 0);
+                if (raw.length > 0) raw[0] += (10000 - sum);
+                shares = raw.map(s => BigInt(s));
             }
-            setProcessingTrackId(null);
-        },
-        onError: (err) => {
-            console.error(err);
-            toast.error("Transaction failed.", { id: 'register-toast' });
-            setProcessingTrackId(null);
         }
-      });
-
-    } catch (e) {
-        console.error(e);
-        toast.error("An error occurred.", { id: 'register-toast' });
-        setProcessingTrackId(null);
-    }
+        const transaction = prepareContractCall({
+            contract: melodyIpContract,
+            method: "registerMusic",
+            params: [uniqueHash, payees, shares, BigInt(500), true, track.audio_url]
+        });
+        sendTransaction(transaction, {
+            onSuccess: async () => {
+                const { error } = await supabase.from('tracks').update({ is_minted: true, token_id: track.id }).eq('id', track.id);
+                if (!error) {
+                    toast.success("Registered!", { id: 'register-toast' });
+                    setBrowseTracks(prev => prev.map(t => t.id === track.id ? { ...t, is_minted: true } : t));
+                    setNewTracks(prev => prev.map(t => t.id === track.id ? { ...t, is_minted: true } : t));
+                } else { toast.error("Database update failed.", { id: 'register-toast' }); }
+                setProcessingTrackId(null);
+            },
+            onError: (err) => { console.error(err); toast.error("Transaction failed.", { id: 'register-toast' }); setProcessingTrackId(null); }
+        });
+      } catch (e) { console.error(e); toast.error("An error occurred.", { id: 'register-toast' }); setProcessingTrackId(null); }
   };
 
   const handleInvest = (track: Track) => {
@@ -253,12 +502,16 @@ export default function MarketPage() {
     else toast.error(error.message);
   };
 
-  // --- Audio Control & Utils (기존 동일) ---
+  // --- Audio Logic ---
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     if (currentTrack) {
-        if (audio.src !== currentTrack.audio_url) { audio.src = currentTrack.audio_url; setCurrentTime(0); }
+        if (audio.src !== currentTrack.audio_url) { 
+            audio.src = currentTrack.audio_url; 
+            setCurrentTime(0); 
+            toastShownRef.current = false; // 트랙 바뀌면 토스트 플래그 리셋
+        }
         if (isPlaying) { const p = audio.play(); if(p !== undefined) p.catch(console.error); }
         else audio.pause();
     } else audio.pause();
@@ -280,33 +533,56 @@ export default function MarketPage() {
 
   const formatTime = (time: number) => { if(isNaN(time)) return "0:00"; const min = Math.floor(time / 60); const sec = Math.floor(time % 60); return `${min}:${sec < 10 ? '0' : ''}${sec}`; };
 
+  // 현재 트랙의 렌탈 여부 (플레이어용)
+  const isCurrentTrackRented = currentTrack ? rentedTrackIds.has(currentTrack.id) : false;
+
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden font-sans">
-      <audio ref={audioRef} onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)} onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)} onEnded={() => setIsPlaying(false)} preload="auto" crossOrigin="anonymous"/>
-
+        <audio 
+            ref={audioRef} 
+            onTimeUpdate={(e) => {
+                const time = e.currentTarget.currentTime;
+                // 렌탈 여부에 따라 60초 제한 로직 적용
+                if (!isCurrentTrackRented && time >= 60) {
+                    e.currentTarget.pause();
+                    setIsPlaying(false);
+                    // 토스트 중복 방지
+                    if (!toastShownRef.current) {
+                        toast("Preview ended. Rent to listen full track!", { 
+                            icon: "🔒",
+                            id: "preview-end-toast", // ID 부여
+                            style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                        });
+                        toastShownRef.current = true;
+                    }
+                } else {
+                    setCurrentTime(time);
+                    if (time < 59) toastShownRef.current = false; // 뒤로감기 시 리셋
+                }
+            }} 
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)} 
+            onEnded={() => setIsPlaying(false)} 
+            preload="auto" 
+            crossOrigin="anonymous"
+        />
+      
       <MobileSidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
-      {/* Sidebar */}
+      {/* Sidebar (기존 코드 유지) */}
       <aside className="w-64 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col p-6">
+         {/* ... (기존 사이드바 내용) ... */}
          <div className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 cursor-pointer">unlisted</div>
-         <Link href="/upload"><button className="w-full bg-white text-black font-bold py-3 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-105 transition"><UploadCloud size={20}/> Upload</button></Link>
+         <Link href="/upload"><button className="w-full bg-white text-black font-bold py-3 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-105 transition"><UploadCloud size={20}/> Upload & Earn</button></Link>
          <nav className="space-y-6">
              <div>
                  <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Discover</h3>
                  <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800 text-white cursor-pointer hover:bg-zinc-700 transition"><Disc size={18}/><span className="text-sm font-medium"> Explore</span></div>
                  <Link href="/radio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Radius size={18}/><span className="text-sm font-medium"> unlisted Player</span></div></Link>
-
                  <Link href="/investing"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><TrendingUp size={18}/><span className="text-sm font-medium"> Charts</span></div></Link>
              </div>
              <div>
                  <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3>
-                 {/* [추가] Earn 메뉴 */}
-                 <Link href="/earn">
-                     <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer">
-                         <Zap size={18} className="text-yellow-500"/>
-                         <span className="text-sm font-medium text-yellow-500">Free Faucet</span>
-                     </div>
-                 </Link>
+                 <Link href="/earn"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Zap size={18} className="text-yellow-500"/><span className="text-sm font-medium text-yellow-500">Free Faucet</span></div></Link>
                  <Link href="/studio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Coins size={18}/> <span className="text-sm font-medium"> Revenue</span></div></Link>
              </div>
              <div>
@@ -318,14 +594,14 @@ export default function MarketPage() {
       </aside>
 
       <main ref={mainRef} onScroll={handleScroll} className="flex-1 flex flex-col overflow-y-auto pb-24 scroll-smooth relative">
-        {/* Header */}
+        {/* Header (유지) */}
         <header className="flex justify-between items-center p-6 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-20 border-b border-zinc-800">
           <div className="flex items-center gap-4">
              <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white"><Menu/></button>
              <h1 className="text-xl font-bold">Explore</h1>
           </div>
           <div className="flex items-center gap-3">
-             {address && <div className="hidden sm:block text-xs font-mono text-green-400 bg-zinc-950 px-3 py-1.5 rounded-full border border-zinc-800 shadow-inner">{balanceData ? Number(formatEther(balanceData as bigint)).toLocaleString(undefined, {maximumFractionDigits:0}) : 0} MLD</div>}
+                <TokenBalance address={address} />
              <HeaderProfile />
           </div>
         </header>
@@ -334,65 +610,27 @@ export default function MarketPage() {
             <div className="flex justify-center pt-40"><Loader2 className="animate-spin text-cyan-500" size={32}/></div>
         ) : (
             <div className="pb-10 pt-4">
-                {/* 4. [수정] Playlists for you 섹션 */}
-                <section className="mb-2"> {/* Fresh Drops와의 간격 조정을 위한 mb 추가 */}
-                    {/* Header: Fresh Drops와 동일한 패딩(px-6)과 마진(mb-4), 폰트 크기(text-lg) 적용 */}
-                    <div className="px-6 mb-4 flex items-center justify-between">
-                        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                            {/* 아이콘 사이즈도 Fresh Drops의 Star(20)와 동일하게 20으로 수정 */}
-                            Playlists for you
-                        </h2>
-                    </div>
-                    
-                    {/* 가로 스크롤 컨테이너 */}
-                    <div className="flex gap-4 overflow-x-auto px-6 pb-4 scrollbar-hide snap-x pt-2"> 
-                    {/* pt-2 추가: 혹시 모를 그림자 잘림 방지용 여백 */}
-                    
-                    {featuredPlaylists.length === 0 ? (
-                        <div className="text-zinc-500 text-sm">No playlists available yet.</div>
-                    ) : (
+                {/* 1. Playlists for you (기존 유지) */}
+                <section className="mb-2">
+                    <div className="px-6 mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white flex items-center gap-2">Playlists for you</h2></div>
+                    <HorizontalScroll className="gap-4 px-6 pb-4 snap-x pt-2"> 
+                    {featuredPlaylists.length === 0 ? ( <div className="text-zinc-500 text-sm">No playlists available yet.</div> ) : (
                         featuredPlaylists.map((pl) => (
                         <Link href={`/radio?playlist_id=${pl.id}`} key={pl.id} className="flex-shrink-0 snap-start block">
-                            <div 
-                            className="
-                                relative overflow-hidden rounded-xl bg-zinc-800 group cursor-pointer 
-                                border border-zinc-700 hover:border-white/20
-                                
-                                /* ⛔️ 중요: 여기에 hover:scale 관련 코드가 절대 없어야 합니다 */
-                                min-w-[160px] w-[120px] h-[160px]
-                                md:w-[240px] md:h-[240px]
-                            "
-                            >
-                                {/* 배경 이미지 */}
-                                {pl.cover_image ? (
-                                    <img 
-                                    src={pl.cover_image} 
-                                    alt={pl.name} 
-                                    // ✅ [수정] 이미지만 확대되도록 설정 (틀은 고정)
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-zinc-800 bg-gradient-to-br from-zinc-700 to-zinc-900">
-                                    <Disc size={32} className="text-zinc-600 md:w-16 md:h-16" />
-                                    </div>
-                                )}
-
-                                {/* 텍스트 오버레이 (이미지 위에 고정됨) */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-3 pointer-events-none">
-                                    <span className="text-white font-medium text-xs md:text-sm drop-shadow-md break-words line-clamp-2 text-left">
-                                    {pl.name}
-                                    </span>
-                                </div>
+                            <div className="relative overflow-hidden rounded-xl bg-zinc-800 group cursor-pointer border border-zinc-700 hover:border-white/20 min-w-[160px] w-[120px] h-[160px] md:w-[240px] md:h-[240px]">
+                                {pl.cover_image ? ( <img src={pl.cover_image} alt={pl.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/> ) : ( <div className="w-full h-full flex items-center justify-center bg-zinc-800 bg-gradient-to-br from-zinc-700 to-zinc-900"><Disc size={32} className="text-zinc-600 md:w-16 md:h-16" /></div> )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-3 pointer-events-none"><span className="text-white font-medium text-xs md:text-sm drop-shadow-md break-words line-clamp-2 text-left">{pl.name}</span></div>
                             </div>
                         </Link>
                         ))
                     )}
-                    </div>
+                    </HorizontalScroll>
                 </section>
-                {/* 1. Fresh Drops */}
+                
+                {/* 2. Fresh Drops (유지) */}
                 <section className="py-6 border-b border-zinc-800/50">
                     <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2">Fresh Drops</h2></div>
-                    <div className="flex gap-4 overflow-x-auto px-6 pb-4 scrollbar-hide">
+                    <HorizontalScroll className="gap-4 px-6 pb-4 snap-x pt-2"> 
                         {newTracks.map((t) => (
                             <div key={t.id} className="min-w-[160px] w-[160px] group cursor-pointer" onClick={() => { setCurrentTrack(t); setIsPlaying(true); setMobilePlayerOpen(true); }}>
                                 <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700 mb-3 shadow-lg group-hover:border-white/20 transition">
@@ -403,13 +641,13 @@ export default function MarketPage() {
                                 <p className="text-xs text-zinc-500 truncate">{t.artist_name}</p>
                             </div>
                         ))}
-                    </div>
+                    </HorizontalScroll>
                 </section>
 
-                {/* 2. Popular Creators */}
+                {/* 3. Popular Creators (기존 유지) */}
                 <section className="py-6 border-b border-zinc-800/50 bg-zinc-900/20">
                     <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2">Trending Artists</h2></div>
-                    <div className="flex gap-6 overflow-x-auto px-6 pb-2 scrollbar-hide">
+                    <HorizontalScroll className="gap-6 px-6 pb-2 snap-x pt-2"> 
                         {creators.map((c:any) => (
                             <Link href={`/u?wallet=${c.wallet_address}`} key={c.id}>
                                 <div className="flex flex-col items-center gap-2 cursor-pointer group min-w-[80px]">
@@ -420,16 +658,16 @@ export default function MarketPage() {
                                 </div>
                             </Link>
                         ))}
-                    </div>
+                    </HorizontalScroll>
                 </section>
 
-                {/* 3. Blue Chip */}
+                {/* 4. Top Investments (기존 유지) */}
                 <section className="py-6 border-b border-zinc-800/50">
                     <div className="px-6 mb-4 flex justify-between items-end">
                         <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="text-green-400" size={20}/> Top Investment</h2>
                         <Link href="/investing" className="text-xs text-zinc-500 hover:text-white flex items-center gap-1">View Chart <ArrowRight size={12}/></Link>
                     </div>
-                    <div className="flex gap-4 overflow-x-auto px-6 pb-4 scrollbar-hide">
+                    <HorizontalScroll className="gap-4 px-6 pb-2 snap-x pt-2"> 
                         {investTracks.map((t) => (
                             <div key={t.id} className="min-w-[200px] w-[200px] group bg-zinc-900 border border-zinc-800 p-3 rounded-xl hover:border-green-500/50 transition cursor-pointer" onClick={() => { setCurrentTrack(t); setIsPlaying(true); setMobilePlayerOpen(true); }}>
                                 <div className="flex items-center gap-3 mb-3">
@@ -444,26 +682,26 @@ export default function MarketPage() {
                                 <button onClick={(e) => { e.stopPropagation(); handleInvest(t); }} className="w-full bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-black py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2"><Zap size={14} fill="currentColor"/> Invest</button>
                             </div>
                         ))}
-                    </div>
+                    </HorizontalScroll>
                 </section>
 
-                {/* 4. Browse All */}
+                {/* 5. Browse All (유지) */}
                 <section className="p-6 min-h-[500px]">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-lg font-bold flex items-center gap-2"><Disc className="text-zinc-400" size={20}/> Browse</h2>
+                        {/* 검색창 유지 */}
                         <div className="relative">
                             <Search className="absolute left-3 top-2.5 text-zinc-500" size={14}/>
                             <input type="text" placeholder="Search..." className="w-64 bg-zinc-900 rounded-full py-1.5 pl-9 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500 border border-zinc-800" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
                         </div>
                     </div>
-
                     <div className="space-y-2">
                         {browseTracks.map((track) => {
                             const isOwner = address && track.uploader_address && address.toLowerCase() === track.uploader_address.toLowerCase();
                             const isProcessingThis = processingTrackId === track.id && (isPending);
-
                             return (
                                 <div key={track.id} className={`group flex items-center justify-between p-3 rounded-xl transition-all border cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900 border-cyan-500/50' : 'bg-transparent border-transparent hover:bg-zinc-900 hover:border-zinc-800'}`} onClick={() => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }}>
+                                {/* Track Info */}
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center overflow-hidden border border-zinc-800 relative">
                                         {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover"/> : <MusicIcon size={16} className="text-zinc-700"/>}
@@ -474,7 +712,7 @@ export default function MarketPage() {
                                         <Link href={track.uploader_address ? `/u?wallet=${track.uploader_address}` : '#'} onClick={(e)=>e.stopPropagation()} className="text-xs text-zinc-500 hover:text-white hover:underline transition-colors">{track.artist_name || 'Unlisted Artist'}</Link>
                                     </div>
                                 </div>
-
+                                {/* Buttons */}
                                 <div className="flex items-center gap-3">
                                     {track.is_minted ? (
                                         <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }} className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-white hover:text-black transition">Invest</button>
@@ -496,7 +734,7 @@ export default function MarketPage() {
         )}
       </main>
 
-      {/* 5. Mobile Full Player */}
+      {/* ✅ Mobile Full Player */}
       {currentTrack && mobilePlayerOpen && (
             <MobilePlayer
                 track={currentTrack}
@@ -512,36 +750,28 @@ export default function MarketPage() {
                 currentTime={currentTime}
                 duration={duration}
                 onSeek={(val) => { if(audioRef.current) audioRef.current.currentTime = val; }}
+                
+                // [New Props]
+                isLiked={likedTrackIds.has(currentTrack.id)}
+                isRented={rentedTrackIds.has(currentTrack.id)} // 렌탈 여부 전달
+                onToggleLike={() => handleToggleLike(currentTrack)}
+                onInvest={currentTrack.is_minted ? () => handleInvest(currentTrack) : undefined}
             />
       )}
 
-      {/* 6. Mobile Mini Player */}
+      {/* Mobile Mini Player (유지) */}
       {currentTrack && !mobilePlayerOpen && (
-             <div
-                className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40"
-                onClick={() => setMobilePlayerOpen(true)}
-             >
-                 <div className="flex items-center gap-3 overflow-hidden">
-                     <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
-                        {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <Disc size={20} className="text-zinc-500 m-auto"/>}
-                     </div>
-                     <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
-                        <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
-                     </div>
-                 </div>
+             <div className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" onClick={() => setMobilePlayerOpen(true)}>
+                 {/* ... (기존 코드) */}
                  <div className="flex items-center gap-3 pr-1">
-                     <button
-                        onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }}
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black"
-                     >
+                     <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
                         {isPlaying ? <Pause size={16} fill="black"/> : <Play size={16} fill="black" className="ml-0.5"/>}
                      </button>
                  </div>
              </div>
       )}
 
-      {/* 7. Desktop Footer Player */}
+      {/* ✅ Desktop Footer Player */}
       {currentTrack && (
             <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl">
                 <div className="flex items-center gap-4 w-1/3">
@@ -552,20 +782,70 @@ export default function MarketPage() {
                         <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
                         <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name || 'unlisted Artist'}</div>
                     </div>
+                    
+                    {/* Like Button */}
+                    <button 
+                        onClick={() => handleToggleLike(currentTrack)} 
+                        className={`ml-2 hover:scale-110 transition ${likedTrackIds.has(currentTrack.id) ? 'text-pink-500' : 'text-zinc-500 hover:text-white'}`}
+                    >
+                        <Heart size={20} fill={likedTrackIds.has(currentTrack.id) ? "currentColor" : "none"} />
+                    </button>
                 </div>
+
                 <div className="flex flex-col items-center gap-2 w-1/3">
                     <div className="flex items-center gap-6">
                         <button className="text-zinc-400 hover:text-white transition" onClick={handlePrev}><SkipBack size={20}/></button>
                         <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">{isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}</button>
                         <button className="text-zinc-400 hover:text-white transition" onClick={handleNext}><SkipForward size={20}/></button>
                     </div>
+                    
+                    {/* Desktop Progress Bar with Rental Preview Logic */}
                     <div className="w-full max-w-sm flex items-center gap-3">
                         <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span>
-                        <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative cursor-pointer"><div className="h-full bg-white rounded-full" style={{ width: `${duration ? (currentTime/duration)*100 : 0}%` }}/></div>
-                        <span className="text-[10px] text-zinc-500 font-mono w-8">{formatTime(duration)}</span>
+                        
+                        <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative cursor-pointer" 
+                             onClick={(e) => {
+                                if(!audioRef.current) return;
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const clickX = e.clientX - rect.left;
+                                const width = rect.width;
+                                const newTime = (clickX / width) * duration;
+                                // 렌탈 안했으면 60초 이후 클릭 방지
+                                if (!isCurrentTrackRented && newTime > 60) {
+                                    toast.error("Preview limited to 1 minute");
+                                    audioRef.current.currentTime = 60;
+                                } else {
+                                    audioRef.current.currentTime = newTime;
+                                }
+                             }}>
+                             
+                            {/* Preview Limit Indicator (Light Purple) */}
+                            {!isCurrentTrackRented && duration > 60 && (
+                                <div 
+                                    className="absolute top-0 left-0 h-full bg-purple-500/30 z-0"
+                                    style={{ width: `${(60/duration)*100}%` }}
+                                />
+                            )}
+                            {/* Current Progress */}
+                            <div className="h-full bg-white rounded-full relative z-10" style={{ width: `${duration ? (currentTime/duration)*100 : 0}%` }}/>
+                        </div>
+                        
+                        <span className="text-[10px] text-zinc-500 font-mono w-8">
+                            {!isCurrentTrackRented && duration > 60 ? "1:00" : formatTime(duration)}
+                        </span>
                     </div>
                 </div>
+
                 <div className="w-1/3 flex justify-end items-center gap-4">
+                    {currentTrack.is_minted && (
+                        <button 
+                            onClick={() => handleInvest(currentTrack)}
+                            className="bg-green-500/10 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-green-500 hover:text-black transition flex items-center gap-1.5"
+                        >
+                            <Zap size={14} fill="currentColor"/> Invest
+                        </button>
+                    )}
+                    <div className="w-px h-6 bg-zinc-800 mx-1"></div>
                     <Volume2 size={18} className="text-zinc-500"/>
                     <div className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-zinc-500 rounded-full"></div></div>
                 </div>
@@ -579,6 +859,24 @@ export default function MarketPage() {
             track={selectedTrack}
         />
       )}
+
+      {/* ✅ Rental Modal Added */}
+      {isRentalModalOpen && (
+        <RentalModal
+            isOpen={isRentalModalOpen}
+            onClose={() => { setIsRentalModalOpen(false); setPendingRentalTrack(null); }}
+            onConfirm={handleRentalConfirm}
+            isLoading={isRentalLoading}
+        />
+      )}
+
+      {/* ✅ [수정] PlaylistSelectionModal 컴포넌트로 대체 */}
+      <PlaylistSelectionModal
+        isOpen={showPlaylistModal}
+        onClose={() => setShowPlaylistModal(false)}
+        playlists={myPlaylists}
+        onSelect={processCollect} // 여기서 processCollect 함수를 전달
+      />
     </div>
   );
 }

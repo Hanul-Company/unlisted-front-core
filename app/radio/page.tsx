@@ -13,6 +13,7 @@ import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_SCENARIOS } from '../constants';
 import HeaderProfile from '../components/HeaderProfile';
 import RentalModal from '../components/RentalModal';
 import { useSearchParams, useRouter } from 'next/navigation';
+import PlaylistSelectionModal from '../components/PlaylistSelectionModal';
 
 const stockContract = getContract({
   client,
@@ -736,7 +737,7 @@ function RadioContent() {
         </div>
       </div>
 
-      {/* ✅ [수정] 렌탈 모달 Props 수정 (isOpen=showRentalModal) */}
+      {/* ✅ [수정] Rental Modal */}
       <RentalModal
         isOpen={showRentalModal}
         onClose={() => setShowRentalModal(false)}
@@ -744,45 +745,13 @@ function RadioContent() {
         isLoading={false}
       />
 
-      {showPlaylistModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-              <h3 className="font-bold">Add to Playlist</h3>
-              <button onClick={() => setShowPlaylistModal(false)}>
-                <X size={20} className="text-zinc-500 hover:text-white" />
-              </button>
-            </div>
-
-            <div className="p-2 space-y-1">
-              <button onClick={() => processCollect('liked')} className="w-full p-3 flex items-center gap-3 hover:bg-zinc-800 rounded-lg transition text-left group">
-                <div className="w-10 h-10 bg-indigo-500/20 text-indigo-500 rounded flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition">
-                  <Heart size={20} fill="currentColor" />
-                </div>
-                <div>
-                  <div className="font-bold text-sm">Liked Songs</div>
-                  <div className="text-xs text-zinc-500">Default Collection</div>
-                </div>
-              </button>
-
-              <div className="h-px bg-zinc-800 my-2 mx-2" />
-
-              {myPlaylists.map(p => (
-                <button key={p.id} onClick={() => processCollect(p.id)} className="w-full p-3 flex items-center gap-3 hover:bg-zinc-800 rounded-lg transition text-left">
-                  <div className="w-10 h-10 bg-zinc-800 rounded flex items-center justify-center">
-                    <ListMusic size={20} className="text-zinc-400" />
-                  </div>
-                  <div className="font-bold text-sm">{p.name}</div>
-                </button>
-              ))}
-
-              {myPlaylists.length === 0 && (
-                <div className="p-4 text-center text-zinc-500 text-xs">No playlists yet.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ✅ [수정] PlaylistSelectionModal 컴포넌트로 대체 */}
+      <PlaylistSelectionModal
+        isOpen={showPlaylistModal}
+        onClose={() => setShowPlaylistModal(false)}
+        playlists={myPlaylists}
+        onSelect={processCollect} // 여기서 processCollect 함수를 전달
+      />
     </div>
   );
 }

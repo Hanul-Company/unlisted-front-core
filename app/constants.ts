@@ -55,6 +55,7 @@ export const UNLISTED_STOCK_ABI = [
 
 // 4. [추가됨] Melody 토큰(ERC20) ABI - 승인(Approve)과 발행(Mint)용
 export const MELODY_TOKEN_ABI = [
+  // --- 기존 함수들 ---
   {
     "inputs": [{ "internalType": "address", "name": "spender", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }],
     "name": "approve",
@@ -92,6 +93,46 @@ export const MELODY_TOKEN_ABI = [
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
+  },
+  
+  // --- ✅ [추가됨] 에러 정의 (ERC20 Standard Errors) ---
+  {
+    "inputs": [
+      { "internalType": "address", "name": "sender", "type": "address" },
+      { "internalType": "uint256", "name": "balance", "type": "uint256" },
+      { "internalType": "uint256", "name": "needed", "type": "uint256" }
+    ],
+    "name": "ERC20InsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "spender", "type": "address" },
+      { "internalType": "uint256", "name": "allowance", "type": "uint256" },
+      { "internalType": "uint256", "name": "needed", "type": "uint256" }
+    ],
+    "name": "ERC20InsufficientAllowance",
+    "type": "error"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "approver", "type": "address" }],
+    "name": "ERC20InvalidApprover",
+    "type": "error"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "receiver", "type": "address" }],
+    "name": "ERC20InvalidReceiver",
+    "type": "error"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "sender", "type": "address" }],
+    "name": "ERC20InvalidSender",
+    "type": "error"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "spender", "type": "address" }],
+    "name": "ERC20InvalidSpender",
+    "type": "error"
   }
 ] as const;
 

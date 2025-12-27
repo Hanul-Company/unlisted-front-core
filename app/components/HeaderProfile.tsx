@@ -96,7 +96,7 @@ export default function HeaderProfile() {
         
         // 🎲 DiceBear API 사용 (Pixel Art 스타일)
         // seed에 지갑 주소를 넣으면 해당 주소만의 고유한 픽셀 캐릭터가 나옵니다.
-        const randomAvatarUrl = `https://api.dicebear.com/9.x/miniavs/svg?seed=${currentAddress}`;
+        const randomAvatarUrl = `https://api.dicebear.com/9.x/pixel-art/svg?seed=${currentAddress}`;
 
         const { data: inserted, error: insertErr } = await supabase
           .from('profiles')
