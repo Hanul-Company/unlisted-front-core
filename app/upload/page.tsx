@@ -1,8 +1,8 @@
 'use client';
 
-import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants'; // 또는 '../constants'
+import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS, MELODY_IP_ADDRESS, MELODY_IP_ABI } from '@/app/constants'; // 또는 '../constants'
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, Hash, Zap, Bot, Globe, Database, UploadCloud, Music, Loader2, ArrowLeft, CheckCircle, Plus, Trash2, User, Image as ImageIcon, X } from 'lucide-react';
+import { TrendingUp, Search, Hash, Zap, Bot, Globe, Database, UploadCloud, Music, Loader2, ArrowLeft, CheckCircle, Plus, Trash2, User, Image as ImageIcon, X } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from "../../lib/i18n";
 import { Link } from "../../lib/i18n";
@@ -11,6 +11,10 @@ import { getCroppedImg } from '@/utils/image'; // 아까 만든 유틸
 import toast from 'react-hot-toast';
 import { useReadContract, useActiveAccount,useSendTransaction } from "thirdweb/react";
 import * as mm from 'music-metadata-browser'; // ✅ MP3 분석용
+
+// Contracts
+import { getContract, prepareContractCall } from "thirdweb";
+import { client, chain } from "@/utils/thirdweb";
 
 type Contributor = { address: string; share: string; role: string; };
 
@@ -51,15 +55,14 @@ export default function UploadPage() {
   const [tagSearch, setTagSearch] = useState('');
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null); // 드롭다운 감지용 Ref
-
   const [genre, setGenre] = useState(MUSIC_GENRES[0]); // 기본값
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
 
-  // 현재 총 지분 (UI 표시용)
-  const currentTotalShare = contributors.reduce(
-    (sum, c) => sum + Number(c.share || 0),
-    0
-  );
+  // ✅ [NEW] Investor Share Logic
+  const [investorShare, setInvestorShare] = useState<number>(30); // 기본값 30%
+
+  // Contributors
+  const currentTotalShare = contributors.reduce((sum, c) => sum + Number(c.share || 0), 0);
 
   // 내 주소 자동 주입
   useEffect(() => {
@@ -274,94 +277,36 @@ export default function UploadPage() {
   // Contributors 핸들러 (자동 지분 조정)
   // -----------------------------
 
-  const addContributor = () => {
-    setContributors(prev => [
-      ...prev,
-      { address: '', share: '0', role: 'Contributor' }
-    ]);
+  const addContributor = () => setContributors(p => [...p, { address: '', share: '0', role: 'Contributor' }]);
+  const removeContributor = (i: number) => setContributors(p => { 
+      const n = [...p]; n.splice(i, 1); 
+      const sum = n.reduce((s, c, x) => x===0 ? s : s + Number(c.share||0), 0);
+      if(n[0]) n[0].share = String(Math.max(0, 100 - sum));
+      return n; 
+  });
+  const updateContributor = (i: number, f: keyof Contributor, v: string) => setContributors(p => {
+      const n = [...p]; if(f!=='share') { n[i] = {...n[i], [f]: v}; return n; }
+      let val = Math.max(0, Math.min(100, Number(v)));
+      if(i===0) {
+         const others = p.reduce((s, c, x) => x===0 ? s : s+Number(c.share||0), 0);
+         n[0].share = String(Math.min(val, Math.max(0, 100 - others)));
+      } else {
+         const othersExMe = p.reduce((s, c, x) => (x===0||x===i) ? s : s+Number(c.share||0), 0);
+         n[i].share = String(Math.min(val, Math.max(0, 100 - othersExMe)));
+         const sumOthers = n.reduce((s, c, x) => x===0 ? s : s+Number(c.share||0), 0);
+         if(n[0]) n[0].share = String(Math.max(0, 100 - sumOthers));
+      }
+      return n;
+  });
+
+  // --- Investors 핸들러 --
+  const getInvestorTier = (share: number) => {
+      if (share <= 20) return { label: "DEFENSIVE", color: "text-blue-400", desc: "Low risk for you, low appeal for investors." };
+      if (share <= 35) return { label: "BALANCED", color: "text-green-400", desc: "Standard market rate. Good balance." };
+      return { label: "AGGRESSIVE", color: "text-red-400", desc: "High investor appeal! Faster funding expected." };
   };
+  const tier = getInvestorTier(investorShare);
 
-  const removeContributor = (index: number) => {
-    setContributors(prev => {
-      const next = [...prev];
-      next.splice(index, 1);
-
-      // 나(0번)를 제외한 나머지 합
-      const othersSum = next.reduce((sum, c, idx) => {
-        if (idx === 0) return sum;
-        return sum + Number(c.share || 0);
-      }, 0);
-
-      if (next[0]) {
-        const mainShare = Math.max(0, Math.min(100, 100 - othersSum));
-        next[0] = { ...next[0], share: String(mainShare) };
-      }
-
-      return next;
-    });
-  };
-
-  const updateContributor = (index: number, field: keyof Contributor, value: string) => {
-    setContributors(prev => {
-      const next = [...prev];
-
-      // address / role 등 share 이외 필드
-      if (field !== 'share') {
-        next[index] = { ...next[index], [field]: value };
-        return next;
-      }
-
-      // share 업데이트 로직
-      let num = Number(value);
-      if (isNaN(num)) num = 0;
-      num = Math.max(0, Math.min(100, num)); // 0~100 사이로 클램핑
-
-      // 0번 = Main Artist
-      if (index === 0) {
-        const othersSum = prev.reduce((sum, c, idx) => {
-          if (idx === 0) return sum;
-          return sum + Number(c.share || 0);
-        }, 0);
-
-        const maxMain = Math.max(0, 100 - othersSum);
-        const finalMain = Math.min(num, maxMain);
-
-        next[0] = { ...next[0], share: String(finalMain) };
-        return next;
-      }
-
-      // index > 0 : 다른 컨트리뷰터
-      const othersSumExcludingThis = prev.reduce((sum, c, idx) => {
-        if (idx === 0 || idx === index) return sum;
-        return sum + Number(c.share || 0);
-      }, 0);
-
-      // 이 컨트리뷰터에게 줄 수 있는 최대치 (나머지 + 나 합쳐서 100)
-      const maxForThis = Math.max(0, 100 - othersSumExcludingThis);
-      const finalShare = Math.min(num, maxForThis);
-
-      next[index] = { ...next[index], share: String(finalShare) };
-
-      // 이 시점에서 next 기준, 나머지(0 제외) 합 계산
-      const sumOthers = next.reduce((sum, c, idx) => {
-        if (idx === 0) return sum;
-        return sum + Number(c.share || 0);
-      }, 0);
-
-      if (next[0]) {
-        const mainShare = Math.max(0, 100 - sumOthers);
-        next[0] = { ...next[0], share: String(mainShare) };
-      }
-
-      return next;
-    });
-  };
-
-  // -----------------------------
-  // Render
-  // -----------------------------
-
-  // Total 색상 스타일
   const totalColorClass =
     currentTotalShare === 100
       ? 'text-emerald-400'
@@ -667,6 +612,62 @@ export default function UploadPage() {
                     </div>
                 )}
             </div>
+          </div>
+
+          {/* ✅ [NEW] Investor Share Slider Section */}
+          <div className="mt-8 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-bold text-white flex items-center gap-2">
+                      <TrendingUp size={16} className="text-green-500"/> Investor Share
+                  </label>
+                  <span className={`text-xs font-black px-2 py-0.5 rounded border border-white/10 bg-black/50 ${tier.color}`}>
+                      {tier.label}
+                  </span>
+              </div>
+              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+                  Decide how much of the <strong>future revenue</strong> you want to share with investors.<br/>
+                  Higher share = Faster funding & Viral potential.
+              </p>
+              
+              <div className="relative h-10 flex items-center mb-6 px-2">
+                  <input 
+                      type="range" 
+                      min="10" max="50" step="5" 
+                      value={investorShare} 
+                      onChange={(e) => setInvestorShare(parseInt(e.target.value))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-green-500 z-10 relative"
+                  />
+                  {/* Ticks */}
+                  <div className="absolute top-6 left-0 right-0 flex justify-between text-[10px] text-zinc-600 font-mono px-1">
+                      <span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span>
+                  </div>
+              </div>
+
+              {/* Simulation Box */}
+              <div className="bg-black rounded-xl p-4 border border-zinc-800 flex items-center gap-6">
+                  <div className="w-16 h-16 relative">
+                      {/* Donut Chart Visual */}
+                      <svg viewBox="0 0 36 36" className="w-full h-full rotate-[-90deg]">
+                          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#333" strokeWidth="4" />
+                          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" strokeWidth="4" strokeDasharray={`${investorShare}, 100`} />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{investorShare}%</div>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                      <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500">For Investors</span>
+                          <span className="text-green-400 font-bold">{investorShare}% (Revenue)</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500">For You & Team</span>
+                          <span className="text-white font-bold">{100 - investorShare}% (Retained)</span>
+                      </div>
+                      <div className="h-px bg-zinc-800 my-1"/>
+                      <p className="text-[10px] text-zinc-500 italic">
+                          "{tier.desc}"
+                      </p>
+                  </div>
+              </div>
           </div>
 
           {/* Contributors */}

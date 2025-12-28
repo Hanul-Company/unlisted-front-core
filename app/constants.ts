@@ -1,10 +1,9 @@
 // 아까 배포 로그에서 'UnlistedStock deployed at:' 뒤에 나온 주소
-export const UNLISTED_STOCK_ADDRESS = "0x3e8627C1407Cbc043Cb052B9DbaF12c72000eBfD"; 
-export const MELODY_TOKEN_ADDRESS = "0x6686Ae3D8e5d0A708F4a1C0ff1194d2a38af1d7b";
-export const MELODY_IP_ADDRESS = "0x9dB55f94c3D2EEC0eAcc6911B4Ef845F7638B21e"
+export const UNLISTED_STOCK_ADDRESS = "0x4aB47f55625FF383b5b3dC01131eC0A97Deff298"; 
+export const MELODY_TOKEN_ADDRESS = "0x7D6b411E5f8BB7ab24559262F296931eedF3f04d";
+export const MELODY_IP_ADDRESS = "0xeC83eaCF9796a3bD5A1Caaa53bA6ED19989087C1"
 
 // 2. ABI (컨트랙트 사용 설명서)
-// 우리가 만든 UnlistedStock.sol의 핵심 함수들입니다.
 export const UNLISTED_STOCK_ABI = [
   {
     "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }],
@@ -15,9 +14,37 @@ export const UNLISTED_STOCK_ABI = [
   },
   {
     "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }],
-    "name": "sellShares", // [추가] 매도 함수
+    "name": "sellShares",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }],
+    "name": "claimRewards", // [New] 배당금 수령
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }],
+    "name": "claimJackpot", // [New] 잭팟 수령
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }],
+    "name": "depositRentalRevenue", // [New] 렌탈 수익 입금
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }, { "internalType": "address", "name": "user", "type": "address" }],
+    "name": "getPendingReward", // [New] 배당금 조회
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -29,14 +56,14 @@ export const UNLISTED_STOCK_ABI = [
   },
   {
     "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }],
-    "name": "getSellPrice", // [추가] 매도 가격 조회
+    "name": "getSellPrice",
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }, { "internalType": "address", "name": "", "type": "address" }],
-    "name": "sharesBalance", // [추가] 내 지분 조회
+    "name": "sharesBalance",
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
@@ -46,11 +73,16 @@ export const UNLISTED_STOCK_ABI = [
     "name": "stocks",
     "outputs": [
       { "internalType": "uint256", "name": "totalShares", "type": "uint256" },
-      { "internalType": "uint256", "name": "poolBalance", "type": "uint256" }
+      { "internalType": "uint256", "name": "poolBalance", "type": "uint256" },
+      { "internalType": "uint256", "name": "jackpotBalance", "type": "uint256" },
+      { "internalType": "uint256", "name": "expiryTime", "type": "uint256" },
+      { "internalType": "address", "name": "lastBuyer", "type": "address" },
+      { "internalType": "bool", "name": "isJackpotClaimed", "type": "bool" },
+      { "internalType": "uint256", "name": "accRewardPerShare", "type": "uint256" }
     ],
     "stateMutability": "view",
     "type": "function"
-  },
+  }
 ] as const;
 
 // 4. [추가됨] Melody 토큰(ERC20) ABI - 승인(Approve)과 발행(Mint)용
@@ -137,19 +169,56 @@ export const MELODY_TOKEN_ABI = [
 ] as const;
 
 export const MELODY_IP_ABI = [
+  // ... (기존 표준 ERC1155 함수들은 생략하거나 유지) ...
   {
     "inputs": [
       { "internalType": "string", "name": "_melodyHash", "type": "string" },
-      { "internalType": "address[]", "name": "_payees", "type": "address[]" }, // 추가됨
-      { "internalType": "uint256[]", "name": "_shares", "type": "uint256[]" }, // 추가됨
+      { "internalType": "address[]", "name": "_payees", "type": "address[]" },
+      { "internalType": "uint256[]", "name": "_shares", "type": "uint256[]" },
       { "internalType": "uint96", "name": "_royaltyBasis", "type": "uint96" },
       { "internalType": "bool", "name": "_derivativeAllowed", "type": "bool" },
-      { "internalType": "string", "name": "_metadataURI", "type": "string" }
+      { "internalType": "string", "name": "_metadataURI", "type": "string" },
+      { "internalType": "uint96", "name": "_investorShare", "type": "uint96" } // [New] 추가됨
     ],
     "name": "registerMusic",
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "nonpayable",
     "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }],
+    "name": "getInvestorShare", // [New] 조회용
+    "outputs": [{ "internalType": "uint96", "name": "", "type": "uint96" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }],
+    "name": "getPayees",
+    "outputs": [{ "internalType": "address[]", "name": "", "type": "address[]" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }],
+    "name": "getShares",
+    "outputs": [{ "internalType": "uint256[]", "name": "", "type": "uint256[]" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+     "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+     "name": "tracks", // 구조체가 바뀌었으므로 출력도 바뀜
+     "outputs": [
+       { "internalType": "string", "name": "melodyHash", "type": "string" },
+       { "internalType": "uint96", "name": "royaltyBasis", "type": "uint96" },
+       { "internalType": "bool", "name": "derivativeAllowed", "type": "bool" },
+       { "internalType": "string", "name": "metadataURI", "type": "string" },
+       { "internalType": "string", "name": "algoVersion", "type": "string" },
+       { "internalType": "uint96", "name": "investorShare", "type": "uint96" }
+     ],
+     "stateMutability": "view",
+     "type": "function"
   }
 ] as const;
 

@@ -15,6 +15,7 @@ import RentalModal from '../components/RentalModal';
 import PlaylistSelectionModal from '../components/PlaylistSelectionModal';
 import TokenBalance from '../components/TokenBalance';
 import HorizontalScroll from '../components/HorizontalScroll'; // 경로 확인
+import InvestmentCard from '../components/InvestmentCard';
 import { formatEther, parseEther } from 'viem';
 
 // [Thirdweb Imports]
@@ -667,22 +668,26 @@ export default function MarketPage() {
                         <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="text-green-400" size={20}/> Top Investment</h2>
                         <Link href="/investing" className="text-xs text-zinc-500 hover:text-white flex items-center gap-1">View Chart <ArrowRight size={12}/></Link>
                     </div>
-                    <HorizontalScroll className="gap-4 px-6 pb-2 snap-x pt-2"> 
-                        {investTracks.map((t) => (
-                            <div key={t.id} className="min-w-[200px] w-[200px] group bg-zinc-900 border border-zinc-800 p-3 rounded-xl hover:border-green-500/50 transition cursor-pointer" onClick={() => { setCurrentTrack(t); setIsPlaying(true); setMobilePlayerOpen(true); }}>
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-12 h-12 rounded bg-zinc-800 overflow-hidden flex-shrink-0">
-                                        {t.cover_image_url ? <img src={t.cover_image_url} className="w-full h-full object-cover"/> : <MusicIcon className="p-3 text-zinc-600"/>}
-                                    </div>
-                                    <div className="overflow-hidden">
-                                        <div className="font-bold text-sm truncate">{t.title}</div>
-                                        <div className="text-xs text-zinc-500 truncate">{t.artist_name}</div>
-                                    </div>
+                        <HorizontalScroll className="gap-4 px-6 pb-4 snap-x pt-2 scrollbar-hide"> 
+                            {investTracks.map((t) => (
+                                <InvestmentCard 
+                                    key={t.id} 
+                                    track={t} 
+                                    onPlay={(track) => { 
+                                        setCurrentTrack(track); 
+                                        setIsPlaying(true); 
+                                        setMobilePlayerOpen(true); 
+                                    }}
+                                    onInvest={(track) => handleInvest(track)}
+                                />
+                            ))}
+                            {/* 투자할 곡이 없을 때 빈 상태 처리 (옵션) */}
+                            {investTracks.length === 0 && (
+                                <div className="min-w-[240px] h-[260px] flex flex-col items-center justify-center bg-zinc-900/50 border border-zinc-800 border-dashed rounded-2xl text-zinc-500 text-xs">
+                                    <p>No investment tracks yet.</p>
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); handleInvest(t); }} className="w-full bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-black py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2"><Zap size={14} fill="currentColor"/> Invest</button>
-                            </div>
-                        ))}
-                    </HorizontalScroll>
+                            )}
+                        </HorizontalScroll>
                 </section>
 
                 {/* 5. Browse All (유지) */}
