@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Share2, Instagram, Loader2, Link as LinkIcon, Download } from 'lucide-react';
+import { Share2, Instagram, Loader2, Link as LinkIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import html2canvas from 'html2canvas';
 
 interface ShareButtonProps {
   assetId: string;
-  trackData?: { // 이미지 생성용 데이터 추가
+  trackData?: {
     title: string;
     artist: string;
     coverUrl: string;
@@ -19,112 +19,126 @@ interface ShareButtonProps {
 const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareButtonProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // 1. 일반 링크 공유 (기존 로직)
-  const handleLinkShare = async () => {
+  // 1. 일반 공유 (네이티브 Share Sheet 호출)
+  const handleNativeShare = async () => {
     const shareUrl = `${window.location.origin}/share/${assetId}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('Link copied to clipboard!', { icon: '🔗' });
-    } catch (err) {
-      toast.error('Failed to copy link.');
+    const shareData = {
+        title: 'unlisted Music Investment',
+        text: trackData ? `Listen to ${trackData.title} by ${trackData.artist}` : 'Check out this song!',
+        url: shareUrl,
+    };
+
+    if (navigator.share && navigator.canShare(shareData)) {
+        try {
+            await navigator.share(shareData);
+        } catch (err) {
+            console.log('Share closed/cancelled');
+        }
+    } else {
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            toast.success('Link copied to clipboard!', { icon: '🔗' });
+        } catch (err) {
+            toast.error('Failed to copy link.');
+        }
     }
   };
 
-  // 2. 인스타 스토리용 이미지 생성 및 공유
+  // 2. 인스타 스토리용 이미지 생성
   const handleStoryShare = async () => {
-    if (!trackData) return handleLinkShare(); // 데이터 없으면 링크 공유로 대체
+    if (!trackData) return handleNativeShare();
     setIsGenerating(true);
 
     try {
-      // (1) 숨겨진 HTML 요소를 만듭니다 (스토리 비율 9:16)
       const element = document.createElement('div');
-      element.style.width = '1080px';
-      element.style.height = '1920px';
-      element.style.position = 'fixed';
-      element.style.top = '-9999px'; // 화면 밖으로 숨김
-      element.style.background = 'linear-gradient(180deg, #000000 0%, #1a1a1a 100%)';
-      element.style.display = 'flex';
-      element.style.flexDirection = 'column';
-      element.style.alignItems = 'center';
-      element.style.justifyContent = 'center';
-      element.style.color = 'white';
-      element.style.fontFamily = 'sans-serif';
+      Object.assign(element.style, {
+        width: '1080px',
+        height: '1920px',
+        position: 'fixed',
+        top: '-9999px',
+        backgroundColor: '#000000', // 완전 블랙
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontFamily: 'sans-serif',
+      });
       
-      // 내부 디자인 (Spotify 스타일)
+      // ✅ [디자인 수정 핵심]
+      // 1. 640px(커버 너비)짜리 래퍼를 만들어 로고와 커버를 묶습니다.
+      // 2. 로고 크기를 260px (640px의 약 2/5)로 키웠습니다.
       element.innerHTML = `
-        <img src="${trackData.coverUrl}" style="width: 800px; height: 800px; border-radius: 40px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin-bottom: 60px; object-fit: cover;" crossorigin="anonymous" />
-        <h1 style="font-size: 80px; font-weight: 900; margin: 0; text-align: center; max-width: 900px;">${trackData.title}</h1>
-        <p style="font-size: 50px; color: #888; margin-top: 20px;">${trackData.artist}</p>
-        <div style="margin-top: 100px; background: #22c55e; padding: 20px 60px; border-radius: 99px; font-size: 40px; font-weight: bold; color: black;">
-          Listen on unlisted
+        <div style="width: 640px; display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 60px;">
+            <img 
+                src="/logo.png" 
+                style="width: 260px; object-fit: contain; margin-bottom: 30px;" 
+                crossorigin="anonymous"
+            />
+
+            <img 
+                src="${trackData.coverUrl}" 
+                style="width: 640px; height: 640px; border-radius: 40px; box-shadow: 0 30px 60px rgba(255,255,255,0.1); object-fit: cover;" 
+                crossorigin="anonymous" 
+            />
         </div>
+        
+        <h1 style="font-size: 80px; font-weight: 900; margin: 0; text-align: center; max-width: 900px; line-height: 1.1; white-space: pre-wrap;">${trackData.title}</h1>
+        
+        <p style="font-size: 50px; color: #888; margin-top: 30px; font-weight: 500;">${trackData.artist}</p>
       `;
       
       document.body.appendChild(element);
 
-      // (2) 이미지를 캔버스로 변환
-      const canvas = await html2canvas(element, { 
-        useCORS: true, // 외부 이미지 허용
-        scale: 1 
-      });
-      document.body.removeChild(element); // 청소
+      const canvas = await html2canvas(element, { useCORS: true, scale: 1, backgroundColor: '#000000' });
+      document.body.removeChild(element);
 
-      // (3) Blob(파일)으로 변환
       canvas.toBlob(async (blob) => {
         if (!blob) throw new Error("Image generation failed");
-        
-        const file = new File([blob], 'share-story.png', { type: 'image/png' });
+        const file = new File([blob], 'story.png', { type: 'image/png' });
 
-        // (4) 모바일 네이티브 공유 호출 (파일 첨부)
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (navigator.share && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
               files: [file],
-              title: 'Check this song',
-              text: `Listen to ${trackData.title} by ${trackData.artist}`,
             });
-          } catch (err) {
-            console.log('Share closed'); // 유저가 닫음
-          }
+          } catch (err) { console.log('Share closed'); }
         } else {
-          // (5) PC거나 파일 공유 미지원 브라우저면 -> 이미지 다운로드
           const link = document.createElement('a');
           link.href = canvas.toDataURL('image/png');
-          link.download = `${trackData.title}-story.png`;
+          link.download = `${trackData.title}.png`;
           link.click();
-          toast.success("Image downloaded! Post it to your story.");
+          toast.success("Image downloaded!");
         }
         setIsGenerating(false);
       }, 'image/png');
 
     } catch (e) {
       console.error(e);
-      toast.error("Failed to generate image.");
+      toast.error("Failed to create image.");
       setIsGenerating(false);
     }
   };
 
   return (
     <div className="flex gap-2">
-      {/* 1. 인스타 스토리 버튼 (데이터 있을 때만) */}
       {trackData && (
         <button 
             onClick={(e) => { e.stopPropagation(); handleStoryShare(); }}
             disabled={isGenerating}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${className.includes('bg-') ? className : 'bg-zinc-800 text-pink-500 hover:bg-zinc-700'}`}
-            title="Share to Story"
+            title="Share to Instagram Story"
         >
             {isGenerating ? <Loader2 size={18} className="animate-spin text-zinc-400"/> : <Instagram size={18} />}
         </button>
       )}
 
-      {/* 2. 일반 링크 복사 버튼 */}
       <button 
-        onClick={(e) => { e.stopPropagation(); handleLinkShare(); }}
+        onClick={(e) => { e.stopPropagation(); handleNativeShare(); }}
         className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${className.includes('bg-') ? className : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'}`}
-        title="Copy Link"
+        title="Share Link"
       >
-        <LinkIcon size={18} />
+        <Share2 size={18} />
       </button>
     </div>
   );
