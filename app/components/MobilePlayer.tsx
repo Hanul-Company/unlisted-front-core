@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Repeat1, Shuffle, Heart, Zap, ListMusic, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import ShareButton from './ui/ShareButton';
 
 interface MobilePlayerProps {
   track: any;
@@ -99,7 +100,14 @@ export default function MobilePlayer({
                      <ListMusic size={10}/> NOW PLAYING
                 </div>
                 
-                <div className="w-10" />
+                {/* ▼ 여기를 수정했습니다 (기존 <div className="w-10" /> 제거 후 교체) */}
+                <div className="w-10 h-10 flex items-center justify-center">
+                    <ShareButton 
+                        assetId={track.id?.toString()} 
+                        className="w-full h-full bg-black/20 backdrop-blur-md border border-white/5 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                        size={20}
+                    />
+                </div>
             </header>
 
             {/* 2. Main Content */}

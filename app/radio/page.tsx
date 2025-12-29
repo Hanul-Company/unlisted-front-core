@@ -2,32 +2,16 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { supabase } from '@/utils/supabase';
-import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants';
-import { ListMusic, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, Volume2, VolumeX, ChevronLeft } from 'lucide-react';
-import { getContract, prepareContractCall } from "thirdweb";
-import { useActiveAccount, useSendTransaction, useReadContract } from "thirdweb/react";
-import { client, chain } from "@/utils/thirdweb";
+import { ListMusic, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, Volume2, VolumeX, ChevronLeft, Share2 } from 'lucide-react';
+import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 import toast from 'react-hot-toast';
 import { Link } from "@/lib/i18n";
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_SCENARIOS } from '../constants';
 import HeaderProfile from '../components/HeaderProfile';
 import RentalModal from '../components/RentalModal';
-import { useSearchParams, useRouter } from 'next/navigation';
+import TradeModal from '../components/TradeModal'; // ✅ TradeModal Import 확인
 import PlaylistSelectionModal from '../components/PlaylistSelectionModal';
-
-const stockContract = getContract({
-  client,
-  chain,
-  address: UNLISTED_STOCK_ADDRESS,
-  abi: UNLISTED_STOCK_ABI as any
-});
-
-const tokenContract = getContract({
-  client,
-  chain,
-  address: MELODY_TOKEN_ADDRESS,
-  abi: MELODY_TOKEN_ABI as any
-});
+import { useSearchParams, useRouter } from 'next/navigation';
 
 function RadioContent() {
   const account = useActiveAccount();
@@ -40,8 +24,6 @@ function RadioContent() {
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const [user, setUser] = useState<any>(null);
-  // ✅ [추가] 프로필 ID 저장용 State (재조회 방지)
-  const [userProfileId, setUserProfileId] = useState<string | null>(null);
   const [step, setStep] = useState<'onboarding' | 'playing'>('onboarding');
 
   // GenMode
@@ -65,17 +47,18 @@ function RadioContent() {
   const [showVolume, setShowVolume] = useState(false);
   const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Modals & Flows
-  // ✅ [수정] 변수명 통일 (isRentalOpen 삭제)
+  // --- Modals & Flows ---
   const [showRentalModal, setShowRentalModal] = useState(false);
+  const [showTradeModal, setShowTradeModal] = useState(false); // ✅ Trade Modal State
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [myPlaylists, setMyPlaylists] = useState<any[]>([]);
-
+  
   // Rental Logic Data
   const [tempRentalTerms, setTempRentalTerms] = useState<{ months: number, price: number } | null>(null);
 
   const { mutate: sendTransaction } = useSendTransaction();
 
+  // User Check
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -116,7 +99,7 @@ function RadioContent() {
         .from('playlist_items')
         .select(`
           tracks (
-            id, title, artist_name, audio_url, cover_image_url, genre, moods, duration, uploader_address, token_id
+            id, title, artist_name, audio_url, cover_image_url, genre, moods, duration, uploader_address, token_id, is_minted
           )
         `)
         .eq('playlist_id', playlistId)
@@ -129,14 +112,10 @@ function RadioContent() {
       if (formattedTracks.length > 0) {
         setQueue(formattedTracks);
         setCurrentTrack(formattedTracks[0]);
-        
         setGenMode('playlist'); 
         setSelectedGenre(plInfo.name);
         setStep('playing');
-        
-        setTimeout(() => {
-          setIsPlaying(true);
-        }, 500);
+        setTimeout(() => setIsPlaying(true), 500);
       } else {
         toast.error("This playlist is empty.");
       }
@@ -206,6 +185,7 @@ function RadioContent() {
     }
   }, [selectedScenario]);
 
+  // Audio Control Effects
   useEffect(() => {
     const audio = audioRef.current;
     if (currentTrack && audio) {
@@ -244,6 +224,7 @@ function RadioContent() {
   const handleTimeUpdate = () => { if (audioRef.current) setCurrentTime(audioRef.current.currentTime); };
   const handleLoadedMetadata = () => { if (audioRef.current) setDuration(audioRef.current.duration); };
 
+  // ✅ [수정] 누락되었던 formatTime 함수 추가
   const formatTime = (time: number) => {
     if (isNaN(time)) return "0:00";
     const min = Math.floor(time / 60);
@@ -267,27 +248,13 @@ function RadioContent() {
     }
   };
 
+  // ✅ [수정] Invest 버튼 클릭 -> TradeModal 오픈
   const handleInvest = () => {
     if (!address) return toast.error("Wallet connection required.");
-    const targetTokenId = currentTrack.token_id || currentTrack.id;
-
-    const transaction = prepareContractCall({
-      contract: stockContract,
-      method: "buyShares",
-      params: [BigInt(targetTokenId), BigInt(10 * 1e18)]
-    });
-
-    const toastId = toast.loading("Processing investment...");
-    sendTransaction(transaction, {
-      onSuccess: () => toast.success("Investment successful!", { id: toastId }),
-      onError: (err) => {
-        console.error(err);
-        toast.error("Investment failed.", { id: toastId });
-      }
-    });
+    setShowTradeModal(true);
   };
 
-  // ✅ [수정] 하트 클릭 시 -> 렌탈 모달(기간 선택)을 먼저 염
+  // ✅ [수정] Heart 버튼 클릭 -> RentalModal 오픈
   const openCollectModal = async () => {
     if (!address && !user) return toast.error("Please log in or connect your wallet.");
 
@@ -299,193 +266,108 @@ function RadioContent() {
 
     if (existing) return toast.success("Already in your library.");
 
-    // 바로 PlaylistModal로 가지 않고 RentalModal을 엽니다.
+    // Rental Modal 오픈
     setShowRentalModal(true);
   };
 
-// 🔍 [디버깅용] 렌탈 확인 (로그 강화)
+  // 1. Rental Modal -> Playlist Modal 전환
   const handleRentalConfirm = async (months: number, price: number) => {
-    console.group("🚀 [Step 1] handleRentalConfirm Started");
-    console.log("Input:", { months, price });
-    console.log("Current Address:", address);
-
+    console.log("Rental Confirmed:", { months, price });
     setTempRentalTerms({ months, price });
 
     if (address) {
       try {
-        console.log("🔎 Fetching Profile for address:", address);
-        const { data: profile, error: profileError } = await supabase
+        // 프로필 ID 조회
+        const { data: profile } = await supabase
           .from('profiles')
-          .select('id, username')
+          .select('id')
           .eq('wallet_address', address)
           .single();
 
-        if (profileError) {
-            console.error("❌ Profile Fetch Error:", profileError);
-            toast.error("Profile load failed: " + profileError.message);
-            console.groupEnd();
-            return;
-        }
-
         if (profile) {
-          console.log("✅ Profile Found:", profile);
-          
-          // 🔥 State 저장 확인 로그
-          console.log("💾 Setting userProfileId state to:", profile.id);
-          setUserProfileId(profile.id); 
-
-          const { data: playlists, error: playlistError } = await supabase
+          // 플레이리스트 조회
+          const { data: playlists } = await supabase
             .from('playlists')
             .select('*')
             .eq('profile_id', profile.id)
             .order('created_at', { ascending: false });
           
-          if (playlistError) console.error("❌ Playlist Fetch Error:", playlistError);
-          console.log("✅ Playlists loaded:", playlists?.length);
-
           setMyPlaylists(playlists || []);
-        } else {
-            console.warn("⚠️ No profile returned for this address.");
         }
       } catch (error) {
-        console.error("🔥 Critical Error in handleRentalConfirm:", error);
+        console.error("Profile/Playlist Error:", error);
       }
-    } else {
-        console.warn("⚠️ No wallet address connected.");
     }
     
-    console.groupEnd();
     setShowRentalModal(false);
     setShowPlaylistModal(true);
   };
 
-// ✅ [최종 수정] _by_wallet 함수들을 사용하는 완벽한 결제 로직
+  // 2. 최종 결제 프로세스 (by_wallet RPC 사용)
   const processCollect = async (playlistId: string | 'liked') => {
-    // 1. 지갑 주소 및 렌탈 조건 확인
-    const walletAddress = address; // Thirdweb에서 가져온 주소
-    if (!walletAddress) return toast.error("Wallet not connected.");
+    if (!address) return toast.error("Wallet not connected.");
     
     setShowPlaylistModal(false);
 
     if (!tempRentalTerms) return toast.error("Error: Missing rental terms.");
-    const { months, price } = tempRentalTerms; // months가 999면 무제한
+    const { months, price } = tempRentalTerms;
     
     const toastId = toast.loading("Processing payment...");
 
     try {
-      // ---------------------------------------------------------
-      // [1단계] pMLD (포인트) 결제 시도
-      // ---------------------------------------------------------
-      console.log("Attempting pMLD Payment via RPC...");
-      
-      // ✅ 새로 만든 _by_wallet 함수 호출
+      // 1) pMLD 결제 시도
       const { data: rpcResult, error: rpcError } = await supabase.rpc('add_to_collection_using_p_mld_by_wallet', {
-        p_wallet_address: walletAddress,
+        p_wallet_address: address,
         p_track_id: currentTrack.id,
         p_duration_months: months
       });
 
-      if (rpcError) {
-        console.error("❌ pMLD RPC Error:", rpcError);
-        throw rpcError;
-      }
-
-      console.log("pMLD RPC Result:", rpcResult);
-
-      // ✅ [성공 Case] 포인트로 결제 완료됨
       if (rpcResult === 'OK') {
-        // 플레이리스트 아이템 추가
         if (playlistId !== 'liked') {
-          await supabase.from('playlist_items').insert({ 
-            playlist_id: parseInt(playlistId),
-            track_id: currentTrack.id 
-          });
+          await supabase.from('playlist_items').insert({ playlist_id: parseInt(playlistId), track_id: currentTrack.id });
         }
-        // 좋아요 추가
-        await supabase.from('likes').insert({ wallet_address: walletAddress, track_id: currentTrack.id });
-
+        await supabase.from('likes').upsert({ wallet_address: address, track_id: currentTrack.id }, { onConflict: 'wallet_address, track_id' });
         toast.success("Collected using pMLD!", { id: toastId });
         setTempRentalTerms(null);
         return;
       }
 
-      // ---------------------------------------------------------
-      // [2단계] MLD (토큰) 결제 시도 (포인트 부족 시)
-      // ---------------------------------------------------------
+      // 2) MLD 결제 시도
       if (rpcResult === 'INSUFFICIENT_PMLD') {
-        console.log("Insufficient pMLD. Switching to MLD Token...");
         toast.loading(`Insufficient pMLD. Requesting ${price} MLD...`, { id: toastId });
 
-        // 아티스트 지갑 찾기
-        const { data: contributors } = await supabase
-          .from('track_contributors')
-          .select('wallet_address')
-          .eq('track_id', currentTrack.id)
-          .eq('role', 'Main Artist')
-          .limit(1);
-
-        if (!contributors || contributors.length === 0) throw new Error("Artist wallet not found.");
-
-        // 1. 블록체인 트랜잭션 (MLD 전송)
-        const transaction = prepareContractCall({
-          contract: tokenContract,
-          method: "transfer",
-          params: [contributors[0].wallet_address, BigInt(price * 1e18)]
+        // MLD 결제 RPC 호출
+        const { data: mldRpcResult } = await supabase.rpc('add_to_collection_using_mld_by_wallet', {
+            p_wallet_address: address,
+            p_track_id: currentTrack.id,
+            p_duration_months: months,
+            p_amount_mld: price
         });
-
-        sendTransaction(transaction, {
-          onSuccess: async () => {
-            console.log("✅ Blockchain Transaction Confirmed.");
-            toast.loading("Verifying rental...", { id: toastId });
-
-            // 2. ✅ DB 처리: 새로 만든 MLD용 RPC 함수 호출
-            // (이 함수가 collections 테이블 insert와 로그 기록을 다 해줍니다)
-            const { data: mldRpcResult, error: mldRpcError } = await supabase.rpc('add_to_collection_using_mld_by_wallet', {
-               p_wallet_address: walletAddress,
-               p_track_id: currentTrack.id,
-               p_duration_months: months,
-               p_amount_mld: price
-            });
-
-            if (mldRpcError) {
-                console.error("❌ MLD DB Sync Error:", mldRpcError);
-                toast.error("Transaction success but DB sync failed. Contact support.", { id: toastId });
-                return;
+        
+        if (mldRpcResult === 'OK') {
+             // 플레이리스트 추가 로직
+            if (playlistId !== 'liked') {
+                 await supabase.from('playlist_items').insert({ playlist_id: parseInt(playlistId), track_id: currentTrack.id });
             }
+             // 좋아요 추가
+            await supabase.from('likes').upsert({ wallet_address: address, track_id: currentTrack.id }, { onConflict: 'wallet_address, track_id' });
 
-            if (mldRpcResult === 'OK') {
-                // 플레이리스트 아이템 추가
-                if (playlistId !== 'liked') {
-                    await supabase.from('playlist_items').insert({ 
-                        playlist_id: parseInt(playlistId),
-                        track_id: currentTrack.id 
-                    });
-                }
-                // 좋아요 추가
-                await supabase.from('likes').insert({ wallet_address: walletAddress, track_id: currentTrack.id });
-
-                toast.success("Payment complete! Added to playlist.", { id: toastId });
-                setTempRentalTerms(null);
-            } else {
-                console.error("Unknown RPC Result:", mldRpcResult);
-                toast.error(`Error: ${mldRpcResult}`, { id: toastId });
-            }
-          },
-          onError: (err) => {
-            console.error("❌ Transaction Failed:", err);
-            toast.error("Payment transaction failed.", { id: toastId });
-          }
-        });
+            toast.success("Payment complete via MLD!", { id: toastId });
+        } else {
+            toast.error("MLD Payment failed: " + mldRpcResult, { id: toastId });
+        }
+        setTempRentalTerms(null);
       } else {
-        // 그 외 에러 (NO_WALLET, NO_TRACK_ID 등)
         toast.error(`Error: ${rpcResult}`, { id: toastId });
       }
 
     } catch (e: any) {
-      console.error("🔥 Process Collect Error:", e);
+      console.error(e);
       toast.error(e.message || "An error occurred", { id: toastId });
     }
   };
+
+  // --- Render ---
 
   if (targetPlaylistId && step === 'onboarding') {
     return (
@@ -519,7 +401,6 @@ function RadioContent() {
                 <span className="w-10 h-px bg-blue-500/50"></span>
               </label>
 
-              {/* 시나리오 리스트 영역 */}
               <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide justify-start md:justify-center px-4 snap-x pt-1">
                 {MUSIC_SCENARIOS.map((scenario) => (
                   <button
@@ -678,11 +559,6 @@ function RadioContent() {
                   #{currentTrack.genre}
                 </span>
               )}
-              {genMode === 'playlist' && selectedGenre && (
-                <span className="text-[10px] bg-green-900/30 border border-green-800/50 px-2 py-0.5 rounded text-green-500 uppercase tracking-wide flex items-center gap-1">
-                  <ListMusic size={8}/> {selectedGenre}
-                </span>
-              )}
             </div>
           </div>
 
@@ -700,7 +576,11 @@ function RadioContent() {
             </button>
           </div>
 
-          <button onClick={handleInvest} className="flex items-center gap-2 text-yellow-500/80 hover:text-yellow-400 font-bold tracking-widest text-[10px] mt-6 hover:underline transition mx-auto uppercase">
+          {/* ✅ Invest Button linked to TradeModal */}
+          <button 
+            onClick={handleInvest} 
+            className="flex items-center gap-2 text-yellow-500/80 hover:text-yellow-400 font-bold tracking-widest text-[10px] mt-6 hover:underline transition mx-auto uppercase"
+          >
             <Zap size={12} fill="currentColor" /> Invest
           </button>
         </div>
@@ -737,7 +617,9 @@ function RadioContent() {
         </div>
       </div>
 
-      {/* ✅ [수정] Rental Modal */}
+      {/* ✅ Modals Section */}
+      
+      {/* 1. Rental Modal */}
       <RentalModal
         isOpen={showRentalModal}
         onClose={() => setShowRentalModal(false)}
@@ -745,13 +627,27 @@ function RadioContent() {
         isLoading={false}
       />
 
-      {/* ✅ [수정] PlaylistSelectionModal 컴포넌트로 대체 */}
+      {/* 2. Playlist Selection Modal */}
       <PlaylistSelectionModal
         isOpen={showPlaylistModal}
         onClose={() => setShowPlaylistModal(false)}
         playlists={myPlaylists}
-        onSelect={processCollect} // 여기서 processCollect 함수를 전달
+        onSelect={processCollect}
       />
+
+      {/* 3. ✅ Trade Modal (Added) */}
+      {currentTrack && (
+        <TradeModal
+            isOpen={showTradeModal}
+            onClose={() => setShowTradeModal(false)}
+            track={{
+                id: currentTrack.id,
+                title: currentTrack.title,
+                token_id: currentTrack.token_id || currentTrack.id, // token_id가 없으면 id 사용
+                artist_name: currentTrack.artist_name
+            }}
+        />
+      )}
     </div>
   );
 }

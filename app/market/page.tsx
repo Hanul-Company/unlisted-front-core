@@ -79,8 +79,6 @@ export default function MarketPage() {
   const [likedTrackIds, setLikedTrackIds] = useState<Set<number>>(new Set());
   const [rentedTrackIds, setRentedTrackIds] = useState<Set<number>>(new Set()); // 렌탈한 트랙 ID 관리
 
-  // ... 기존 state들 ...
-
   // [New] Rental & Payment Logic States
   const [showPlaylistModal, setShowPlaylistModal] = useState(false); // 플레이리스트 선택 모달
   const [tempRentalTerms, setTempRentalTerms] = useState<{ months: number, price: number } | null>(null);

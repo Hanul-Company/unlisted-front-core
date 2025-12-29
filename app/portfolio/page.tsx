@@ -13,6 +13,7 @@ import TradeModal from '../components/TradeModal';
 import MobilePlayer from '../components/MobilePlayer'; // 모바일 전체화면 플레이어
 import RentalModal from '../components/RentalModal'; // 렌탈 모달
 import PlaylistSelectionModal from '../components/PlaylistSelectionModal'; // 플레이리스트 선택
+import ShareButton from '../components/ui/ShareButton';
 
 // Thirdweb
 import { getContract, prepareContractCall } from "thirdweb";
@@ -427,6 +428,16 @@ function PortfolioCard({ track, address, onPlay, onPause, isCurrentTrack, isPlay
                         {myBalance} Shares
                     </span>
                 </div>
+
+                {/* ✅ [추가됨] 오른쪽 상단: 공유 버튼 */}
+                {/* z-20을 줘서 재생 버튼보다 위에 오게 해야 클릭이 됩니다 */}
+                <div className="absolute top-3 right-3 z-20">
+                    <ShareButton 
+                        assetId={track.id.toString()} 
+                        className="w-8 h-8 bg-black/40 hover:bg-white/20 backdrop-blur-md border border-white/10 hover:border-white/50 rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-all duration-300 hover:scale-110 shadow-lg"
+                        size={16}
+                    />
+                </div>
             </div>
 
             <div className="p-5 flex-1 flex flex-col">
@@ -453,7 +464,7 @@ function PortfolioCard({ track, address, onPlay, onPause, isCurrentTrack, isPlay
                 </div>
                 <div className="mt-auto pt-4 border-t border-zinc-800 flex gap-2">
                     <button onClick={() => onPlay(track)} className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-2">
-                        {(isCurrentTrack && isPlaying) ? <Pause size={14}/> : <Play size={14}/>} Rental
+                        {(isCurrentTrack && isPlaying) ? <Pause size={14}/> : <Play size={14}/>} Play
                     </button>
                     <button onClick={onInvest} className="flex-1 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-bold rounded-lg transition flex items-center justify-center gap-2">
                         <TrendingUp size={14}/> Invest
