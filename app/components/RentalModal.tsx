@@ -69,7 +69,7 @@ export default function RentalModal({ isOpen, onClose, onConfirm, isLoading: ext
         {status !== 'idle' && <div className="absolute -top-10 -right-10 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"/>}
 
         <div className="flex justify-between items-center mb-6">
-          <div><h2 className="text-xl font-black text-white">Rent or Own</h2><p className="text-xs text-zinc-400">Choose your rental period.</p></div>
+          <div><h2 className="text-xl font-black text-white">Rent or Own</h2><p className="text-xs text-zinc-400">Choose your collection period.</p></div>
           <button onClick={onClose} aria-label="Close" className="text-zinc-500 hover:text-white"><X /></button>
         </div>
 

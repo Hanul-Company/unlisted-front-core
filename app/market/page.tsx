@@ -75,17 +75,17 @@ export default function MarketPage() {
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [featuredPlaylists, setFeaturedPlaylists] = useState<FeaturedPlaylist[]>([]);
 
-  // Like & Rental States
+  // Collect & Collection States
   const [likedTrackIds, setLikedTrackIds] = useState<Set<number>>(new Set());
   const [rentedTrackIds, setRentedTrackIds] = useState<Set<number>>(new Set()); // 렌탈한 트랙 ID 관리
 
-  // [New] Rental & Payment Logic States
+  // [New] Collection & Payment Logic States
   const [showPlaylistModal, setShowPlaylistModal] = useState(false); // 플레이리스트 선택 모달
   const [tempRentalTerms, setTempRentalTerms] = useState<{ months: number, price: number } | null>(null);
   const [myPlaylists, setMyPlaylists] = useState<any[]>([]); // 유저의 플레이리스트 목록
   const [userProfileId, setUserProfileId] = useState<string | null>(null); // 프로필 ID 캐싱
   
-  // Rental Modal States
+  // Collection Modal States
   const [isRentalModalOpen, setIsRentalModalOpen] = useState(false);
   const [pendingRentalTrack, setPendingRentalTrack] = useState<Track | null>(null);
   const [isRentalLoading, setIsRentalLoading] = useState(false);
@@ -148,7 +148,7 @@ export default function MarketPage() {
     fetchUserData();
   }, [address]);
 
-  // --- 2. Like Handler (Modified Logic) ---
+  // --- 2. Collect Handler (Modified Logic) ---
   const handleToggleLike = async (track: Track) => {
     if (!address) return toast.error("Please connect wallet first.");
 
@@ -180,7 +180,7 @@ export default function MarketPage() {
       }
     } catch (e) {
       console.error(e);
-      toast.error("Failed to update like status.");
+      toast.error("Failed to update Collect status.");
       setLikedTrackIds(likedTrackIds); 
     }
   };
@@ -257,7 +257,7 @@ export default function MarketPage() {
 
     if (!targetTrack) return toast.error("No track selected for rental.");
     if (!address) return toast.error("Wallet not connected.");
-    if (!tempRentalTerms) return toast.error("Error: Missing rental terms.");
+    if (!tempRentalTerms) return toast.error("Error: Missing Collection terms.");
 
     setShowPlaylistModal(false); // 모달 닫기
     
@@ -547,7 +547,7 @@ export default function MarketPage() {
                     setIsPlaying(false);
                     // 토스트 중복 방지
                     if (!toastShownRef.current) {
-                        toast("Preview ended. Rent to listen full track!", { 
+                        toast("Preview ended. Collect to listen full track!", { 
                             icon: "🔒",
                             id: "preview-end-toast", // ID 부여
                             style: { borderRadius: '10px', background: '#333', color: '#fff' }
@@ -786,7 +786,7 @@ export default function MarketPage() {
                         <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name || 'unlisted Artist'}</div>
                     </div>
                     
-                    {/* Like Button */}
+                    {/* Collect Button */}
                     <button 
                         onClick={() => handleToggleLike(currentTrack)} 
                         className={`ml-2 hover:scale-110 transition ${likedTrackIds.has(currentTrack.id) ? 'text-pink-500' : 'text-zinc-500 hover:text-white'}`}
@@ -802,7 +802,7 @@ export default function MarketPage() {
                         <button className="text-zinc-400 hover:text-white transition" onClick={handleNext}><SkipForward size={20}/></button>
                     </div>
                     
-                    {/* Desktop Progress Bar with Rental Preview Logic */}
+                    {/* Desktop Progress Bar with Collection Preview Logic */}
                     <div className="w-full max-w-sm flex items-center gap-3">
                         <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span>
                         
@@ -863,7 +863,7 @@ export default function MarketPage() {
         />
       )}
 
-      {/* ✅ Rental Modal Added */}
+      {/* ✅ Collection Modal Added */}
       {isRentalModalOpen && (
         <RentalModal
             isOpen={isRentalModalOpen}

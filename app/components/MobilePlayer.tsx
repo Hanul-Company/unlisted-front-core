@@ -40,7 +40,7 @@ export default function MobilePlayer({
   useEffect(() => {
     if (!isRented && currentTime >= PREVIEW_LIMIT) {
       if (!toastShownRef.current) {
-        toast("Preview ended. Rent to listen full track!", { 
+        toast("Preview ended. Collect to listen full track!", { 
             icon: "🔒",
             id: "preview-end-toast",
             style: { borderRadius: '10px', background: '#333', color: '#fff' }
@@ -103,9 +103,13 @@ export default function MobilePlayer({
                 {/* ▼ 여기를 수정했습니다 (기존 <div className="w-10" /> 제거 후 교체) */}
                 <div className="w-10 h-10 flex items-center justify-center">
                     <ShareButton 
-                        assetId={track.id?.toString()} 
-                        className="w-full h-full bg-black/20 backdrop-blur-md border border-white/5 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
-                        size={20}
+                        assetId={track.id.toString()}
+                        trackData={{
+                            title: track.title,
+                            artist: track.artist_name,
+                            coverUrl: track.cover_image_url || ""
+                        }}
+                        className="bg-black/20 backdrop-blur-md border border-white/5"
                     />
                 </div>
             </header>
@@ -214,7 +218,7 @@ export default function MobilePlayer({
 
                     {/* Bottom Actions Row (Like & Invest) */}
                     <div className="flex justify-center items-center gap-6">
-                         {/* Like Button (여기서 좋아요 누르면 -> MarketPage에서 렌탈 모달 띄우는 로직으로 연결됨) */}
+                         {/* Collect Button (여기서 좋아요 누르면 -> MarketPage에서 렌탈 모달 띄우는 로직으로 연결됨) */}
                          <button 
                             onClick={onToggleLike}
                             className={`flex items-center gap-2 px-4 py-2 rounded-full border transition backdrop-blur-md ${
@@ -241,7 +245,7 @@ export default function MobilePlayer({
                     {/* 렌탈 안 했을 때 안내 메시지 (옵션) */}
                     {!isRented && (
                         <p className="text-center text-[10px] text-zinc-600 mt-6 animate-pulse">
-                            Preview Mode • Like or Rent to listen full track
+                            Preview Mode • Collect  to listen full track
                         </p>
                     )}
                 </div>

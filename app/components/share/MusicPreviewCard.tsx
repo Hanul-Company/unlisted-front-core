@@ -2,16 +2,24 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Pause, Heart, TrendingUp, Share2, CheckCircle2, Home } from 'lucide-react';
+import { Play, Pause, Heart, TrendingUp, Share2, CheckCircle2, Home, Trophy, Clock, Zap } from 'lucide-react';
 import HeaderProfile from '../HeaderProfile'; 
-import { useActiveAccount } from "thirdweb/react"; 
+import { useActiveAccount, useReadContract } from "thirdweb/react"; 
+import { getContract } from "thirdweb";
+import { formatEther } from 'viem';
 import toast from 'react-hot-toast';
 
-// ✅ 실제 모달 컴포넌트 Import (경로가 맞는지 확인해주세요)
-import RentalModal from '../RentalModal';
-import TradeModal from '../TradeModal';
+// ✅ 실제 모달 컴포넌트 Import
+import RentalModal from '../../components/RentalModal';
+import TradeModal from '../../components/TradeModal';
 
-// TradeModal 등에서 사용하는 Track 타입 정의 (MarketPage 참고)
+// ✅ Thirdweb 설정 & Contract 가져오기
+import { client, chain } from "@/utils/thirdweb";
+import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_IP_ADDRESS, MELODY_IP_ABI } from '@/app/constants';
+
+const stockContract = getContract({ client, chain, address: UNLISTED_STOCK_ADDRESS, abi: UNLISTED_STOCK_ABI as any });
+const ipContract = getContract({ client, chain, address: MELODY_IP_ADDRESS, abi: MELODY_IP_ABI as any });
+
 type Track = {
   id: number;
   title: string;
@@ -32,7 +40,8 @@ interface MusicCardProps {
     artist: string;
     albumArt: string;
     audioUrl: string;
-    price: string;
+    // price, roi는 이제 Contract에서 불러오므로 props에서 무시될 수 있음
+    price: string; 
     roi: string;
     duration: number;
   };
@@ -42,31 +51,64 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
   const router = useRouter();
   const account = useActiveAccount(); 
   const isLoggedIn = !!account;
+  
+  const tokenIdBigInt = BigInt(data.id);
 
+  // --- 1. Real-time Contract Reads ---
+  const { data: stockInfo, isLoading: isStockLoading } = useReadContract({
+      contract: stockContract,
+      method: "stocks",
+      params: [tokenIdBigInt]
+  });
+
+  const { data: buyPriceVal } = useReadContract({
+      contract: stockContract,
+      method: "getBuyPrice",
+      params: [tokenIdBigInt, BigInt(1)]
+  });
+
+  // DB나 IP Contract에서 가져와야 하는데, 여기서는 임시로 props의 roi를 파싱하거나,
+  // InvestmentCard처럼 track 데이터에 investor_share가 있다고 가정합니다.
+  // (만약 data.roi 문자열이 "15.4%" 형태라면 파싱 필요)
+  const { data: investorShareVal } = useReadContract({ 
+      contract: ipContract, 
+      method: "getInvestorShare", 
+      params: [tokenIdBigInt] 
+  });
+
+  // --- 2. Parsing Data ---
+  const jackpotBalance = stockInfo ? Number(formatEther(stockInfo[2])) : 0;
+  const priceVal = buyPriceVal ? Number(formatEther(buyPriceVal)) : 0;
+  const investorSharePercent = investorShareVal ? Number(investorShareVal) / 100 : 0;
+  
+  // 투자가 일어났는지 확인 (가격이 0보다 크거나, stockInfo가 존재하면)
+  // buyPrice는 초기값일 수 있으므로, stockInfo의 totalSupply(0번째 인덱스)를 보는 게 정확함
+  const totalShares = stockInfo ? Number(stockInfo[0]) : 0;
+  const isFirstInvestor = totalShares === 0;
+
+  // --- Player States ---
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   
-  // --- 모달 상태 관리 ---
+  // --- Modals State ---
   const [showAuthModal, setShowAuthModal] = useState(false);
-  
-  // ✅ 실제 컴포넌트용 상태
   const [showRentalModal, setShowRentalModal] = useState(false);
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [isRentalLoading, setIsRentalLoading] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // ✅ [Data Mapping] MusicPreviewCard의 데이터를 TradeModal이 원하는 Track 타입으로 변환
+  // TradeModal용 데이터 변환
   const trackForModal: Track = useMemo(() => ({
-    id: Number(data.id), // ID 형변환
+    id: Number(data.id),
     title: data.title,
     artist_name: data.artist,
     audio_url: data.audioUrl,
     cover_image_url: data.albumArt,
-    is_minted: true, // 투자 가능 상태로 가정
+    is_minted: true,
     token_id: Number(data.id),
     melody_hash: null,
-    uploader_address: null, // 필요시 DB에서 가져온 값을 넣어야 함
+    uploader_address: null,
     created_at: new Date().toISOString(),
   }), [data]);
 
@@ -91,7 +133,7 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       const current = audioRef.current.currentTime;
-      if (current >= 60) { // 1분 미리듣기 제한
+      if (current >= 60) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
         setIsPlaying(false);
@@ -102,13 +144,10 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
     }
   };
 
-  // --- 버튼 클릭 핸들러 ---
   const handleActionClick = (actionType: 'like' | 'invest') => {
     if (!isLoggedIn) {
-      // 1. 비로그인 -> 로그인 모달
       setShowAuthModal(true);
     } else {
-      // 2. 로그인 상태 -> 각 기능 모달 오픈
       if (actionType === 'like') {
         setShowRentalModal(true);
       } else {
@@ -117,20 +156,13 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
     }
   };
 
-  // ✅ [Handler] 렌탈 모달 확인 버튼 (MarketPage 참고하여 단순화)
+  // 심플 렌탈 확인 핸들러
   const handleRentalConfirm = async (months: number, price: number) => {
     setIsRentalLoading(true);
     try {
-        // [심플 버전] 복잡한 DB 로직(Playlist 등)은 생략하고, 
-        // 외부 유입 유저에게는 단순히 "렌탈 성공 -> 앱 사용 유도" 흐름으로 제공
-        
-        // 여기에 실제 렌탈 처리 로직(RPC 호출 등)이 필요하면 MarketPage의 processCollect를 참고해 추가 가능
-        // 현재는 UI 연동 확인용으로 타임아웃만 둡니다.
         await new Promise(resolve => setTimeout(resolve, 1000));
-
         toast.success(`Rented for ${months} months!`, { icon: "🎧" });
         setShowRentalModal(false);
-        
     } catch (error) {
         toast.error("Rental failed.");
         console.error(error);
@@ -145,7 +177,6 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
 
   return (
     <>
-      {/* --- 메인 카드 UI --- */}
       <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden w-full max-w-md">
         
         {/* 상단 네비게이션 */}
@@ -174,6 +205,8 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
               alt={data.title} 
               className={`w-full h-full object-cover transform transition-transform duration-700 ${isPlaying ? 'scale-105' : 'group-hover:scale-105'}`}
             />
+            
+            {/* Play Button Overlay */}
             <button 
               onClick={togglePlay}
               className={`absolute inset-0 flex items-center justify-center bg-black/30 transition-opacity duration-300 ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
@@ -182,6 +215,15 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
                 {isPlaying ? <Pause fill="white" size={32} /> : <Play fill="white" size={32} className="ml-1" />}
               </div>
             </button>
+
+            {/* ✅ [New] 잭팟 정보 오버레이 (InvestmentCard 스타일) */}
+            <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
+                 {/* Yield Badge */}
+                 <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-white border border-white/10 flex items-center gap-1">
+                    <TrendingUp size={10} className={investorSharePercent >= 30 ? "text-red-500" : "text-green-500"}/> 
+                    {investorSharePercent}% Yield
+                 </div>
+            </div>
           </div>
         </div>
 
@@ -211,17 +253,30 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
           />
         </div>
 
-        {/* 투자 정보 */}
-        <div className="flex justify-between items-center bg-black/20 rounded-xl p-4 mb-6 border border-white/5">
-          <div className="text-left">
-            <p className="text-xs text-white/50 mb-0.5">APY(%)</p>
-            <p className="text-lg font-bold text-green-400">{data.roi}</p>
-          </div>
-          <div className="h-8 w-[1px] bg-white/10"></div>
-          <div className="text-right">
-            <p className="text-xs text-white/50 mb-0.5">Price(MLD)</p>
-            <p className="text-lg font-bold">{data.price}</p>
-          </div>
+        {/* ✅ [New] 실시간 투자 정보 패널 */}
+        <div className="bg-black/20 rounded-xl p-4 mb-6 border border-white/5 space-y-3">
+            {isFirstInvestor ? (
+                // 1. 아직 투자자가 없을 때 (Be the first!)
+                <div className="text-center py-2 animate-pulse">
+                     <p className="text-yellow-400 font-bold flex items-center justify-center gap-2">
+                        <Trophy size={16}/> Be the first investor!
+                     </p>
+                     <p className="text-[10px] text-zinc-400">Start the jackpot pool now.</p>
+                </div>
+            ) : (
+                // 2. 투자 진행 중일 때 (Price & Jackpot)
+                <div className="flex justify-between items-center">
+                    <div className="text-left">
+                        <p className="text-[10px] text-zinc-500 font-bold mb-0.5 flex items-center gap-1"><Trophy size={10} className="text-yellow-500"/> JACKPOT POOL</p>
+                        <p className="text-lg font-black text-yellow-500">{jackpotBalance.toFixed(2)} <span className="text-xs font-normal text-white">MLD</span></p>
+                    </div>
+                    <div className="h-8 w-px bg-white/10"></div>
+                    <div className="text-right">
+                        <p className="text-[10px] text-zinc-500 font-bold mb-0.5">CURRENT PRICE</p>
+                        <p className="text-lg font-bold text-white">{priceVal.toFixed(2)} <span className="text-xs font-normal text-zinc-400">MLD</span></p>
+                    </div>
+                </div>
+            )}
         </div>
 
         {/* 하단 액션 버튼 */}
@@ -237,14 +292,13 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
             onClick={() => handleActionClick('invest')}
             className="flex-[3] flex items-center justify-center gap-2 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-lg shadow-blue-900/40 transition-all font-bold text-lg active:scale-95"
           >
-            <TrendingUp size={20} />
-            <span>{isLoggedIn ? "Invest Now" : "Invest and Earn"}</span>
+            <Zap size={20} fill="currentColor"/>
+            <span>{isFirstInvestor ? "Start Investing" : "Invest Now"}</span>
           </button>
         </div>
       </div>
 
-
-      {/* --- 1. 로그인 유도 모달 (Auth) --- */}
+      {/* --- Modals --- */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-[#18181b] border border-zinc-800 rounded-t-3xl sm:rounded-3xl w-full max-w-sm overflow-hidden p-6 text-white animate-in slide-in-from-bottom duration-300 relative shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -264,7 +318,6 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
         </div>
       )}
 
-      {/* --- 2. Rental Modal (실제 컴포넌트 연동) --- */}
       <RentalModal
         isOpen={showRentalModal}
         onClose={() => setShowRentalModal(false)}
@@ -272,13 +325,11 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
         isLoading={isRentalLoading}
       />
 
-      {/* --- 3. Trade Modal (실제 컴포넌트 연동) --- */}
       <TradeModal
         isOpen={showTradeModal}
         onClose={() => setShowTradeModal(false)}
-        track={trackForModal} // 변환된 트랙 데이터 전달
+        track={trackForModal} 
       />
-
     </>
   );
 };

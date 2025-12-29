@@ -24,6 +24,7 @@
     "@walletconnect/ethereum-provider": "^2.23.0",
     "encoding": "^0.1.13",
     "framer-motion": "^12.23.25",
+    "html2canvas": "^1.4.1",
     "lokijs": "^1.5.12",
     "lucide-react": "^0.555.0",
     "music-metadata-browser": "^2.5.11",

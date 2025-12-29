@@ -35,7 +35,7 @@ const getAssetData = async (id: string) => {
     price: "12,500 KRW", 
     roi: "15.4%", 
     duration: data.duration || 60,
-    description: data.description || "이 곡의 주주가 되어보세요.",
+    description: data.description || "Become a share holder of this song.",
   };
 };
 
@@ -55,17 +55,17 @@ export async function generateMetadata(
 
   if (!data) {
     return {
-      title: 'Unlisted - Music Investment',
-      description: '음악 저작권 투자 플랫폼',
+      title: 'unlisted - The music never existed',
+      description: 'AI Music Investment',
     };
   }
 
   return {
     title: `🎵 ${data.title} - ${data.artist}`,
-    description: `🚀 연 수익률 ${data.roi} | 지금 1분 미리듣고 투자하세요!`,
+    description: `🚀 Stream for free, Invest for fun!`,
     openGraph: {
       title: `${data.title} (${data.artist})`,
-      description: `현재 가격: ${data.price} | 예상 수익률: ${data.roi}\n${data.description}`,
+      description: `${data.description}`,
       images: [{ url: data.albumArt, width: 800, height: 800, alt: data.title }],
       type: 'music.song',
     },

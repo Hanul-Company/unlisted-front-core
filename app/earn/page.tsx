@@ -104,7 +104,7 @@ export default function EarnPage() {
                     <h2 className="text-3xl font-black text-white mb-2">10 pMLD</h2>
                     <p className="text-zinc-400 text-sm">
                         Watch a short video ad to claim free points.<br/>
-                        Use points to rent music or boost tracks.
+                        Use points to collect music or boost tracks.
                     </p>
                 </div>
 

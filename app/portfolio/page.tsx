@@ -129,7 +129,7 @@ export default function PortfolioPage() {
         e.currentTarget.pause();
         setIsPlaying(false);
         if (!toastShownRef.current) {
-            toast("Preview ended. Invest or Rent to collect!", { icon: "🔒", id: "preview-end-toast" });
+            toast("Preview ended. Invest or Collect to collect!", { icon: "🔒", id: "preview-end-toast" });
             toastShownRef.current = true;
         }
     } else {
@@ -159,7 +159,7 @@ export default function PortfolioPage() {
     setCurrentTrack(assets[prevIdx]); setIsPlaying(true);
   };
 
-  // --- Like & Rental Handlers ---
+  // --- Like & Collection Handlers ---
   const handleLike = async (track: any) => {
       if (!address) return toast.error("Connect Wallet first");
       // 렌탈했으면 좋아요 토글
@@ -433,7 +433,12 @@ function PortfolioCard({ track, address, onPlay, onPause, isCurrentTrack, isPlay
                 {/* z-20을 줘서 재생 버튼보다 위에 오게 해야 클릭이 됩니다 */}
                 <div className="absolute top-3 right-3 z-20">
                     <ShareButton 
-                        assetId={track.id.toString()} 
+                        assetId={track.id.toString()}
+                        trackData={{
+                            title: track.title,
+                            artist: track.artist_name,
+                            coverUrl: track.cover_image_url || ""
+                        }} 
                         className="w-8 h-8 bg-black/40 hover:bg-white/20 backdrop-blur-md border border-white/10 hover:border-white/50 rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-all duration-300 hover:scale-110 shadow-lg"
                         size={16}
                     />

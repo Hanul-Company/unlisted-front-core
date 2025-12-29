@@ -15,6 +15,7 @@ import MobileSidebar from '../components/MobileSidebar';
 import MobilePlayer from '../components/MobilePlayer'; 
 import RentalModal from '../components/RentalModal';
 import TradeModal from '../components/TradeModal';
+import ShareButton from '../components/ui/ShareButton'; // 경로 맞춰주세요
 
 import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useSendTransaction } from "thirdweb/react";
@@ -592,12 +593,12 @@ export default function LibraryPage() {
                             </button>
                         )}
                         
-                        {/* 2. Extend Rental */}
+                        {/* 2. Extend Collection */}
                         {activeMobileTrack.expires_at && (
                             <button onClick={() => { openExtendModal(activeMobileTrack); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left">
                                 <Clock className="text-green-500" size={20}/>
                                 <div>
-                                    <div className="font-bold text-sm text-white">Extend Rental</div>
+                                    <div className="font-bold text-sm text-white">Extend Collection</div>
                                     <div className="text-xs text-zinc-500">Expires: {new Date(activeMobileTrack.expires_at).toLocaleDateString()}</div>
                                 </div>
                             </button>
@@ -613,12 +614,30 @@ export default function LibraryPage() {
                                     <Trash2 size={20}/> <span className="text-sm font-bold">Remove from Playlist</span>
                                 </button>
                             </>
-                        )}
-                        
-                        {/* 4. Share */}
-                        <button onClick={() => { toast.success("Link copied!"); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left">
-                            <Share2 className="text-zinc-400" size={20}/> <span className="text-sm font-bold">Share</span>
-                        </button>
+                        )}                        
+                        {/* 4. Share (Updated) */}
+                        {/* 기존 button 태그를 div로 바꾸고, 좌측엔 텍스트, 우측엔 ShareButton 컴포넌트 배치 */}
+                        <div className="w-full flex items-center justify-between p-4 hover:bg-zinc-800 rounded-xl transition">
+                            <div className="flex items-center gap-4">
+                                <Share2 className="text-zinc-400" size={20}/>
+                                <div>
+                                    <div className="font-bold text-sm text-white">Share</div>
+                                    <div className="text-xs text-zinc-500">Instagram & Link</div>
+                                </div>
+                            </div>
+                            
+                            {/* 여기에 앞서 만든 ShareButton을 넣습니다 */}
+                            <ShareButton 
+                                assetId={activeMobileTrack.id.toString()}
+                                trackData={{
+                                    title: activeMobileTrack.title,
+                                    artist: activeMobileTrack.artist_name,
+                                    coverUrl: activeMobileTrack.cover_image_url || ""
+                                }}
+                                // 버튼 스타일을 조금 더 눈에 띄게 조정 (선택사항)
+                                className="bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white"
+                            />
+                        </div>
                     </div>
 
                     <button onClick={() => setActiveMobileTrack(null)} className="w-full mt-4 py-3 bg-black rounded-xl font-bold text-zinc-500">Cancel</button>

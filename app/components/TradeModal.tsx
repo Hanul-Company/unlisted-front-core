@@ -167,7 +167,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   };
 
   const handleShare = async () => {
-      const shareText = `I just invested in "${track.title}" on MelodyLink! 🎵\n\nOwner Benefit: ${investorSharePercent}% Rental Yield\nJackpot Pool: ${jackpotBalance.toFixed(1)} MLD\n\nJoin the revolution! 🚀 #MelodyLink #MusicInvestment`;
+      const shareText = `I just invested in "${track.title}" on MelodyLink! 🎵\n\nOwner Benefit: ${investorSharePercent}% Collection Yield\nJackpot Pool: ${jackpotBalance.toFixed(1)} MLD\n\nJoin the revolution! 🚀 #MelodyLink #MusicInvestment`;
       
       if (navigator.share) {
           try {

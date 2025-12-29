@@ -53,7 +53,7 @@ function RadioContent() {
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [myPlaylists, setMyPlaylists] = useState<any[]>([]);
   
-  // Rental Logic Data
+  // Collection Logic Data
   const [tempRentalTerms, setTempRentalTerms] = useState<{ months: number, price: number } | null>(null);
 
   const { mutate: sendTransaction } = useSendTransaction();
@@ -266,11 +266,11 @@ function RadioContent() {
 
     if (existing) return toast.success("Already in your library.");
 
-    // Rental Modal 오픈
+    // Collection Modal 오픈
     setShowRentalModal(true);
   };
 
-  // 1. Rental Modal -> Playlist Modal 전환
+  // 1. Collection Modal -> Playlist Modal 전환
   const handleRentalConfirm = async (months: number, price: number) => {
     console.log("Rental Confirmed:", { months, price });
     setTempRentalTerms({ months, price });
@@ -309,7 +309,7 @@ function RadioContent() {
     
     setShowPlaylistModal(false);
 
-    if (!tempRentalTerms) return toast.error("Error: Missing rental terms.");
+    if (!tempRentalTerms) return toast.error("Error: Missing collection terms.");
     const { months, price } = tempRentalTerms;
     
     const toastId = toast.loading("Processing payment...");
@@ -619,7 +619,7 @@ function RadioContent() {
 
       {/* ✅ Modals Section */}
       
-      {/* 1. Rental Modal */}
+      {/* 1. Collection Modal */}
       <RentalModal
         isOpen={showRentalModal}
         onClose={() => setShowRentalModal(false)}
