@@ -289,14 +289,34 @@ export default function LibraryPage() {
     else { toast.success("Moved to top!"); fetchTracks(selectedPlaylist); setActiveMobileTrack(null); }
   };
 
-  const handleCreatePlaylist = async () => {
-    if (!newPlaylistName.trim()) return;
+// ✅ [수정] createPlaylist 핸들러 수정 (인자 추가)
+  const handleCreatePlaylist = async (nameOverride?: string) => {
+    // 1. 이름 결정 (인자로 들어온 것 or state의 값)
+    const nameToUse = nameOverride || newPlaylistName;
+    
+    if (!nameToUse.trim()) return;
     if (!profileId) return toast.error("Login required.");
-    const { error } = await supabase.from('playlists').insert({ profile_id: profileId, name: newPlaylistName });
-    if (!error) { toast.success("Created!"); fetchPlaylists(); setIsCreating(false); setNewPlaylistName(""); } 
-    else { toast.error(error.message); }
+    
+    const { error } = await supabase.from('playlists').insert({ profile_id: profileId, name: nameToUse });
+    
+    if (!error) {
+      toast.success("Created!");
+      fetchPlaylists();
+      setIsCreating(false);
+      setNewPlaylistName("");
+    } else {
+      toast.error(error.message);
+    }
   };
 
+  // ✅ [추가] 모바일 전용 플레이리스트 생성 핸들러
+  const handleMobileCreatePlaylist = () => {
+      const name = window.prompt("Enter new playlist name:");
+      if (name) {
+          handleCreatePlaylist(name);
+      }
+  };
+  
   const handleDeletePlaylist = async (id: string) => {
     if (!confirm("Delete?")) return;
     await supabase.from('playlists').delete().eq('id', id);
@@ -418,7 +438,13 @@ export default function LibraryPage() {
                             {p.name}
                          </button>
                      ))}
-                     <button onClick={() => setIsCreating(true)} className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 flex-shrink-0"><Plus size={16}/></button>
+                    {/* ✅ [수정] 모바일에서는 prompt 사용 */}
+                     <button 
+                        onClick={handleMobileCreatePlaylist} 
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 flex-shrink-0 active:scale-95 transition"
+                     >
+                        <Plus size={16}/>
+                     </button>                 
                  </div>
             </div>
 

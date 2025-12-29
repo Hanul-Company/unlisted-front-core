@@ -762,16 +762,24 @@ export default function MarketPage() {
             />
       )}
 
-      {/* Mobile Mini Player (유지) */}
+      {/* 2. Mobile Mini Player (Bottom Bar) */}
       {currentTrack && !mobilePlayerOpen && (
-             <div className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" onClick={() => setMobilePlayerOpen(true)}>
-                 {/* ... (기존 코드) */}
-                 <div className="flex items-center gap-3 pr-1">
-                     <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
-                        {isPlaying ? <Pause size={16} fill="black"/> : <Play size={16} fill="black" className="ml-0.5"/>}
-                     </button>
-                 </div>
-             </div>
+          <div className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" onClick={() => setMobilePlayerOpen(true)}>
+              <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
+                      {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <Disc size={20} className="text-zinc-500 m-auto" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
+                      <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
+                  </div>
+              </div>
+              <div className="flex items-center gap-3 pr-1">
+                  <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
+                      {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
+                  </button>
+              </div>
+          </div>
       )}
 
       {/* ✅ Desktop Footer Player */}
