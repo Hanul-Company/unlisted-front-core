@@ -40,6 +40,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
           strategy="afterInteractive"
         />
+        <meta name="naver-site-verification" content="e531c98d05b623e1d90c75c34c3eec91c7d95122" />
       </head>
       <body className={`${outfit.variable} ${jakarta.variable} font-sans bg-black text-white antialiased selection:bg-cyan-500/30`}>
         <Providers>
