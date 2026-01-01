@@ -609,13 +609,14 @@ export default function MarketPage() {
             <div className="flex justify-center pt-40"><Loader2 className="animate-spin text-cyan-500" size={32}/></div>
         ) : (
             <div className="pb-10 pt-4">
-                {/* 1. Playlists for you (기존 유지) */}
+                {/* 1. Playlists for you */}
                 <section className="mb-2">
                     <div className="px-6 mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white flex items-center gap-2">Playlists for you</h2></div>
                     <HorizontalScroll className="gap-4 px-6 pb-4 snap-x pt-2"> 
                     {featuredPlaylists.length === 0 ? ( <div className="text-zinc-500 text-sm">No playlists available yet.</div> ) : (
                         featuredPlaylists.map((pl) => (
-                        <Link href={`/radio?playlist_id=${pl.id}`} key={pl.id} className="flex-shrink-0 snap-start block">
+                        // 🔻 [수정] href를 '/radio?playlist_id=' 에서 '/playlist/' 로 변경
+                        <Link href={`/playlists/${pl.id}`} key={pl.id} className="flex-shrink-0 snap-start block">
                             <div className="relative overflow-hidden rounded-xl bg-zinc-800 group cursor-pointer border border-zinc-700 hover:border-white/20 min-w-[160px] w-[120px] h-[160px] md:w-[240px] md:h-[240px]">
                                 {pl.cover_image ? ( <img src={pl.cover_image} alt={pl.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/> ) : ( <div className="w-full h-full flex items-center justify-center bg-zinc-800 bg-gradient-to-br from-zinc-700 to-zinc-900"><Disc size={32} className="text-zinc-600 md:w-16 md:h-16" /></div> )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-3 pointer-events-none"><span className="text-white font-medium text-xs md:text-sm drop-shadow-md break-words line-clamp-2 text-left">{pl.name}</span></div>

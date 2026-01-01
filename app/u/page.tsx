@@ -7,7 +7,7 @@ import { prepareContractCall, getContract } from "thirdweb";
 import { client, chain } from "@/utils/thirdweb";
 import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants';
 import { parseEther } from 'viem';
-import { Loader2, User, UserPlus, UserCheck, Disc, Zap, Share2, Instagram, Twitter, Youtube, Music as MusicIcon, Copy, Play, Pause, Shuffle, SkipBack, SkipForward, Repeat, Repeat1, Volume2, VolumeX, Heart, ChevronDown } from 'lucide-react';
+import { ListMusic, Loader2, User, UserPlus, UserCheck, Disc, Zap, Share2, Instagram, Twitter, Youtube, Music as MusicIcon, Copy, Play, Pause, Shuffle, SkipBack, SkipForward, Repeat, Repeat1, Volume2, VolumeX, Heart, ChevronDown } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
@@ -199,10 +199,12 @@ function ProfileContent() {
   // Data States
   const [profile, setProfile] = useState<any>(null);
   const [tracks, setTracks] = useState<any[]>([]);
+  const [playlists, setPlaylists] = useState<any[]>([]); // ✅ [New] Playlists State
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'tracks'|'likes'>('tracks');
+  const [activeTab, setActiveTab] = useState<'tracks' | 'likes' | 'playlists'>('tracks');
   const [showDonate, setShowDonate] = useState(false);
+  
 
   // ✅ [추가] Modal & Logic States
   const [trackToInvest, setTrackToInvest] = useState<any>(null); // 투자할 트랙
@@ -264,17 +266,41 @@ function ProfileContent() {
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
-  const fetchTabContent = async (tab: 'tracks'|'likes') => {
+// ✅ [Updated] Fetch Content based on Tab
+// ✅ [Updated] Fetch Content based on Tab
+  const fetchTabContent = async (tab: 'tracks'|'likes'|'playlists') => {
     setActiveTab(tab);
-    let data;
-    if (tab === 'tracks') {
-        const res = await supabase.from('tracks').select('*').eq('uploader_address', targetWallet).order('created_at', { ascending: false });
-        data = res.data;
-    } else {
-        const res = await supabase.from('likes').select('tracks(*)').eq('wallet_address', targetWallet);
-        data = res.data?.map((d:any) => d.tracks);
+    setLoading(true);
+    
+    try {
+        if (tab === 'tracks') {
+            const res = await supabase.from('tracks').select('*').eq('uploader_address', targetWallet).order('created_at', { ascending: false });
+            setTracks(res.data || []);
+        } else if (tab === 'likes') {
+            const res = await supabase.from('likes').select('tracks(*)').eq('wallet_address', targetWallet);
+            setTracks(res.data?.map((d:any) => d.tracks) || []);
+        } else if (tab === 'playlists') {
+            if (profile?.id) {
+                // 🔻 [수정] playlist_items 안에서 tracks의 cover_image_url을 가져오도록 쿼리 변경
+                const { data } = await supabase
+                    .from('playlists')
+                    .select(`
+                        id, name, created_at, is_public, fork_count,
+                        playlist_items (
+                            tracks (cover_image_url)
+                        )
+                    `)
+                    .eq('profile_id', profile.id)
+                    .order('created_at', { ascending: false });
+                
+                setPlaylists(data || []);
+            }
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setLoading(false);
     }
-    setTracks(data || []);
   };
 
   // --- Handlers (Invest & Like & Rental) ---
@@ -503,35 +529,103 @@ function ProfileContent() {
              </div>
           </div>
 
+          {/* ✅ Tabs (Playlists Added) */}
           <div className="flex gap-8 border-b border-zinc-800 mb-8 sticky top-0 bg-black/95 backdrop-blur z-20 pt-4">
             <button onClick={() => fetchTabContent('tracks')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='tracks' ? 'border-green-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Uploaded Tracks</button>
             <button onClick={() => fetchTabContent('likes')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='likes' ? 'border-green-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Liked Collection</button>
+            <button onClick={() => fetchTabContent('playlists')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='playlists' ? 'border-green-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Playlists</button>
           </div>
 
-          {/* Grid Layout (Click to Play Added) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-            {loading ? ( <div className="col-span-full text-center py-32 text-zinc-500"><Loader2 className="animate-spin mb-2 text-green-500 inline"/> Loading...</div> ) : tracks.length === 0 ? ( <div className="col-span-full py-20 text-center border-2 border-dashed border-zinc-900 rounded-3xl"><p className="text-zinc-500 font-bold">No tracks found.</p></div> ) : (
-                tracks.map(track => (
-                    <div key={track.id} onClick={() => playTrack(track)} className="group relative bg-zinc-900 rounded-xl overflow-hidden hover:bg-zinc-800 transition cursor-pointer hover:-translate-y-1 duration-300">
-                        <div className="aspect-square bg-black relative overflow-hidden">
-                            {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover transition duration-500 group-hover:scale-105"/> : <Disc className="text-zinc-700 w-full h-full p-10"/>}
-                            <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition duration-300 ${currentTrack?.id === track.id && isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black shadow-lg">
-                                    {currentTrack?.id === track.id && isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}
+          {/* Grid Layout */}
+          {loading ? ( <div className="col-span-full text-center py-32 text-zinc-500"><Loader2 className="animate-spin mb-2 text-green-500 inline"/> Loading...</div> ) : (
+            
+            // ✅ Playlist Grid (Playlists 탭일 때)
+// ✅ Playlist Grid (Playlists 탭일 때)
+            activeTab === 'playlists' ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                    {playlists.length === 0 ? (
+                        <div className="col-span-full py-20 text-center border-2 border-dashed border-zinc-900 rounded-3xl"><p className="text-zinc-500 font-bold">No playlists found.</p></div>
+                    ) : (
+                        playlists.map(pl => {
+                            // 1. 커버 이미지 추출 (최대 4개)
+                            const coverImages = pl.playlist_items
+                                ?.map((item: any) => item.tracks?.cover_image_url)
+                                .filter(Boolean)
+                                .slice(0, 4) || [];
+
+                            return (
+                                <Link href={`/playlist/${pl.id}`} key={pl.id} className="group relative bg-zinc-900 rounded-xl overflow-hidden hover:bg-zinc-800 transition cursor-pointer hover:-translate-y-1 duration-300 block border border-zinc-800 hover:border-zinc-700">
+                                    {/* 2. 정사각형 비율 유지 (aspect-square) */}
+                                    <div className="aspect-square bg-zinc-800 border-b border-zinc-800 overflow-hidden">
+                                        {/* 3. 그리드 로직 적용 */}
+                                        {coverImages.length > 0 ? (
+                                            coverImages.length === 1 ? (
+                                                // 이미지가 1개일 때
+                                                <img src={coverImages[0]} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"/>
+                                            ) : (
+                                                // 이미지가 2개 이상일 때 (4분할 그리드)
+                                                <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
+                                                    {[0, 1, 2, 3].map(i => (
+                                                        <div key={i} className="w-full h-full bg-zinc-800 overflow-hidden relative border-[0.5px] border-black/10">
+                                                            {coverImages[i] ? (
+                                                                <img src={coverImages[i]} className="w-full h-full object-cover"/>
+                                                            ) : (
+                                                                // 4개가 안 채워졌을 때 빈칸 처리
+                                                                <div className="w-full h-full bg-zinc-700/50 flex items-center justify-center">
+                                                                    <Disc size={12} className="text-zinc-600"/>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )
+                                        ) : (
+                                            // 이미지가 아예 없을 때 (기본 아이콘)
+                                            <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+                                                <ListMusic size={48} className="text-zinc-700"/>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="p-4">
+                                        <h3 className="font-bold truncate text-sm mb-1 text-white group-hover:text-green-500 transition">{pl.name}</h3>
+                                        <div className="flex justify-between items-center text-xs text-zinc-500">
+                                            <span>{pl.playlist_items?.length || 0} songs</span>
+                                            <span className="flex items-center gap-1"><Copy size={10}/> {pl.fork_count || 0}</span>
+                                        </div>
+                                    </div>
+                                </Link>
+                            );
+                        })
+                    )}
+                </div>
+            ) : (
+                // ✅ Tracks Grid (기존 트랙/좋아요 목록)
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                    {tracks.length === 0 ? ( <div className="col-span-full py-20 text-center border-2 border-dashed border-zinc-900 rounded-3xl"><p className="text-zinc-500 font-bold">No tracks found.</p></div> ) : (
+                        tracks.map(track => (
+                            <div key={track.id} onClick={() => playTrack(track)} className="group relative bg-zinc-900 rounded-xl overflow-hidden hover:bg-zinc-800 transition cursor-pointer hover:-translate-y-1 duration-300">
+                                <div className="aspect-square bg-black relative overflow-hidden">
+                                    {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover transition duration-500 group-hover:scale-105"/> : <Disc className="text-zinc-700 w-full h-full p-10"/>}
+                                    <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition duration-300 ${currentTrack?.id === track.id && isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black shadow-lg">
+                                            {currentTrack?.id === track.id && isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-4">
+                                    <h3 className={`font-bold truncate text-sm mb-1 ${currentTrack?.id === track.id ? 'text-green-500' : 'text-white'}`}>{track.title}</h3>
+                                    <div className="flex justify-between items-center text-xs text-zinc-500">
+                                        <span className="truncate max-w-[80px]">{new Date(track.created_at).toLocaleDateString()}</span>
+                                        {track.genre && <span className="border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] uppercase">{track.genre}</span>}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="p-4">
-                            <h3 className={`font-bold truncate text-sm mb-1 ${currentTrack?.id === track.id ? 'text-green-500' : 'text-white'}`}>{track.title}</h3>
-                            <div className="flex justify-between items-center text-xs text-zinc-500">
-                                <span className="truncate max-w-[80px]">{new Date(track.created_at).toLocaleDateString()}</span>
-                                {track.genre && <span className="border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] uppercase">{track.genre}</span>}
-                            </div>
-                        </div>
-                    </div>
-                ))
-            )}
-          </div>
+                        ))
+                    )}
+                </div>
+            )
+          )}
       </div>
 
       <DonateModal isOpen={showDonate} onClose={() => setShowDonate(false)} recipientAddress={targetWallet} recipientName={profile?.username || "Creator"} />
