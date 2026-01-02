@@ -58,7 +58,7 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                     <Link href="/investing" onClick={onClose}>
                         <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
                             <TrendingUp size={18}/>
-                            <span className="text-sm font-medium">Charts</span>
+                            <span className="text-sm font-medium">Invest</span>
                         </div>
                     </Link>
                 </div>

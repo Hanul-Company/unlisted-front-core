@@ -33,6 +33,8 @@ type Track = {
   is_minted?: boolean;
   token_id: number | null; 
   uploader_address?: string;
+  mint_error?: string | null;
+  duplicate_of_track_id?: number | null;
 };
 
 type Playlist = { id: string; name: string; is_custom: boolean; };
@@ -81,6 +83,8 @@ export default function LibraryPage() {
   const [showRentalModal, setShowRentalModal] = useState(false);
   const [trackToExtend, setTrackToExtend] = useState<Track | null>(null);
   const [trackToInvest, setTrackToInvest] = useState<Track | null>(null);
+  const [processingTrackId, setProcessingTrackId] = useState<number | null>(null);
+
 
   useEffect(() => {
     const getProfileId = async () => {
@@ -127,6 +131,31 @@ export default function LibraryPage() {
       return;
     }
     handleNext();
+  };
+
+
+  const handleRegister = async (track: Track) => {
+    // 여기에 등록 모달을 띄우거나 등록 페이지로 이동하는 로직 구현
+    // 예: router.push(`/publish/${track.id}`); 또는 setShowRegisterModal(true);
+    toast("Register logic here (Open Modal or Redirect)");
+  };
+
+  const handleCheckDuplicate = async (originalTrackId: number) => {
+      // 중복 원본 트랙 정보를 가져와서 모달을 띄우는 로직
+      // 기존 Market 페이지에 있던 로직을 가져오거나, 간단히 알림 처리
+      toast.error(`This is a duplicate of track ID: ${originalTrackId}`);
+      // 실제 구현 시에는 setDuplicateOriginalTrack 등의 state와 모달이 필요합니다.
+  };
+
+  const handleDeleteTrack = async (trackId: number) => {
+      if(!confirm("Are you sure you want to delete this track?")) return;
+      
+      const { error } = await supabase.from('tracks').delete().eq('id', trackId);
+      if (error) toast.error("Failed to delete");
+      else {
+          toast.success("Deleted");
+          fetchTracks(selectedPlaylist);
+      }
   };
 
   const handleNext = () => {
@@ -513,19 +542,32 @@ export default function LibraryPage() {
                         <tr>
                             <th className="font-normal p-3 w-12 text-center">#</th>
                             <th className="font-normal p-3">Title</th>
-                            <th className="font-normal p-3 w-40">Expires</th>
-                            <th className="font-normal p-3 w-16 text-center"><MoreHorizontal size={16} /></th>
+                            <th className="font-normal p-3 w-60">Expires</th>
+                            {/* ✅ [수정] text-center로 명시하여 가운데 정렬 */}
+                            <th className="font-normal p-3 w-32 text-center"><MoreHorizontal size={16} className="mx-auto"/></th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredTracks.map((track, idx) => {
                             const { label: expiryLabel, isUrgent } = getExpiryInfo(track.expires_at);
+
+                            const isLikedSongs = selectedPlaylist === 'liked';
+                            const isMySongs = selectedPlaylist === 'my_songs';
+                            const isCustomPlaylist = !isLikedSongs && !isMySongs;
+
+                            const isProcessingThis = processingTrackId === track.id;
+                            const errorString = track.mint_error ? String(track.mint_error).trim() : '';
+                            const isDuplicateError = errorString.includes('duplicate_melody_hash') || !!track.duplicate_of_track_id;
+
                             return (
                                 <tr key={track.id} className={`group hover:bg-zinc-900/60 rounded-lg transition ${currentTrack?.id === track.id ? 'text-green-400' : 'text-zinc-300'}`} onDoubleClick={() => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }}>
+                                    {/* 1. # Column */}
                                     <td className="p-3 w-12 text-center text-sm">
                                         <span className={`group-hover:hidden ${currentTrack?.id === track.id ? 'hidden' : 'block'}`}>{idx + 1}</span>
                                         <button onClick={() => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }} className={`hidden group-hover:inline-block ${currentTrack?.id === track.id ? '!inline-block' : ''}`}>{currentTrack?.id === track.id && isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
                                     </td>
+
+                                    {/* 2. Title Column */}
                                     <td className="p-3">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 bg-zinc-800 rounded overflow-hidden flex-shrink-0 relative">
@@ -534,15 +576,96 @@ export default function LibraryPage() {
                                             <div><div className="font-bold text-sm">{track.title}</div><div className="text-xs text-zinc-500">{track.artist_name}</div></div>
                                         </div>
                                     </td>
-                                    <td className="p-3 text-sm">
-                                        {track.expires_at ? (
-                                            <div className={`flex items-center gap-2 ${isUrgent ? 'text-red-400 font-bold' : 'text-zinc-500'}`}><Clock size={14} /><span>{expiryLabel}</span></div>
-                                        ) : <span className="text-zinc-600 text-xs flex items-center gap-1"><Zap size={12} className="text-yellow-500"/> Owned</span>}
+
+                                    {/* 3. Expires Column */}
+                                    <td className="p-3 text-sm w-60 group/expires">
+                                        {/* ✅ [수정] justify-between 제거 -> items-center gap-4 로 변경 (날짜 옆에 버튼 붙이기) */}
+                                        <div className="flex items-center gap-4 h-8"> 
+                                            {track.expires_at ? (
+                                                <div className={`flex items-center gap-2 whitespace-nowrap ${isUrgent ? 'text-red-400 font-bold' : 'text-zinc-500'}`}>
+                                                    <Clock size={14} /><span>{expiryLabel}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-zinc-600 text-xs flex items-center gap-1 whitespace-nowrap">
+                                                    <Zap size={12} className="text-yellow-500"/> Owned
+                                                </span>
+                                            )}
+                                            
+                                            {track.expires_at && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); openExtendModal(track); }} 
+                                                    className="opacity-0 group-hover/expires:opacity-100 transition-opacity duration-200 text-[10px] font-bold border border-zinc-700 bg-zinc-800 text-zinc-300 px-2 py-1 rounded hover:border-green-400 hover:text-white"
+                                                >
+                                                    Extend
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
-                                    <td className="p-3 text-center">
+
+                                    {/* 4. Action Buttons Column */}
+                                    <td className="p-3 w-32">
+                                        {/* ✅ [수정] justify-end -> justify-center (가운데 정렬) */}
                                         <div className="flex items-center justify-center gap-3">
-                                            {track.expires_at && <button onClick={(e) => { e.stopPropagation(); openExtendModal(track); }} className="text-xs font-bold border border-zinc-700 px-2 py-1 rounded hover:border-green-400">Extend</button>}
-                                            {track.is_minted && <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }}><Zap size={16} /></button>}
+                                            
+                                            {/* Custom Playlist */}
+                                            {isCustomPlaylist && (
+                                                <>
+                                                    {track.is_minted && (
+                                                        <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }} className="text-zinc-500 hover:text-yellow-400 transition" title="Invest">
+                                                            <Zap size={16} />
+                                                        </button>
+                                                    )}
+                                                    <button onClick={(e) => { e.stopPropagation(); handleMoveToTop(track.id); }} className="text-zinc-500 hover:text-white transition" title="Move to Top">
+                                                        <ArrowUpToLine size={16} />
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleRemoveFromPlaylist(track.id); }} className="text-zinc-500 hover:text-red-500 transition" title="Remove">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </>
+                                            )}
+
+                                            {/* Liked Songs */}
+                                            {isLikedSongs && track.is_minted && (
+                                                <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }} className="text-zinc-500 hover:text-yellow-400 transition" title="Invest">
+                                                    <Zap size={16} />
+                                                </button>
+                                            )}
+
+                                            {/* My Songs */}
+                                            {isMySongs && (() => {
+                                                if (isDuplicateError) {
+                                                    return (
+                                                        <div className="flex gap-2">
+                                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteTrack(track.id); }} className="p-1.5 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded"><Trash2 size={14}/></button>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); if (track.duplicate_of_track_id) handleCheckDuplicate(track.duplicate_of_track_id); }} 
+                                                                className="bg-red-500/10 text-red-500 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition flex items-center gap-1"
+                                                            >
+                                                                <AlertTriangle size={12}/> Rejected
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                }
+                                                if (track.is_minted) {
+                                                    return (
+                                                        <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }} className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-white hover:text-black transition">
+                                                            Invest
+                                                        </button>
+                                                    );
+                                                }
+                                                return (
+                                                    <div className="flex gap-2">
+                                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteTrack(track.id); }} className="p-1.5 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded"><Trash2 size={14}/></button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleRegister(track); }} 
+                                                            className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition"
+                                                            disabled={isProcessingThis}
+                                                        >
+                                                            {isProcessingThis ? <Loader2 className="animate-spin" size={12}/> : 'Register'}
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </td>
                                 </tr>
@@ -604,6 +727,51 @@ export default function LibraryPage() {
                     </div>
                     
                     <div className="space-y-1">
+                        {(() => {
+                            // My Songs 탭일 때만 적용
+                            if (selectedPlaylist === 'my_songs') {
+                                const errorString = activeMobileTrack.mint_error ? String(activeMobileTrack.mint_error).trim() : '';
+                                const isDuplicateError = errorString.includes('duplicate_melody_hash') || !!activeMobileTrack.duplicate_of_track_id;
+
+                                // [1순위] Rejected
+                                if (isDuplicateError) {
+                                    return (
+                                        <>
+                                            <button onClick={() => { if (activeMobileTrack.duplicate_of_track_id) handleCheckDuplicate(activeMobileTrack.duplicate_of_track_id); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left text-red-500">
+                                                <AlertTriangle size={20}/>
+                                                <div>
+                                                    <div className="font-bold text-sm">Rejected (Check Reason)</div>
+                                                    <div className="text-xs opacity-70">Duplicate Melody Detected</div>
+                                                </div>
+                                            </button>
+                                            <button onClick={() => { handleDeleteTrack(activeMobileTrack.id); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left text-zinc-400">
+                                                <Trash2 size={20}/> <span className="text-sm font-bold">Delete Track</span>
+                                            </button>
+                                        </>
+                                    );
+                                }
+                                
+                                // [2순위] Invest (기존 코드에 이미 있지만 여기로 통합 가능, 혹은 아래 로직과 병행)
+                                // [3순위] Register
+                                if (!activeMobileTrack.is_minted) {
+                                    return (
+                                        <>
+                                            <button onClick={() => { handleRegister(activeMobileTrack); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left text-cyan-500">
+                                                <Zap size={20}/> 
+                                                <div>
+                                                    <div className="font-bold text-sm">Register Song</div>
+                                                    <div className="text-xs text-zinc-500">Publish to Market</div>
+                                                </div>
+                                            </button>
+                                            <button onClick={() => { handleDeleteTrack(activeMobileTrack.id); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left text-zinc-400">
+                                                <Trash2 size={20}/> <span className="text-sm font-bold">Delete Track</span>
+                                            </button>
+                                        </>
+                                    );
+                                }
+                            }
+                            return null;
+                        })()}
                         {activeMobileTrack.is_minted && (
                             <button onClick={() => { handleInvest(activeMobileTrack); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left">
                                 <Zap className="text-yellow-500" size={20}/>

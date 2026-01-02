@@ -289,7 +289,7 @@ function RadioContent() {
         </Link>
 
         <div className="max-w-2xl w-full text-center space-y-8">
-          <h1 className="text-3xl md:text-5xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-500">
+          <h1 className="text-3xl md:text-5xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-500 pb-2">
             What is your flavor?
           </h1>
 

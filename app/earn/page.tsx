@@ -85,7 +85,7 @@ export default function EarnPage() {
                 <ArrowLeft size={18}/> Back
             </Link>
             <div className="text-right">
-                <h1 className="text-2xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
+                <h1 className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 pr-1">
                     FREE FAUCET
                 </h1>
                 <p className="text-[10px] text-zinc-500 font-mono">WATCH ADS & EARN POINTS</p>
