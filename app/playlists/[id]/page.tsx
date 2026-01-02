@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from "@/lib/i18n"; 
 import { supabase } from '@/utils/supabase';
 import { 
   Play, Pause, Heart, Clock, CheckCircle2, 
@@ -323,12 +324,17 @@ export default function PublicPlaylistPage() {
                 <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">{info?.name}</h1>
                 
                 <div className="flex items-center justify-center md:justify-start gap-3 text-sm font-medium text-zinc-300">
-                    <div className="flex items-center gap-2 bg-zinc-900/50 pr-3 rounded-full">
+                    {/* ✅ [수정됨] div를 Link로 변경하고 href 연결 */}
+                    <Link 
+                        href={info?.creator_wallet ? `/u?wallet=${info.creator_wallet}` : '#'}
+                        className="flex items-center gap-2 bg-zinc-900/50 pr-3 rounded-full hover:bg-zinc-800 transition cursor-pointer"
+                    >
                         <div className="w-8 h-8 rounded-full bg-zinc-700 overflow-hidden">
                             {info?.creator_avatar ? <img src={info.creator_avatar} className="w-full h-full object-cover"/> : <User className="p-1.5"/>}
                         </div>
-                        <span className="hover:text-white cursor-pointer hover:underline">{info?.creator_name}</span>
-                    </div>
+                        <span className="hover:text-white hover:underline">{info?.creator_name}</span>
+                    </Link>
+
                     <span>•</span><span>{tracks.length} songs</span><span>•</span><span className="text-zinc-500">{info?.fork_count} forks</span>
                 </div>
             </div>

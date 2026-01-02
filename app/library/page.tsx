@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
 import { 
-  Pencil, Check, ArrowUpToLine, Mic2, Loader2, Heart, Play, Pause, Plus, Trash2, 
+  ArrowLeft, Pencil, Check, ArrowUpToLine, Mic2, Loader2, Heart, Play, Pause, Plus, Trash2, 
   Music, ListMusic, MoreHorizontal, Search, X, Shuffle, SkipForward, SkipBack, 
   Repeat, Repeat1, Disc, Volume2, VolumeX, Menu, Clock, AlertTriangle, Zap, 
   MoreVertical, Calendar, Share2
@@ -15,7 +15,7 @@ import MobileSidebar from '../components/MobileSidebar';
 import MobilePlayer from '../components/MobilePlayer'; 
 import RentalModal from '../components/RentalModal';
 import TradeModal from '../components/TradeModal';
-import ShareButton from '../components/ui/ShareButton'; // 경로 맞춰주세요
+import ShareButton from '../components/ui/ShareButton'; 
 
 import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useSendTransaction } from "thirdweb/react";
@@ -65,7 +65,6 @@ export default function LibraryPage() {
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   
-  // ✅ [New] Mobile Bottom Sheet State
   const [activeMobileTrack, setActiveMobileTrack] = useState<Track | null>(null);
 
   // Player States
@@ -96,7 +95,6 @@ export default function LibraryPage() {
   useEffect(() => { if (profileId) fetchPlaylists(); }, [profileId]);
   useEffect(() => { if (profileId || (selectedPlaylist === 'my_songs' && address)) fetchTracks(selectedPlaylist); }, [profileId, selectedPlaylist, address]);
 
-  // Audio Effects (생략 없이 유지)
   useEffect(() => {
     const audio = audioRef.current;
     if (currentTrack && audio) {
@@ -180,7 +178,6 @@ export default function LibraryPage() {
     setPlaylists([...systemPlaylists, ...(data?.map((p: any) => ({ id: p.id, name: p.name, is_custom: true })) || [])]);
   };
 
-  // ✅ [FIX] fetchTracks 수정: 커스텀 플레이리스트에서도 렌탈 정보(expires_at)를 병합
   const fetchTracks = async (playlistId: string) => {
     setLoading(true);
     setTracks([]);
@@ -217,10 +214,7 @@ export default function LibraryPage() {
         }
 
       } else {
-        // [Custom Playlist Logic]
         if (!profileId) return;
-        
-        // 1. 플레이리스트 아이템 가져오기
         const { data } = await supabase
             .from('playlist_items')
             .select('tracks(*)')
@@ -231,24 +225,20 @@ export default function LibraryPage() {
 
         if (rawTracks.length > 0) {
             const trackIds = rawTracks.map((t: any) => t.id);
-
-            // 2. 해당 곡들의 렌탈 정보(collections) 조회
             const { data: rentalData } = await supabase
                 .from('collections')
                 .select('track_id, expires_at')
                 .eq('profile_id', profileId)
                 .in('track_id', trackIds);
 
-            // 3. 렌탈 정보 매핑 (Map 생성)
             const rentalMap = new Map();
             rentalData?.forEach((r: any) => {
                 rentalMap.set(r.track_id, r.expires_at);
             });
 
-            // 4. 트랙 정보에 expires_at 병합
             const mergedTracks = rawTracks.map((t: any) => ({
                 ...t,
-                expires_at: rentalMap.get(t.id) || null // 렌탈 정보가 없으면 null (소유X 혹은 만료됨)
+                expires_at: rentalMap.get(t.id) || null 
             }));
 
             setTracks(mergedTracks);
@@ -263,14 +253,30 @@ export default function LibraryPage() {
     }
   };
 
-  // ... (기존 핸들러 유지: Rename, Remove, Move, Create, Delete, Extend, Invest 등) ...
   const handleRenamePlaylist = async () => {
     if (!renameValue.trim()) return;
     if (!address) return toast.error("Wallet not connected.");
+    // 시스템 플레이리스트 수정 방지
     if (selectedPlaylist === 'liked' || selectedPlaylist === 'my_songs') return;
-    const { data, error } = await supabase.rpc('update_playlist_name_by_wallet', { p_playlist_id: selectedPlaylist, p_new_name: renameValue, p_wallet_address: address });
-    if (error || data !== 'OK') toast.error("Failed to rename.");
-    else { toast.success("Renamed!"); setIsRenaming(false); fetchPlaylists(); }
+    
+    // ✅ [수정됨] 직접 update 대신 RPC 호출로 변경 (RLS 문제 원천 차단)
+    const { data, error } = await supabase.rpc('update_playlist_name_by_wallet', { 
+        p_playlist_id: selectedPlaylist, 
+        p_new_name: renameValue, 
+        p_wallet_address: address 
+    });
+
+    if (error) {
+        console.error(error);
+        toast.error("Error updating playlist.");
+    } else if (data === 'OK') {
+        toast.success("Renamed successfully!");
+        setIsRenaming(false);
+        fetchPlaylists(); // 목록 새로고침
+    } else {
+        // data가 'NO_PERMISSION_OR_NOT_FOUND' 인 경우
+        toast.error("Update failed. You may not be the owner.");
+    }
   };
 
   const handleRemoveFromPlaylist = async (trackId: number) => {
@@ -289,32 +295,18 @@ export default function LibraryPage() {
     else { toast.success("Moved to top!"); fetchTracks(selectedPlaylist); setActiveMobileTrack(null); }
   };
 
-// ✅ [수정] createPlaylist 핸들러 수정 (인자 추가)
   const handleCreatePlaylist = async (nameOverride?: string) => {
-    // 1. 이름 결정 (인자로 들어온 것 or state의 값)
     const nameToUse = nameOverride || newPlaylistName;
-    
     if (!nameToUse.trim()) return;
     if (!profileId) return toast.error("Login required.");
-    
     const { error } = await supabase.from('playlists').insert({ profile_id: profileId, name: nameToUse });
-    
-    if (!error) {
-      toast.success("Created!");
-      fetchPlaylists();
-      setIsCreating(false);
-      setNewPlaylistName("");
-    } else {
-      toast.error(error.message);
-    }
+    if (!error) { toast.success("Created!"); fetchPlaylists(); setIsCreating(false); setNewPlaylistName(""); } 
+    else { toast.error(error.message); }
   };
 
-  // ✅ [추가] 모바일 전용 플레이리스트 생성 핸들러
   const handleMobileCreatePlaylist = () => {
       const name = window.prompt("Enter new playlist name:");
-      if (name) {
-          handleCreatePlaylist(name);
-      }
+      if (name) { handleCreatePlaylist(name); }
   };
   
   const handleDeletePlaylist = async (id: string) => {
@@ -415,40 +407,25 @@ export default function LibraryPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col bg-black relative">
         
-        {/* ✅ [Mobile Header] 세련된 디자인 리뉴얼 */}
+        {/* Mobile Header */}
         <div className="md:hidden pt-4 px-4 bg-gradient-to-b from-zinc-900 to-black sticky top-0 z-20">
             <div className="flex items-center justify-between mb-4">
-                <button onClick={() => setMobileMenuOpen(true)} className="p-2 bg-zinc-800/50 rounded-full text-white"><Menu size={20}/></button>
+                {/* ✅ [수정됨] 햄버거 메뉴 대신 'Back to Market' 버튼으로 교체 */}
+                <Link href="/market" className="flex items-center gap-2 p-2 bg-zinc-800/50 rounded-full text-white text-sm font-bold hover:bg-zinc-700 transition pr-4">
+                    <ArrowLeft size={18}/> Back
+                </Link>
                 <HeaderProfile />
             </div>
             
             <div className="flex items-center gap-4 mb-6">
-                 {/* Playlist Selector (Simple Horizontal Scroll) */}
                  <div className="flex overflow-x-auto gap-2 scrollbar-hide pb-2">
                      {playlists.map(p => (
-                         <button 
-                            key={p.id} 
-                            onClick={() => setSelectedPlaylist(p.id)}
-                            className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition border ${
-                                selectedPlaylist === p.id 
-                                ? 'bg-white text-black border-white' 
-                                : 'bg-zinc-900 text-zinc-400 border-zinc-800'
-                            }`}
-                         >
-                            {p.name}
-                         </button>
+                         <button key={p.id} onClick={() => setSelectedPlaylist(p.id)} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition border ${selectedPlaylist === p.id ? 'bg-white text-black border-white' : 'bg-zinc-900 text-zinc-400 border-zinc-800'}`}>{p.name}</button>
                      ))}
-                    {/* ✅ [수정] 모바일에서는 prompt 사용 */}
-                     <button 
-                        onClick={handleMobileCreatePlaylist} 
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 flex-shrink-0 active:scale-95 transition"
-                     >
-                        <Plus size={16}/>
-                     </button>                 
+                     <button onClick={handleMobileCreatePlaylist} className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 flex-shrink-0 active:scale-95 transition"><Plus size={16}/></button>                 
                  </div>
             </div>
 
-            {/* Playlist Info Header */}
             <div className="flex items-end justify-between mb-4 px-1">
                 <div>
                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">PLAYLIST</span>
@@ -456,34 +433,20 @@ export default function LibraryPage() {
                          {playlists.find(p => p.id === selectedPlaylist)?.name || "Library"}
                      </h1>
                 </div>
-                {/* Play Button */}
                 {filteredTracks.length > 0 && (
-                    <button 
-                        onClick={() => { setCurrentTrack(filteredTracks[0]); setIsPlaying(true); setMobilePlayerOpen(true); }}
-                        className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/20 active:scale-95 transition"
-                    >
-                        <Play fill="black" className="ml-1"/>
-                    </button>
+                    <button onClick={() => { setCurrentTrack(filteredTracks[0]); setIsPlaying(true); setMobilePlayerOpen(true); }} className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/20 active:scale-95 transition"><Play fill="black" className="ml-1"/></button>
                 )}
             </div>
             
-            {/* Search Bar */}
             <div className="relative mb-2">
                  <Search className="absolute left-3 top-2.5 text-zinc-500" size={14}/>
-                 <input 
-                    type="text" 
-                    placeholder="Search songs..." 
-                    className="w-full bg-zinc-900 rounded-xl py-2 pl-9 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-zinc-700"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                 />
+                 <input type="text" placeholder="Search songs..." className="w-full bg-zinc-900 rounded-xl py-2 pl-9 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-zinc-700" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
             </div>
         </div>
 
-        {/* Desktop Header (기존 유지) */}
+        {/* Desktop Header */}
         <div className="hidden md:flex h-64 bg-gradient-to-b from-zinc-800 to-black p-8 items-end justify-between">
-            {/* ... (Desktop Header 내용 유지) ... */}
-            <div className="flex items-end gap-6">
+            <div className="flex items-end gap-6 w-full">
                 <div className="w-40 h-40 bg-zinc-800 shadow-2xl rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                     {tracks.length > 0 && tracks[0].cover_image_url ? (
                         <img src={tracks[0].cover_image_url} className="w-full h-full object-cover" />
@@ -491,12 +454,46 @@ export default function LibraryPage() {
                         selectedPlaylist === 'liked' ? <Heart size={48} className="text-indigo-500 fill-indigo-500" /> : selectedPlaylist === 'my_songs' ? <Mic2 size={48} className="text-green-500" /> : <Music size={48} className="text-zinc-600" />
                     )}
                 </div>
-                <div className="mb-1 w-full">
+                
+                {/* ✅ [수정된 부분] 이름 변경 UI 복구 */}
+                <div className="mb-1 w-full flex-1">
                     <span className="text-xs font-bold uppercase text-white/80">Playlist</span>
-                    <h1 className="text-5xl font-black tracking-tight truncate max-w-3xl">{playlists.find(p => p.id === selectedPlaylist)?.name}</h1>
+                    
+                    {isRenaming ? (
+                        <div className="flex items-center gap-2 mt-2">
+                            <input 
+                                autoFocus 
+                                className="text-4xl font-black bg-transparent border-b border-white text-white focus:outline-none w-full max-w-xl" 
+                                value={renameValue} 
+                                onChange={(e) => setRenameValue(e.target.value)} 
+                                onKeyDown={(e) => e.key === 'Enter' && handleRenamePlaylist()} 
+                            />
+                            <button onClick={handleRenamePlaylist} className="p-2 bg-green-500 rounded-full text-black hover:scale-110 transition"><Check size={20} /></button>
+                            <button onClick={() => setIsRenaming(false)} className="p-2 bg-zinc-800 rounded-full text-white hover:bg-zinc-700 transition"><X size={20} /></button>
+                        </div>
+                    ) : (
+                        <h1 className="text-5xl font-black tracking-tight truncate max-w-3xl flex items-center gap-4 group">
+                            {playlists.find(p => p.id === selectedPlaylist)?.name}
+                            
+                            {/* Rename Button (Only for custom playlists) */}
+                            {selectedPlaylist !== 'liked' && selectedPlaylist !== 'my_songs' && (
+                                <button 
+                                    onClick={() => { 
+                                        setRenameValue(playlists.find(p => p.id === selectedPlaylist)?.name || ""); 
+                                        setIsRenaming(true); 
+                                    }} 
+                                    className="opacity-0 group-hover:opacity-100 transition text-zinc-500 hover:text-white"
+                                >
+                                    <Pencil size={24} />
+                                </button>
+                            )}
+                        </h1>
+                    )}
+                    
                     <p className="text-zinc-400 text-sm mt-2">{filteredTracks.length} songs</p>
                 </div>
             </div>
+            
             {/* Desktop Actions */}
             <div className="flex items-center gap-3 mb-2">
                  <button onClick={() => { if(tracks.length > 0) { setCurrentTrack(tracks[0]); setIsPlaying(true); } }} className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center text-black hover:scale-105 transition shadow-lg"><Play fill="black" className="ml-1" /></button>
@@ -522,7 +519,7 @@ export default function LibraryPage() {
                     </thead>
                     <tbody>
                         {filteredTracks.map((track, idx) => {
-                            const { label: expiryLabel, isUrgent, isExpired } = getExpiryInfo(track.expires_at);
+                            const { label: expiryLabel, isUrgent } = getExpiryInfo(track.expires_at);
                             return (
                                 <tr key={track.id} className={`group hover:bg-zinc-900/60 rounded-lg transition ${currentTrack?.id === track.id ? 'text-green-400' : 'text-zinc-300'}`} onDoubleClick={() => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }}>
                                     <td className="p-3 w-12 text-center text-sm">
@@ -554,10 +551,10 @@ export default function LibraryPage() {
                     </tbody>
                 </table>
 
-                {/* ✅ [New] Mobile List View (Spotify Style) */}
+                {/* Mobile List View */}
                 <div className="md:hidden space-y-2 px-4">
                     {filteredTracks.map((track) => {
-                        const { isUrgent, isExpired } = getExpiryInfo(track.expires_at);
+                        const { isExpired } = getExpiryInfo(track.expires_at);
                         return (
                             <div 
                                 key={track.id} 
@@ -567,7 +564,6 @@ export default function LibraryPage() {
                                 <div className="flex items-center gap-3 flex-1 min-w-0">
                                     <div className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative shadow-sm">
                                         {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover" /> : <Music className="p-3 text-zinc-500" />}
-                                        {/* Status Badge Over Image */}
                                         {isExpired ? (
                                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><AlertTriangle size={16} className="text-red-500"/></div>
                                         ) : !track.expires_at ? (
@@ -593,7 +589,7 @@ export default function LibraryPage() {
             )}
         </div>
 
-        {/* ✅ [New] Mobile Bottom Sheet (Action Menu) */}
+        {/* Mobile Bottom Sheet */}
         {activeMobileTrack && (
             <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in" onClick={() => setActiveMobileTrack(null)}>
                 <div className="bg-zinc-900 w-full max-w-sm rounded-t-3xl sm:rounded-3xl border border-zinc-800 p-6 animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
@@ -608,7 +604,6 @@ export default function LibraryPage() {
                     </div>
                     
                     <div className="space-y-1">
-                        {/* 1. Invest */}
                         {activeMobileTrack.is_minted && (
                             <button onClick={() => { handleInvest(activeMobileTrack); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left">
                                 <Zap className="text-yellow-500" size={20}/>
@@ -619,7 +614,6 @@ export default function LibraryPage() {
                             </button>
                         )}
                         
-                        {/* 2. Extend Collection */}
                         {activeMobileTrack.expires_at && (
                             <button onClick={() => { openExtendModal(activeMobileTrack); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left">
                                 <Clock className="text-green-500" size={20}/>
@@ -630,7 +624,6 @@ export default function LibraryPage() {
                             </button>
                         )}
 
-                        {/* 3. Playlist Actions */}
                         {selectedPlaylist !== 'liked' && selectedPlaylist !== 'my_songs' && (
                             <>
                                 <button onClick={() => { handleMoveToTop(activeMobileTrack.id); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left">
@@ -641,8 +634,6 @@ export default function LibraryPage() {
                                 </button>
                             </>
                         )}                        
-                        {/* 4. Share (Updated) */}
-                        {/* 기존 button 태그를 div로 바꾸고, 좌측엔 텍스트, 우측엔 ShareButton 컴포넌트 배치 */}
                         <div className="w-full flex items-center justify-between p-4 hover:bg-zinc-800 rounded-xl transition">
                             <div className="flex items-center gap-4">
                                 <Share2 className="text-zinc-400" size={20}/>
@@ -651,18 +642,7 @@ export default function LibraryPage() {
                                     <div className="text-xs text-zinc-500">Instagram & Link</div>
                                 </div>
                             </div>
-                            
-                            {/* 여기에 앞서 만든 ShareButton을 넣습니다 */}
-                            <ShareButton 
-                                assetId={activeMobileTrack.id.toString()}
-                                trackData={{
-                                    title: activeMobileTrack.title,
-                                    artist: activeMobileTrack.artist_name,
-                                    coverUrl: activeMobileTrack.cover_image_url || ""
-                                }}
-                                // 버튼 스타일을 조금 더 눈에 띄게 조정 (선택사항)
-                                className="bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white"
-                            />
+                            <ShareButton assetId={activeMobileTrack.id.toString()} trackData={{ title: activeMobileTrack.title, artist: activeMobileTrack.artist_name, coverUrl: activeMobileTrack.cover_image_url || "" }} className="bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white" />
                         </div>
                     </div>
 
@@ -671,7 +651,6 @@ export default function LibraryPage() {
             </div>
         )}
 
-        {/* Players & Modals (Existing) */}
         {currentTrack && mobilePlayerOpen && (
             <MobilePlayer
                 track={currentTrack}
@@ -713,10 +692,8 @@ export default function LibraryPage() {
             </div>
         )}
 
-        {/* Desktop Footer (유지) */}
         {currentTrack && (
             <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl">
-                 {/* ... (Desktop Player Content - 기존과 동일하게 유지) ... */}
                  <div className="flex items-center gap-4 w-1/3">
                     <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative">
                         {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700" /></div>}

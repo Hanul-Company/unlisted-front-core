@@ -2,11 +2,9 @@
 
 import React from 'react';
 import { Link } from "@/lib/i18n";
-import { Radius, Book, Disc, PlayCircle, Download, X, UploadCloud, LayoutGrid, TrendingUp, Coins, Heart, Zap } from 'lucide-react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { Radius, Book, Disc, PlayCircle, Download, X, UploadCloud, TrendingUp, Coins, Zap, Radio } from 'lucide-react';
 import { usePWA } from '../context/PWAContext';
 
-// [핵심] 이 인터페이스가 있어야 부모 컴포넌트에서 props를 넘길 수 있습니다.
 interface MobileSidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,7 +22,7 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
       />
 
       {/* 2. 슬라이딩 패널 (Drawer) */}
-      <div className={`fixed top-0 left-0 bottom-0 w-[80%] max-w-xs bg-zinc-950 border-r border-zinc-800 z-[70] p-6 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed top-0 left-0 bottom-0 w-[85%] max-w-xs bg-zinc-950 border-r border-zinc-800 z-[70] p-6 transition-transform duration-300 flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
         {/* 헤더 */}
         <div className="flex justify-between items-center mb-8">
@@ -36,39 +34,96 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
             </button>
         </div>
 
-        {/* Upload Button */}
-        <Link href="/upload" onClick={onClose}>
-            <button className="w-full bg-white text-black font-bold py-3 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-105 transition">
-                <UploadCloud size={20}/> Upload
+        {/* ✅ [New] Main CTA: Start Stream */}
+        <Link href="/radio" onClick={onClose}>
+            <button className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white font-bold py-4 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-[1.02] transition shadow-lg shadow-blue-900/20 group">
+                <Radio size={20} className="group-hover:animate-pulse" fill="currentColor"/> 
+                Start Stream
             </button>
         </Link>
 
-        {/* 메뉴 목록 */}
-        <nav className="space-y-6">
+        {/* 메뉴 목록 (Scrollable Area) */}
+        <div className="flex-1 overflow-y-auto space-y-8 pr-2">
+            
+            {/* 1. Discover */}
             <div>
-                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Discover</h3>
-                <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800 text-white cursor-pointer hover:bg-zinc-700 transition"><Disc size={18}/><span className="text-sm font-medium"> Explore</span></div>
-                <Link href="/radio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Radius size={18}/><span className="text-sm font-medium"> unlisted Player</span></div></Link>
-                
-                <Link href="/investing"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><TrendingUp size={18}/><span className="text-sm font-medium"> Charts</span></div></Link>
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-3 px-2">Discover</h3>
+                <div className="space-y-1">
+                    <Link href="/market" onClick={onClose}>
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900 border border-zinc-800 text-white cursor-pointer hover:bg-zinc-800 transition">
+                            <Disc size={18}/>
+                            <span className="text-sm font-medium">Explore</span>
+                        </div>
+                    </Link>
+                    <Link href="/investing" onClick={onClose}>
+                        <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
+                            <TrendingUp size={18}/>
+                            <span className="text-sm font-medium">Charts</span>
+                        </div>
+                    </Link>
+                </div>
             </div>
+
+            {/* 2. My Studio */}
             <div>
-                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3>
-                {/* [추가] Earn 메뉴 */}
-                <Link href="/earn">
-                    <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer">
-                        <Zap size={18} className="text-yellow-500"/>
-                        <span className="text-sm font-medium text-yellow-500">Free Faucet</span>
-                    </div>
-                </Link>
-                <Link href="/studio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Coins size={18}/> <span className="text-sm font-medium"> Revenue</span></div></Link>
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-3 px-2">My Studio</h3>
+                <div className="space-y-1">
+                    <Link href="/library" onClick={onClose}>
+                        <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
+                            <PlayCircle size={18}/>
+                            <span className="text-sm font-medium">Playlists</span>
+                        </div>
+                    </Link>
+                    <Link href="/portfolio" onClick={onClose}>
+                        <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
+                            <Book size={18}/>
+                            <span className="text-sm font-medium">Portfolio</span>
+                        </div>
+                    </Link>
+                </div>
             </div>
+
+            {/* 3. Rewards */}
             <div>
-                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">My Studio</h3>
-                <Link href="/portfolio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Book size={18}/><span className="text-sm font-medium"> Portoflio</span></div></Link>
-                <Link href="/library"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><PlayCircle size={18}/><span className="text-sm font-medium"> Playlists</span></div></Link>
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-3 px-2">Rewards</h3>
+                <div className="space-y-1">
+                    <Link href="/studio" onClick={onClose}>
+                        <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
+                            <Coins size={18}/> 
+                            <span className="text-sm font-medium">Earnings</span>
+                        </div>
+                    </Link>
+                    <Link href="/earn" onClick={onClose}>
+                        <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
+                            <Zap size={18} className="text-yellow-500"/>
+                            <span className="text-sm font-medium text-yellow-500">Free Faucet</span>
+                        </div>
+                    </Link>
+                </div>
             </div>
-        </nav>
+        </div>
+
+        {/* Footer Actions (Upload & PWA) */}
+        <div className="pt-6 mt-4 border-t border-zinc-900 space-y-3">
+            {/* PWA Install Button */}
+            {isInstallable && (
+                <button 
+                    onClick={installApp} 
+                    className="w-full bg-zinc-900 text-zinc-300 text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition"
+                >
+                    <Download size={14}/> Install App
+                </button>
+            )}
+
+            {/* Upload Button */}
+            <Link href="/upload" onClick={onClose}>
+                <button className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group">
+                    <UploadCloud size={18} className="group-hover:text-cyan-400 transition-colors"/> 
+                    <span className="text-sm">Upload & Earn</span>
+                </button>
+            </Link>
+        </div>
+
       </div>
     </>
   );

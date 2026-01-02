@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Radius, Book, PlayCircle, Play, Pause, TrendingUp, Loader2, UploadCloud, Music as MusicIcon, Trash2, ExternalLink, Coins, CheckCircle, User, Heart, Mic2, LayoutGrid, Disc, SkipForward, SkipBack, Volume2, Star, Zap, ArrowRight, Search, Menu } from 'lucide-react';
+import { AlertTriangle, Radio, Radius, Book, PlayCircle, Play, Pause, TrendingUp, Loader2, UploadCloud, Music as MusicIcon, Trash2, ExternalLink, Coins, CheckCircle, User, Heart, Mic2, LayoutGrid, Disc, SkipForward, SkipBack, Volume2, Star, Zap, ArrowRight, Search, Menu } from 'lucide-react';
 import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI, MELODY_IP_ADDRESS, MELODY_IP_ABI } from '../constants';
 import { supabase } from '@/utils/supabase';
 import { Link } from "@/lib/i18n";
@@ -38,6 +38,8 @@ type Track = {
   melody_hash: string | null;
   uploader_address: string | null;
   created_at: string;
+  mint_error?: string | null;          // ✅ 추가
+  duplicate_of_track_id?: number | null; // ✅ 추가
 };
 
 type FeaturedPlaylist = {
@@ -48,6 +50,51 @@ type FeaturedPlaylist = {
 
 type Profile = { wallet_address: string; username: string; avatar_url: string | null; };
 const PAGE_SIZE = 15;
+
+// ✅ [New] 중복 확인 모달 컴포넌트
+function DuplicateCheckModal({ isOpen, onClose, originalTrack, onPlay }: any) {
+    if (!isOpen || !originalTrack) return null;
+
+    return (
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-red-900/50 p-6 rounded-2xl w-full max-w-md relative shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center gap-2 mb-4 text-red-500">
+                    <AlertTriangle size={24} />
+                    <h3 className="text-xl font-bold text-white">Submission Rejected</h3>
+                </div>
+                
+                <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+                    This track was rejected because a melody with the same hash is already registered on the blockchain.
+                </p>
+
+                <div className="bg-black/50 rounded-xl p-4 border border-zinc-800 flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
+                        {originalTrack.cover_image_url ? (
+                            <img src={originalTrack.cover_image_url} className="w-full h-full object-cover"/>
+                        ) : (
+                            <MusicIcon size={20} className="text-zinc-500 m-auto top-1/2 left-1/2 absolute -translate-x-1/2 -translate-y-1/2"/>
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="text-[10px] text-zinc-500 uppercase font-bold mb-0.5">Original Registered Track</div>
+                        <div className="font-bold text-white truncate">{originalTrack.title}</div>
+                        <div className="text-xs text-zinc-500 truncate">{originalTrack.artist_name}</div>
+                    </div>
+                    <button 
+                        onClick={() => onPlay(originalTrack)}
+                        className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition"
+                    >
+                        <Play size={16} fill="black" className="ml-0.5"/>
+                    </button>
+                </div>
+
+                <button onClick={onClose} className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    );
+}
 
 export default function MarketPage() {
   const account = useActiveAccount();
@@ -95,6 +142,10 @@ export default function MarketPage() {
   const [mobilePlayerOpen, setMobilePlayerOpen] = useState(false);
   const [repeatMode, setRepeatMode] = useState<'off'|'all'|'one'>('all');
   const [isShuffle, setIsShuffle] = useState(false);
+
+  // ✅ [New] Duplicate Logic States
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateOriginalTrack, setDuplicateOriginalTrack] = useState<Track | null>(null);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const toastShownRef = useRef(false); // 오디오 태그용 토스트 중복 방지
@@ -501,6 +552,19 @@ export default function MarketPage() {
     else toast.error(error.message);
   };
 
+  // ✅ [New] 중복 확인 모달 오픈 핸들러
+  const handleCheckDuplicate = async (originalTrackId: number) => {
+      if (!originalTrackId) return;
+      const toastId = toast.loading("Fetching original track info...");
+      try {
+          const { data, error } = await supabase.from('tracks').select('*').eq('id', originalTrackId).single();
+          if (error || !data) throw new Error("Original track not found");
+          setDuplicateOriginalTrack(data);
+          setShowDuplicateModal(true);
+          toast.dismiss(toastId);
+      } catch (e) { toast.error("Failed to load info", { id: toastId }); }
+  };
+
   // --- Audio Logic ---
   useEffect(() => {
     const audio = audioRef.current;
@@ -567,28 +631,82 @@ export default function MarketPage() {
       
       <MobileSidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
-      {/* Sidebar (기존 코드 유지) */}
-      <aside className="w-64 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col p-6">
-         {/* ... (기존 사이드바 내용) ... */}
-         <div className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 cursor-pointer">unlisted</div>
-         <Link href="/upload"><button className="w-full bg-white text-black font-bold py-3 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-105 transition"><UploadCloud size={20}/> Upload & Earn</button></Link>
-         <nav className="space-y-6">
+{/* Sidebar (수정됨) */}
+      <aside className="w-64 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col p-6 h-screen sticky top-0">
+         
+         {/* Logo */}
+         <div className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 cursor-pointer">
+             unlisted
+         </div>
+
+         {/* ✅ [New] Main CTA Button: Start Stream (Radio) */}
+         <Link href="/radio">
+            <button className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white font-bold py-4 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-[1.02] transition shadow-lg shadow-blue-900/20 group">
+                <Radio size={20} className="group-hover:animate-pulse" fill="currentColor"/> 
+                Start Stream
+            </button>
+         </Link>
+
+         {/* Navigation */}
+         <nav className="space-y-6 flex-1">
              <div>
                  <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Discover</h3>
-                 <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800 text-white cursor-pointer hover:bg-zinc-700 transition"><Disc size={18}/><span className="text-sm font-medium"> Explore</span></div>
-                 <Link href="/radio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Radius size={18}/><span className="text-sm font-medium"> unlisted Player</span></div></Link>
-                 <Link href="/investing"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><TrendingUp size={18}/><span className="text-sm font-medium"> Charts</span></div></Link>
+                 {/* 현재 페이지 표시 (bg-zinc-800) */}
+                 <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800 text-white cursor-pointer hover:bg-zinc-700 transition">
+                    <Disc size={18}/>
+                    <span className="text-sm font-medium"> Explore</span>
+                 </div>
+                 {/* 기존 unlisted Player 삭제됨 (Start Stream으로 대체) */}
+                 <Link href="/investing">
+                    <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                        <TrendingUp size={18}/>
+                        <span className="text-sm font-medium"> Charts</span>
+                    </div>
+                 </Link>
              </div>
+
+             <div>
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">My Studio</h3>
+                <Link href="/library">
+                    <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                        <PlayCircle size={18}/>
+                        <span className="text-sm font-medium"> Playlists</span>
+                    </div>
+                </Link>
+                <Link href="/portfolio">
+                    <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                        <Book size={18}/>
+                        <span className="text-sm font-medium"> Portfolio</span>
+                    </div>
+                </Link>
+            </div>
+
+
              <div>
                  <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3>
-                 <Link href="/earn"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Zap size={18} className="text-yellow-500"/><span className="text-sm font-medium text-yellow-500">Free Faucet</span></div></Link>
-                 <Link href="/studio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Coins size={18}/> <span className="text-sm font-medium"> Revenue</span></div></Link>
+                <Link href="/studio">
+                    <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                        <Coins size={18}/> 
+                        <span className="text-sm font-medium"> Earnings</span>
+                    </div>
+                </Link>
+                <Link href="/earn">
+                    <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                        <Zap size={18} className="text-yellow-500"/>
+                        <span className="text-sm font-medium text-yellow-500">Free Faucet</span>
+                    </div>
+                </Link>
              </div>
-             <div>
-                 <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">My Studio</h3>
-                 <Link href="/portfolio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><Book size={18}/><span className="text-sm font-medium"> Portoflio</span></div></Link>
-                 <Link href="/library"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer"><PlayCircle size={18}/><span className="text-sm font-medium"> Playlists</span></div></Link>
-             </div>
+
+            {/* ✅ [Moved] Upload Button (Bottom) */}
+            <div className="pt-6 mt-auto border-t border-zinc-800">
+                <Link href="/upload">
+                    <button className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group">
+                        <UploadCloud size={18} className="group-hover:text-cyan-400 transition-colors"/> 
+                        <span className="text-sm">Upload & Earn</span>
+                    </button>
+                </Link>
+            </div>
          </nav>
       </aside>
 
@@ -703,6 +821,12 @@ export default function MarketPage() {
                         {browseTracks.map((track) => {
                             const isOwner = address && track.uploader_address && address.toLowerCase() === track.uploader_address.toLowerCase();
                             const isProcessingThis = processingTrackId === track.id && (isPending);
+                            // ✅ [수정] 중복 에러 확인
+                            const isDuplicateError = track.mint_error && (track.mint_error === 'duplicate_melody_hash' || track.mint_error === 'duplicate_melody_hash_existing_minted');
+                            
+                            // ✅ [수정] 남의 트랙인데 에러 있으면 숨김
+                            if (!isOwner && track.mint_error) return null;
+
                             return (
                                 <div key={track.id} className={`group flex items-center justify-between p-3 rounded-xl transition-all border cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900 border-cyan-500/50' : 'bg-transparent border-transparent hover:bg-zinc-900 hover:border-zinc-800'}`} onClick={() => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }}>
                                 {/* Track Info */}
@@ -724,7 +848,12 @@ export default function MarketPage() {
                                         isOwner ? (
                                             <div className="flex gap-2">
                                                 <button onClick={(e) => { e.stopPropagation(); handleDelete(track.id); }} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded"><Trash2 size={14}/></button>
-                                                <button onClick={(e) => { e.stopPropagation(); handleRegister(track); }} className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition" disabled={isProcessingThis}>{isProcessingThis ? <Loader2 className="animate-spin" size={12}/> : 'Register'}</button>
+                                                {/* ✅ [수정] 중복 에러 시 Rejected 버튼 */}
+                                                {isDuplicateError ? (
+                                                    <button onClick={(e) => { e.stopPropagation(); if (track.duplicate_of_track_id) handleCheckDuplicate(track.duplicate_of_track_id); }} className="bg-red-500/10 text-red-500 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition flex items-center gap-1"><AlertTriangle size={12}/> Rejected</button>
+                                                ) : (
+                                                    <button onClick={(e) => { e.stopPropagation(); handleRegister(track); }} className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition" disabled={isProcessingThis}>{isProcessingThis ? <Loader2 className="animate-spin" size={12}/> : 'Register'}</button>
+                                                )}
                                             </div>
                                         ) : <span className="text-[10px] text-zinc-600 font-mono">PREPARING</span>
                                     )}
@@ -738,156 +867,23 @@ export default function MarketPage() {
         )}
       </main>
 
-      {/* ✅ Mobile Full Player */}
-      {currentTrack && mobilePlayerOpen && (
-            <MobilePlayer
-                track={currentTrack}
-                isPlaying={isPlaying}
-                onPlayPause={() => setIsPlaying(!isPlaying)}
-                onNext={handleNext}
-                onPrev={handlePrev}
-                onClose={() => setMobilePlayerOpen(false)}
-                repeatMode={repeatMode}
-                onToggleRepeat={() => setRepeatMode(repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off')}
-                isShuffle={isShuffle}
-                onToggleShuffle={() => setIsShuffle(!isShuffle)}
-                currentTime={currentTime}
-                duration={duration}
-                onSeek={(val) => { if(audioRef.current) audioRef.current.currentTime = val; }}
-                
-                // [New Props]
-                isLiked={likedTrackIds.has(currentTrack.id)}
-                isRented={rentedTrackIds.has(currentTrack.id)} // 렌탈 여부 전달
-                onToggleLike={() => handleToggleLike(currentTrack)}
-                onInvest={currentTrack.is_minted ? () => handleInvest(currentTrack) : undefined}
-            />
-      )}
-
+        {/* ✅ Mobile Full Player */}
+      {currentTrack && mobilePlayerOpen && ( <MobilePlayer track={currentTrack} isPlaying={isPlaying} onPlayPause={() => setIsPlaying(!isPlaying)} onNext={handleNext} onPrev={handlePrev} onClose={() => setMobilePlayerOpen(false)} repeatMode={repeatMode} onToggleRepeat={() => setRepeatMode(repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off')} isShuffle={isShuffle} onToggleShuffle={() => setIsShuffle(!isShuffle)} currentTime={currentTime} duration={duration} onSeek={(val) => { if(audioRef.current) audioRef.current.currentTime = val; }} isLiked={likedTrackIds.has(currentTrack.id)} isRented={rentedTrackIds.has(currentTrack.id)} onToggleLike={() => handleToggleLike(currentTrack)} onInvest={currentTrack.is_minted ? () => handleInvest(currentTrack) : undefined} /> )}
       {/* 2. Mobile Mini Player (Bottom Bar) */}
-      {currentTrack && !mobilePlayerOpen && (
-          <div className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" onClick={() => setMobilePlayerOpen(true)}>
-              <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
-                      {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <Disc size={20} className="text-zinc-500 m-auto" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
-                      <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
-                  </div>
-              </div>
-              <div className="flex items-center gap-3 pr-1">
-                  <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
-                      {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
-                  </button>
-              </div>
-          </div>
-      )}
-
+      {currentTrack && !mobilePlayerOpen && ( <div className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" onClick={() => setMobilePlayerOpen(true)}> <div className="flex items-center gap-3 overflow-hidden"> <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative"> {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <Disc size={20} className="text-zinc-500 m-auto" />} </div> <div className="flex-1 min-w-0"> <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div> <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div> </div> </div> <div className="flex items-center gap-3 pr-1"> <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black"> {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />} </button> </div> </div> )}
       {/* ✅ Desktop Footer Player */}
-      {currentTrack && (
-            <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl">
-                <div className="flex items-center gap-4 w-1/3">
-                    <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative">
-                         {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700 animate-spin-slow"/></div>}
-                    </div>
-                    <div className="overflow-hidden">
-                        <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
-                        <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name || 'unlisted Artist'}</div>
-                    </div>
-                    
-                    {/* Collect Button */}
-                    <button 
-                        onClick={() => handleToggleLike(currentTrack)} 
-                        className={`ml-2 hover:scale-110 transition ${likedTrackIds.has(currentTrack.id) ? 'text-pink-500' : 'text-zinc-500 hover:text-white'}`}
-                    >
-                        <Heart size={20} fill={likedTrackIds.has(currentTrack.id) ? "currentColor" : "none"} />
-                    </button>
-                </div>
+      {currentTrack && ( <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl"> <div className="flex items-center gap-4 w-1/3"> <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative"> {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700 animate-spin-slow"/></div>} </div> <div className="overflow-hidden"> <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div> <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name || 'unlisted Artist'}</div> </div> <button onClick={() => handleToggleLike(currentTrack)} className={`ml-2 hover:scale-110 transition ${likedTrackIds.has(currentTrack.id) ? 'text-pink-500' : 'text-zinc-500 hover:text-white'}`}> <Heart size={20} fill={likedTrackIds.has(currentTrack.id) ? "currentColor" : "none"} /> </button> </div> <div className="flex flex-col items-center gap-2 w-1/3"> <div className="flex items-center gap-6"> <button className="text-zinc-400 hover:text-white transition" onClick={handlePrev}><SkipBack size={20}/></button> <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">{isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}</button> <button className="text-zinc-400 hover:text-white transition" onClick={handleNext}><SkipForward size={20}/></button> </div> <div className="w-full max-w-sm flex items-center gap-3"> <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span> <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative cursor-pointer" onClick={(e) => { if(!audioRef.current) return; const rect = e.currentTarget.getBoundingClientRect(); const clickX = e.clientX - rect.left; const width = rect.width; const newTime = (clickX / width) * duration; if (!isCurrentTrackRented && newTime > 60) { toast.error("Preview limited to 1 minute"); audioRef.current.currentTime = 60; } else { audioRef.current.currentTime = newTime; } }}> {!isCurrentTrackRented && duration > 60 && ( <div className="absolute top-0 left-0 h-full bg-purple-500/30 z-0" style={{ width: `${(60/duration)*100}%` }} /> )} <div className="h-full bg-white rounded-full relative z-10" style={{ width: `${duration ? (currentTime/duration)*100 : 0}%` }}/> </div> <span className="text-[10px] text-zinc-500 font-mono w-8"> {!isCurrentTrackRented && duration > 60 ? "1:00" : formatTime(duration)} </span> </div> </div> <div className="w-1/3 flex justify-end items-center gap-4"> {currentTrack.is_minted && ( <button onClick={() => handleInvest(currentTrack)} className="bg-green-500/10 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-green-500 hover:text-black transition flex items-center gap-1.5"> <Zap size={14} fill="currentColor"/> Invest </button> )} <div className="w-px h-6 bg-zinc-800 mx-1"></div> <Volume2 size={18} className="text-zinc-500"/> <div className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-zinc-500 rounded-full"></div></div> </div> </div> )}
 
-                <div className="flex flex-col items-center gap-2 w-1/3">
-                    <div className="flex items-center gap-6">
-                        <button className="text-zinc-400 hover:text-white transition" onClick={handlePrev}><SkipBack size={20}/></button>
-                        <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">{isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}</button>
-                        <button className="text-zinc-400 hover:text-white transition" onClick={handleNext}><SkipForward size={20}/></button>
-                    </div>
-                    
-                    {/* Desktop Progress Bar with Collection Preview Logic */}
-                    <div className="w-full max-w-sm flex items-center gap-3">
-                        <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span>
-                        
-                        <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative cursor-pointer" 
-                             onClick={(e) => {
-                                if(!audioRef.current) return;
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const clickX = e.clientX - rect.left;
-                                const width = rect.width;
-                                const newTime = (clickX / width) * duration;
-                                // 렌탈 안했으면 60초 이후 클릭 방지
-                                if (!isCurrentTrackRented && newTime > 60) {
-                                    toast.error("Preview limited to 1 minute");
-                                    audioRef.current.currentTime = 60;
-                                } else {
-                                    audioRef.current.currentTime = newTime;
-                                }
-                             }}>
-                             
-                            {/* Preview Limit Indicator (Light Purple) */}
-                            {!isCurrentTrackRented && duration > 60 && (
-                                <div 
-                                    className="absolute top-0 left-0 h-full bg-purple-500/30 z-0"
-                                    style={{ width: `${(60/duration)*100}%` }}
-                                />
-                            )}
-                            {/* Current Progress */}
-                            <div className="h-full bg-white rounded-full relative z-10" style={{ width: `${duration ? (currentTime/duration)*100 : 0}%` }}/>
-                        </div>
-                        
-                        <span className="text-[10px] text-zinc-500 font-mono w-8">
-                            {!isCurrentTrackRented && duration > 60 ? "1:00" : formatTime(duration)}
-                        </span>
-                    </div>
-                </div>
-
-                <div className="w-1/3 flex justify-end items-center gap-4">
-                    {currentTrack.is_minted && (
-                        <button 
-                            onClick={() => handleInvest(currentTrack)}
-                            className="bg-green-500/10 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-green-500 hover:text-black transition flex items-center gap-1.5"
-                        >
-                            <Zap size={14} fill="currentColor"/> Invest
-                        </button>
-                    )}
-                    <div className="w-px h-6 bg-zinc-800 mx-1"></div>
-                    <Volume2 size={18} className="text-zinc-500"/>
-                    <div className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-zinc-500 rounded-full"></div></div>
-                </div>
-            </div>
-      )}
-
-      {selectedTrack && (
-        <TradeModal
-            isOpen={!!selectedTrack}
-            onClose={() => setSelectedTrack(null)}
-            track={selectedTrack}
-        />
-      )}
-
-      {/* ✅ Collection Modal Added */}
-      {isRentalModalOpen && (
-        <RentalModal
-            isOpen={isRentalModalOpen}
-            onClose={() => { setIsRentalModalOpen(false); setPendingRentalTrack(null); }}
-            onConfirm={handleRentalConfirm}
-            isLoading={isRentalLoading}
-        />
-      )}
-
-      {/* ✅ [수정] PlaylistSelectionModal 컴포넌트로 대체 */}
-      <PlaylistSelectionModal
-        isOpen={showPlaylistModal}
-        onClose={() => setShowPlaylistModal(false)}
-        playlists={myPlaylists}
-        onSelect={processCollect} // 여기서 processCollect 함수를 전달
+      {selectedTrack && ( <TradeModal isOpen={!!selectedTrack} onClose={() => setSelectedTrack(null)} track={selectedTrack} /> )}
+      {isRentalModalOpen && ( <RentalModal isOpen={isRentalModalOpen} onClose={() => { setIsRentalModalOpen(false); setPendingRentalTrack(null); }} onConfirm={handleRentalConfirm} isLoading={isRentalLoading} /> )}
+      <PlaylistSelectionModal isOpen={showPlaylistModal} onClose={() => setShowPlaylistModal(false)} playlists={myPlaylists} onSelect={processCollect} />
+      
+      {/* ✅ [New] Duplicate Modal */}
+      <DuplicateCheckModal 
+          isOpen={showDuplicateModal} 
+          onClose={() => setShowDuplicateModal(false)} 
+          originalTrack={duplicateOriginalTrack} 
+          onPlay={(track: Track) => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }} 
       />
     </div>
   );

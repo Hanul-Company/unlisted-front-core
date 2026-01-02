@@ -73,7 +73,6 @@ function DonateModal({ isOpen, onClose, recipientAddress, recipientName }: { isO
         if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return toast.error("Enter a valid amount");
         
         setStatus('processing'); // 로딩 UI 시작
-
         try {
             const transaction = prepareContractCall({
                 contract: tokenContract,
@@ -266,7 +265,6 @@ function ProfileContent() {
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
-// ✅ [Updated] Fetch Content based on Tab
 // ✅ [Updated] Fetch Content based on Tab
   const fetchTabContent = async (tab: 'tracks'|'likes'|'playlists') => {
     setActiveTab(tab);
@@ -554,7 +552,7 @@ function ProfileContent() {
                                 .slice(0, 4) || [];
 
                             return (
-                                <Link href={`/playlist/${pl.id}`} key={pl.id} className="group relative bg-zinc-900 rounded-xl overflow-hidden hover:bg-zinc-800 transition cursor-pointer hover:-translate-y-1 duration-300 block border border-zinc-800 hover:border-zinc-700">
+                                <Link href={`/playlists/${pl.id}`} key={pl.id} className="group relative bg-zinc-900 rounded-xl overflow-hidden hover:bg-zinc-800 transition cursor-pointer hover:-translate-y-1 duration-300 block border border-zinc-800 hover:border-zinc-700">
                                     {/* 2. 정사각형 비율 유지 (aspect-square) */}
                                     <div className="aspect-square bg-zinc-800 border-b border-zinc-800 overflow-hidden">
                                         {/* 3. 그리드 로직 적용 */}

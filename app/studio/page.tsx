@@ -259,9 +259,9 @@ export default function StudioPage() {
       <div className="border-b border-zinc-900 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4">
-                <Link href="/market" className="text-zinc-500 hover:text-white transition font-bold text-sm">Exit Studio</Link>
+                <Link href="/market" className="text-zinc-500 hover:text-white transition font-bold text-sm">Exit</Link>
                 <div className="h-4 w-px bg-zinc-800"></div>
-                <h1 className="font-black text-lg tracking-tight">Creator<span className="text-emerald-500">Studio</span></h1>
+                <h1 className="font-black text-lg tracking-tight">My<span className="text-emerald-500">Earnings</span></h1>
             </div>
             <HeaderProfile/>
         </div>
