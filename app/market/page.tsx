@@ -821,11 +821,16 @@ export default function MarketPage() {
                         {browseTracks.map((track) => {
                             const isOwner = address && track.uploader_address && address.toLowerCase() === track.uploader_address.toLowerCase();
                             const isProcessingThis = processingTrackId === track.id && (isPending);
-                            // ✅ [수정] 중복 에러 확인
-                            const isDuplicateError = track.mint_error && (track.mint_error === 'duplicate_melody_hash' || track.mint_error === 'duplicate_melody_hash_existing_minted');
-                            
-                            // ✅ [수정] 남의 트랙인데 에러 있으면 숨김
-                            if (!isOwner && track.mint_error) return null;
+
+                            // ✅ [수정 1] 에러 상태 판단 로직 강화
+                            // 1. DB에서 온 문자열에 줄바꿈(\r\n)이 있을 수 있으므로 .trim()으로 제거
+                            // 2. 완전 일치(===) 대신 .includes()를 사용하여 유연하게 체크
+                            // 3. duplicate_of_track_id가 존재하면 무조건 중복으로 간주 (방어 코드)
+                            const errorString = track.mint_error ? String(track.mint_error).trim() : '';
+                            const isDuplicateError = errorString.includes('duplicate_melody_hash') || !!track.duplicate_of_track_id;
+
+                            // ✅ [수정 2] 남의 트랙인데 에러(중복 등)가 있으면 리스트에서 아예 숨김
+                            if (!isOwner && isDuplicateError) return null;
 
                             return (
                                 <div key={track.id} className={`group flex items-center justify-between p-3 rounded-xl transition-all border cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900 border-cyan-500/50' : 'bg-transparent border-transparent hover:bg-zinc-900 hover:border-zinc-800'}`} onClick={() => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }}>
@@ -840,25 +845,56 @@ export default function MarketPage() {
                                         <Link href={track.uploader_address ? `/u?wallet=${track.uploader_address}` : '#'} onClick={(e)=>e.stopPropagation()} className="text-xs text-zinc-500 hover:text-white hover:underline transition-colors">{track.artist_name || 'Unlisted Artist'}</Link>
                                     </div>
                                 </div>
+
                                 {/* Buttons */}
                                 <div className="flex items-center gap-3">
-                                    {track.is_minted ? (
-                                        <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }} className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-white hover:text-black transition">Invest</button>
-                                    ) : (
-                                        isOwner ? (
-                                            <div className="flex gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(track.id); }} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded"><Trash2 size={14}/></button>
-                                                {/* ✅ [수정] 중복 에러 시 Rejected 버튼 */}
-                                                {isDuplicateError ? (
-                                                    <button onClick={(e) => { e.stopPropagation(); if (track.duplicate_of_track_id) handleCheckDuplicate(track.duplicate_of_track_id); }} className="bg-red-500/10 text-red-500 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition flex items-center gap-1"><AlertTriangle size={12}/> Rejected</button>
-                                                ) : (
-                                                    <button onClick={(e) => { e.stopPropagation(); handleRegister(track); }} className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition" disabled={isProcessingThis}>{isProcessingThis ? <Loader2 className="animate-spin" size={12}/> : 'Register'}</button>
-                                                )}
-                                            </div>
-                                        ) : <span className="text-[10px] text-zinc-600 font-mono">PREPARING</span>
-                                    )}
+                                    {(() => {
+                                        // 🚨 [1순위] 에러(중복) 상태 체크 (가장 먼저 확인)
+                                        // Owner인 경우에만 Rejected 버튼을 보여줌 (위에서 !isOwner && Error는 이미 return null 처리됨)
+                                        if (isDuplicateError && isOwner) {
+                                            return (
+                                                <div className="flex gap-2">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(track.id); }} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded"><Trash2 size={14}/></button>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); if (track.duplicate_of_track_id) handleCheckDuplicate(track.duplicate_of_track_id); }} 
+                                                        className="bg-red-500/10 text-red-500 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition flex items-center gap-1"
+                                                    >
+                                                        <AlertTriangle size={12}/> Rejected
+                                                    </button>
+                                                </div>
+                                            );
+                                        }
+
+                                        // ✅ [2순위] 민팅 완료 상태 체크
+                                        if (track.is_minted) {
+                                            return (
+                                                <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }} className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-white hover:text-black transition">
+                                                    Invest
+                                                </button>
+                                            );
+                                        }
+
+                                        // 🆕 [3순위] 미등록 상태 (Register) - Owner인 경우
+                                        if (isOwner) {
+                                            return (
+                                                <div className="flex gap-2">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(track.id); }} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded"><Trash2 size={14}/></button>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleRegister(track); }} 
+                                                        className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition" 
+                                                        disabled={isProcessingThis}
+                                                    >
+                                                        {isProcessingThis ? <Loader2 className="animate-spin" size={12}/> : 'Register'}
+                                                    </button>
+                                                </div>
+                                            );
+                                        }
+
+                                        // 4. 그 외 (남이 보는 미등록 트랙)
+                                        return <span className="text-[10px] text-zinc-600 font-mono">PREPARING</span>;
+                                    })()}
                                 </div>
-                                </div>
+                            </div>
                             );
                         })}
                     </div>
