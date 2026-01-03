@@ -19,6 +19,7 @@ import { User, LogOut, Wallet, ChevronDown, Settings, ShieldCheck, Link as LinkI
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI, UNLISTED_STOCK_ADDRESS } from '@/app/constants';
+import OnboardingModal from './OnboardingModal';
 
 // [Wallet setup]
 const wallets = [
@@ -58,6 +59,7 @@ export default function HeaderProfile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // MLD balance
   const { data: mldBalanceVal, refetch: refetchMld } = useReadContract({
@@ -72,61 +74,44 @@ export default function HeaderProfile() {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     setUser(authUser);
 
-    const currentAddress = account?.address;
-
-    // 1) Supabase Auth user (기존 유지)
-    if (authUser) {
-      const { data } = await supabase.rpc('get_my_profile_with_balances');
-      if (data && data.length > 0) setProfile(data[0]);
-      return;
-    }
-
-    // 2) thirdweb-only (wallet-based user)
-    if (currentAddress) {
-      // (1) profile upsert
-      let { data: profileRow, error: profileError } =
-        await supabase
+const currentAddress = account?.address;
+      if (currentAddress) {
+        let { data: profileRow } = await supabase
           .from('profiles')
           .select('*')
           .eq('wallet_address', currentAddress)
           .maybeSingle();
 
-      // [✨수정 핵심] 프로필이 없어서 새로 만들 때 아바타 URL 생성
-      if (!profileRow) {
-        
-        // 🎲 DiceBear API 사용 (Pixel Art 스타일)
-        // seed에 지갑 주소를 넣으면 해당 주소만의 고유한 픽셀 캐릭터가 나옵니다.
-        const randomAvatarUrl = `https://api.dicebear.com/9.x/pixel-art/svg?seed=${currentAddress}`;
+        // [✨ 핵심 수정 부분]
+        if (!profileRow) {
+          // 1. 프로필이 없으면 기본값으로 생성
+          const randomAvatarUrl = `https://api.dicebear.com/9.x/pixel-art/svg?seed=${currentAddress}`;
+          const defaultUsername = `User_${currentAddress.slice(0, 4)}`;
 
-        const { data: inserted, error: insertErr } = await supabase
-          .from('profiles')
-          .insert({
-            wallet_address: currentAddress,
-            username: `User_${currentAddress.slice(0, 4)}`,
-            avatar_url: randomAvatarUrl, // 👈 여기에 생성한 URL 저장
-          })
-          .select('*')
-          .single();
+          const { data: inserted, error: insertErr } = await supabase
+            .from('profiles')
+            .insert({
+              wallet_address: currentAddress,
+              username: defaultUsername,
+              avatar_url: randomAvatarUrl,
+            })
+            .select('*')
+            .single();
 
-        if (insertErr) {
-          console.error('profile insert error', insertErr);
-          setProfile(null);
-          return;
+          if (!insertErr && inserted) {
+             profileRow = inserted;
+             
+             // 2. 환영 보너스 지급 (기존 로직)
+             await supabase.from('p_mld_balances').insert({ profile_id: profileRow.id, balance: 100 });
+             
+             // 🚀 3. 온보딩 모달 띄우기 (여기서 Trigger!)
+             setShowOnboarding(true); 
+          }
+        } 
+        // (Optional) 이미 가입되어 있지만 username이 기본값(User_...)인 경우에도 띄우고 싶다면 조건 추가 가능
+        else if (profileRow.username.startsWith('User_')) {
+          setShowOnboarding(true);
         }
-        profileRow = inserted;
-
-        // (2) Welcome bonus (기존 유지)
-        const { error: pmldInsertErr } = await supabase
-          .from('p_mld_balances')
-          .insert({
-            profile_id: profileRow.id,
-            balance: 100,
-          });
-
-        if (pmldInsertErr) {
-          console.error('p_mld_balances insert error', pmldInsertErr);
-        }
-      }
 
       // ... (아래 로직 기존 유지)
       const { data: balRow, error: balError } = await supabase
@@ -248,6 +233,20 @@ export default function HeaderProfile() {
   // 2. Logged in
   return (
     <div className="relative">
+
+    {/* ✅ [Added] 온보딩 모달 렌더링 */}
+      {showOnboarding && profile && (
+        <OnboardingModal 
+            userAddress={profile.wallet_address!}
+            initialUsername={profile.username || ''}
+            initialAvatar={profile.avatar_url}
+            onComplete={() => {
+                setShowOnboarding(false);
+                window.location.reload(); // 정보 갱신을 위해 리로드 (선택사항)
+            }}
+        />
+      )}
+
       <button onClick={() => setShowMenu(!showMenu)} className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 pr-4 pl-2 py-1.5 rounded-full hover:border-zinc-600 transition">
         <div className="w-8 h-8 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs border-2 border-zinc-900 overflow-hidden">
           {profile?.avatar_url ? ( <img src={profile.avatar_url} className="w-full h-full object-cover"/> ) : ( (profile?.username || user?.email || account?.address)?.slice(0,2).toUpperCase() )}

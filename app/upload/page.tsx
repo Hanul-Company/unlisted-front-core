@@ -1,29 +1,30 @@
 'use client';
-
-import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS, MELODY_IP_ADDRESS, MELODY_IP_ABI } from '@/app/constants'; // 또는 '../constants'
+import { analyzeTrackMetadata } from '@/app/actions/analyze-music';
+import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { TrendingUp, Search, Hash, Zap, Bot, Globe, Database, UploadCloud, Music, Loader2, ArrowLeft, CheckCircle, Plus, Trash2, User, Image as ImageIcon, X } from 'lucide-react';
+import { CheckCircle, TrendingUp, Search, Hash, Bot, UploadCloud, Music, Loader2, ArrowLeft, Plus, Trash2, User, Image as ImageIcon, X, ChevronDown, Smile, Disc } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from "../../lib/i18n";
 import { Link } from "../../lib/i18n";
-import Cropper from 'react-easy-crop'; // 크롭 라이브러리
-import { getCroppedImg } from '@/utils/image'; // 아까 만든 유틸
+import Cropper from 'react-easy-crop';
+import { getCroppedImg } from '@/utils/image';
 import toast from 'react-hot-toast';
-import { useReadContract, useActiveAccount,useSendTransaction } from "thirdweb/react";
-import * as mm from 'music-metadata-browser'; // ✅ MP3 분석용
-
-// Contracts
-import { getContract, prepareContractCall } from "thirdweb";
-import { client, chain } from "@/utils/thirdweb";
+import { useActiveAccount } from "thirdweb/react";
+import * as mm from 'music-metadata-browser';
 
 type Contributor = { address: string; share: string; role: string; };
 
 export default function UploadPage() {
   const account = useActiveAccount();
-  const address = account?.address; // 없으면 undefined (비로그인)
+  const address = account?.address;
   const router = useRouter();
+  
+  // Refs for Dropdowns (Click Outside)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const tagInputRef = useRef<HTMLDivElement>(null);
+  const genreInputRef = useRef<HTMLDivElement>(null); // ✅ NEW
+  const moodInputRef = useRef<HTMLDivElement>(null);  // ✅ NEW
 
   // --- Audio State ---
   const [file, setFile] = useState<File | null>(null);
@@ -32,14 +33,13 @@ export default function UploadPage() {
   const [lyrics, setLyrics] = useState('');
   const [creationType, setCreationType] = useState<'ai' | 'human'>('ai');
   
-  // --- Image State ---ß
-  const [imageSrc, setImageSrc] = useState<string | null>(null); // 원본 이미지 경로
-  const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null); // 자른 이미지 결과물
+  // --- Image State ---
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [showCropModal, setShowCropModal] = useState(false); // 팝업 표시 여부
-  // ✅ [추가] 사용자가 직접 이미지를 올렸는지 확인하는 플래그
+  const [showCropModal, setShowCropModal] = useState(false);
   const [isManualImage, setIsManualImage] = useState(false);
 
   const [uploading, setUploading] = useState(false);
@@ -47,24 +47,35 @@ export default function UploadPage() {
     { address: '', share: '100', role: 'Main Artist' } 
   ]);
 
-  // --- [NEW] Optional Meta Data ---
-  const [bpm, setBpm] = useState<string>(''); // BPM 입력 (숫자지만 입력 편의상 string)
+  // --- Meta Data State ---
+  const [bpm, setBpm] = useState<string>('');
   
-  // --- [NEW] Tag System ---
+  // 1. Tags Logic
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagSearch, setTagSearch] = useState('');
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
-  const tagInputRef = useRef<HTMLDivElement>(null); // 드롭다운 감지용 Ref
-  const [genre, setGenre] = useState(MUSIC_GENRES[0]); // 기본값
+
+  // 2. Genre Logic (✅ REFACTORED)
+  const [genre, setGenre] = useState<string>(''); // 초기값 비워둠 or MUSIC_GENRES[0]
+  const [genreSearch, setGenreSearch] = useState('');
+  const [isGenreDropdownOpen, setIsGenreDropdownOpen] = useState(false);
+
+  // 3. Mood Logic (✅ REFACTORED)
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+  const [moodSearch, setMoodSearch] = useState('');
+  const [isMoodDropdownOpen, setIsMoodDropdownOpen] = useState(false);
 
-  // ✅ [NEW] Investor Share Logic
-  const [investorShare, setInvestorShare] = useState<number>(30); // 기본값 30%
+  // 4. Reference Logic
+  const [refArtist, setRefArtist] = useState('');
+  const [refTrack, setRefTrack] = useState('');
 
-  // Contributors
+  // 5. Investor Share Logic
+  const [investorShare, setInvestorShare] = useState<number>(30);
+
+  // Computed Values
   const currentTotalShare = contributors.reduce((sum, c) => sum + Number(c.share || 0), 0);
 
-  // 내 주소 자동 주입
+  // --- Effects ---
   useEffect(() => {
     if (address) {
       setContributors(prev => {
@@ -76,7 +87,19 @@ export default function UploadPage() {
     }
   }, [address]);
 
-// 오디오 파일 선택
+  // Click Outside Handler (통합)
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (tagInputRef.current && !tagInputRef.current.contains(target)) setIsTagDropdownOpen(false);
+      if (genreInputRef.current && !genreInputRef.current.contains(target)) setIsGenreDropdownOpen(false);
+      if (moodInputRef.current && !moodInputRef.current.contains(target)) setIsMoodDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // --- File Handlers ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
@@ -85,138 +108,126 @@ export default function UploadPage() {
       setFile(selectedFile);
       setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
 
-      // ✅ MP3 메타데이터에서 커버 이미지 추출 로직
       try {
         const metadata = await mm.parseBlob(selectedFile);
         const picture = metadata.common.picture?.[0];
-
-        if (picture) {
-          // 🛑 [수정] 사용자가 수동으로 이미지를 설정하지 않았을 때만 MP3 커버 적용
-          if (!isManualImage) {
+        if (picture && !isManualImage) {
             const blob = new Blob([new Uint8Array(picture.data)], { type: picture.format });
             setCroppedImageBlob(blob);
-            toast.success("Found embedded cover art in the MP3.");
-          }
+            toast.success("Found embedded cover art.");
         }
-      } catch (error) {
-        console.log("Metadata extraction failed (ignored):", error);
-      }
+      } catch (error) { console.log("Metadata error:", error); }
     }
   };
 
-  // 이미지 파일 선택
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const reader = new FileReader();
-      reader.addEventListener('load', () => {
-        setImageSrc(reader.result as string);
-        setShowCropModal(true); // 크롭 모달 띄우기
-      });
+      reader.addEventListener('load', () => { setImageSrc(reader.result as string); setShowCropModal(true); });
       reader.readAsDataURL(file);
     }
   };
 
-  // 크롭 완료 처리
-  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
-
+  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => setCroppedAreaPixels(croppedAreaPixels), []);
   const handleCropSave = async () => {
     try {
       if (!imageSrc || !croppedAreaPixels) return;
       const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
       setCroppedImageBlob(croppedBlob);
-      
-      // ✅ [추가] 사용자가 직접 이미지를 저장했으므로 플래그를 true로 설정
-      setIsManualImage(true); 
-      
+      setIsManualImage(true);
       setShowCropModal(false);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  // 무드 토글 함수
-  const toggleMood = (mood: string) => {
-    if (selectedMoods.includes(mood)) {
-      setSelectedMoods(selectedMoods.filter(m => m !== mood));
-    } else {
-      if (selectedMoods.length >= 3) return toast.error("You can select up to 3 moods.");
-      setSelectedMoods([...selectedMoods, mood]);
-    }
-  };
+  // --- [NEW] Search & Filter Logic ---
 
-  // --- [NEW] Tag Logic Start ---
-  
-  // 검색어에 맞는 태그 필터링 (이미 선택된 건 제외)
-  const filteredTags = MUSIC_TAGS.filter(tag => 
-    tag.toLowerCase().includes(tagSearch.toLowerCase()) && 
-    !selectedTags.includes(tag)
+  // Genre Filtering
+  const filteredGenres = MUSIC_GENRES.filter(g => 
+    g.toLowerCase().includes(genreSearch.toLowerCase())
   );
 
-  // 태그 추가
-  const handleTagAdd = (tag: string) => {
-    if (selectedTags.length >= 10) return toast.error("You can add up to 10 tags.");
-    setSelectedTags([...selectedTags, tag]);
-    setTagSearch(''); // 검색어 초기화
-    // setIsTagDropdownOpen(false); // 연속 선택을 위해 닫지 않음 (원하면 주석 해제)
+  // Mood Filtering (exclude selected)
+  const filteredMoods = MUSIC_MOODS.filter(m => 
+    m.toLowerCase().includes(moodSearch.toLowerCase()) && 
+    !selectedMoods.includes(m)
+  );
+
+  // Tag Filtering
+  const filteredTags = MUSIC_TAGS.filter(t => 
+    t.toLowerCase().includes(tagSearch.toLowerCase()) && 
+    !selectedTags.includes(t)
+  );
+
+  // Handlers
+  const handleGenreSelect = (g: string) => {
+    setGenre(g);
+    setGenreSearch(''); // 검색어 초기화 (선택됨 표시)
+    setIsGenreDropdownOpen(false);
   };
 
-  // 태그 삭제
-  const handleTagRemove = (tagToRemove: string) => {
-    setSelectedTags(selectedTags.filter(t => t !== tagToRemove));
+  const handleMoodSelect = (m: string) => {
+    if (selectedMoods.length >= 3) return toast.error("Max 3 moods allowed.");
+    setSelectedMoods([...selectedMoods, m]);
+    setMoodSearch('');
+    setIsMoodDropdownOpen(false); // 계속 선택하게 하려면 true로 유지
   };
 
-  // 외부 클릭 시 드롭다운 닫기
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (tagInputRef.current && !tagInputRef.current.contains(event.target as Node)) {
-        setIsTagDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const handleTagAdd = (t: string) => {
+    if (selectedTags.length >= 10) return toast.error("Max 10 tags allowed.");
+    setSelectedTags([...selectedTags, t]);
+    setTagSearch('');
+  };
 
-  // --- [NEW] Tag Logic End ---
-
-  // 업로드 실행
+  // --- Upload Logic ---
   const handleUpload = async () => {
     if (!file || !title) return toast.error("Please choose a file and enter a title.");
+    if (!genre) return toast.error("Please select a genre.");
     const totalShare = contributors.reduce((sum, c) => sum + Number(c.share), 0);
     if (totalShare !== 100) return toast.error("Revenue split must total 100%.");
 
     try {
       setUploading(true);
-      
       const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
       const timestamp = Date.now();
-
-      // [수정 1] 내 프로필에서 'username'뿐만 아니라 'id'도 가져오기
+      
+      // Artist Info Logic... (기존 동일)
       let artistName = "Anonymous";
-      let artistId = null; // UUID 저장용 변수
-
+      let artistId = null;
       if (address) {
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('id, username') // [중요] id 추가
-            .eq('wallet_address', address)
-            .single();
-        
-        if (profile) {
-            artistName = profile.username || "Anonymous";
-            artistId = profile.id; // 프로필 ID 확보
-        }
+        const { data: profile } = await supabase.from('profiles').select('id, username').eq('wallet_address', address).single();
+        if (profile) { artistName = profile.username || "Anonymous"; artistId = profile.id; }
       }
 
-      // 1. 오디오 업로드
+// 1. AI Analysis 실행
+      // ✅ 수정: 빈 배열([]) 뒤에 'as string[]'을 붙여서 타입을 명시합니다.
+      let aiMetadataResult = {
+          ref_artists: refArtist ? [refArtist] : [],
+          ref_tracks: refTrack ? [refTrack] : [],
+          similar_artists: [] as string[], // ✅ as string[] 추가
+          voice_style: [] as string[],     // ✅ as string[] 추가
+          vibe_tags: [] as string[],       // ✅ as string[] 추가
+          analyzed_genres: [] as string[], // ✅ as string[] 추가
+          analyzed_moods: [] as string[]   // ✅ as string[] 추가
+      };
+
+      if (refArtist || refTrack) {
+          toast.loading("AI analyzing track metadata...", { duration: 2000 });
+          // ... (이하 동일)
+          const analysis = await analyzeTrackMetadata(refArtist, refTrack, genre, selectedMoods);
+          
+          if (analysis) {
+              aiMetadataResult = { ...aiMetadataResult, ...analysis };
+          }
+      }
+
+      // 2. Audio Upload (기존 동일)
       const audioName = `${timestamp}_${safeTitle}.mp3`;
       const { error: audioErr } = await supabase.storage.from('music_assets').upload(audioName, file);
       if (audioErr) throw audioErr;
       const { data: { publicUrl: audioUrl } } = supabase.storage.from('music_assets').getPublicUrl(audioName);
 
-      // 2. 이미지 업로드 (있으면)
+      // 3. Cover Upload (기존 동일)
       let coverUrl = null;
       if (croppedImageBlob) {
         const imageName = `${timestamp}_${safeTitle}_cover.jpg`;
@@ -224,59 +235,47 @@ export default function UploadPage() {
         if (imgErr) throw imgErr;
         const { data: { publicUrl } } = supabase.storage.from('music_assets').getPublicUrl(imageName);
         coverUrl = publicUrl;
-      }
-      else {
-        // ✅ B. 아무것도 없을 때 디폴트 이미지 사용
+      } else {
         coverUrl = '/images/default_cover.jpg';
       }
 
-     // 3. DB 저장 부분 수정
+      // 4. DB Insert (✅ AI 결과 반영)
       const { data: newTrack, error: dbError } = await supabase
         .from('tracks')
         .insert([{
-            title: title,
-            description: description,
-            lyrics: lyrics,
-            audio_url: audioUrl,
-            cover_image_url: coverUrl,
-            genre: genre,
-            moods: selectedMoods,
-            
-            // ✅ [추가] BPM 및 태그 저장
+            title, description, lyrics, audio_url: audioUrl, cover_image_url: coverUrl,
+            genre, 
+            moods: selectedMoods, 
             bpm: bpm ? parseInt(bpm) : null,
-            context_tags: selectedTags, 
+            context_tags: selectedTags,
+            investor_share: investorShare * 100,
             
-            uploader_address: address,
-            artist_name: artistName,
-            creation_type: creationType,
-            artist_id: artistId,
+            // ✅ [핵심] 여기서 AI 분석 결과를 저장
+            ai_metadata: aiMetadataResult,
+
+            uploader_address: address, artist_name: artistName, creation_type: creationType, artist_id: artistId,
         }])
         .select().single();
 
       if (dbError) throw dbError;
 
-      // 4. Contributors 저장
-      const contributorsData = contributors.map(c => ({
-          track_id: newTrack.id,
-          wallet_address: c.address, role: c.role, share_percentage: Number(c.share)
-      }));
+      // 5. Contributors (기존 동일)
+      const contributorsData = contributors.map(c => ({ track_id: newTrack.id, wallet_address: c.address, role: c.role, share_percentage: Number(c.share) }));
       await supabase.from('track_contributors').insert(contributorsData);
 
-      // 5. AI 분석
-      toast.success('Upload complete! The server will start analysis shortly.');
+      toast.dismiss(); // 로딩 토스트 끄기
+      toast.success('Upload & Analysis complete!');
       router.push('/market');
 
     } catch (error: any) {
+      toast.dismiss();
       toast.error(`Upload failed: ${error.message}`);
     } finally {
       setUploading(false);
     }
   };
 
-  // -----------------------------
-  // Contributors 핸들러 (자동 지분 조정)
-  // -----------------------------
-
+  // Contributors Helpers
   const addContributor = () => setContributors(p => [...p, { address: '', share: '0', role: 'Contributor' }]);
   const removeContributor = (i: number) => setContributors(p => { 
       const n = [...p]; n.splice(i, 1); 
@@ -299,319 +298,177 @@ export default function UploadPage() {
       return n;
   });
 
-  // --- Investors 핸들러 --
   const getInvestorTier = (share: number) => {
       if (share <= 20) return { label: "DEFENSIVE", color: "text-blue-400", desc: "Low risk for you, low appeal for investors." };
       if (share <= 35) return { label: "BALANCED", color: "text-green-400", desc: "Standard market rate. Good balance." };
       return { label: "AGGRESSIVE", color: "text-red-400", desc: "High investor appeal! Faster funding expected." };
   };
   const tier = getInvestorTier(investorShare);
-
-  const totalColorClass =
-    currentTotalShare === 100
-      ? 'text-emerald-400'
-      : currentTotalShare < 100
-      ? 'text-amber-400'
-      : 'text-red-400';
+  const totalColorClass = currentTotalShare === 100 ? 'text-emerald-400' : currentTotalShare < 100 ? 'text-amber-400' : 'text-red-400';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-white px-4 py-8 sm:px-6 font-sans flex justify-center">
       <div className="w-full max-w-2xl">
-        {/* 헤더 */}
         <div className="flex items-center gap-3 mb-8">
-          <Link
-            href="/"
-            className="p-2 bg-zinc-900/80 rounded-full hover:bg-zinc-800 transition border border-zinc-700/70"
-          >
-            <ArrowLeft size={18} />
-          </Link>
+          <Link href="/" className="p-2 bg-zinc-900/80 rounded-full hover:bg-zinc-800 transition border border-zinc-700/70"><ArrowLeft size={18} /></Link>
           <div>
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
-              Upload Masterpiece
-            </h1>
-            <p className="text-xs text-zinc-500 mt-1">
-              Upload your master track to the unlisted ecosystem.
-            </p>
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">Upload Masterpiece</h1>
+            <p className="text-xs text-zinc-500 mt-1">Upload your master track to the unlisted ecosystem.</p>
           </div>
         </div>
 
         <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl">
           
-          {/* A. 앨범 커버 + 오디오 파일 업로드 섹션 */}
+          {/* File Upload Section (Audio & Image) */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            {/* 1. 앨범 커버 업로드 */}
-            <div 
-              onClick={() => imageInputRef.current?.click()}
-              className="w-32 h-32 bg-zinc-900 rounded-xl border border-dashed border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500/80 hover:bg-zinc-900/80 overflow-hidden relative shrink-0"
-            >
-              <input
-                type="file"
-                ref={imageInputRef}
-                onChange={handleImageChange}
-                accept="image/*"
-                className="hidden"
-              />
-              {croppedImageBlob ? (
-                <img
-                  src={URL.createObjectURL(croppedImageBlob)}
-                  alt="Cover"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <>
-                  <ImageIcon size={24} className="text-zinc-500 mb-1" />
-                  <span className="text-[10px] text-zinc-500 text-center leading-tight">
-                    300x300<br />Cover Art
-                  </span>
-                </>
-              )}
+            <div onClick={() => imageInputRef.current?.click()} className="w-32 h-32 bg-zinc-900 rounded-xl border border-dashed border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500/80 hover:bg-zinc-900/80 overflow-hidden relative shrink-0">
+              <input type="file" ref={imageInputRef} onChange={handleImageChange} accept="image/*" className="hidden"/>
+              {croppedImageBlob ? <img src={URL.createObjectURL(croppedImageBlob)} className="w-full h-full object-cover"/> : <><ImageIcon size={24} className="text-zinc-500 mb-1"/><span className="text-[10px] text-zinc-500 text-center leading-tight">300x300<br/>Cover Art</span></>}
             </div>
-
-            {/* ✅ [추가] 이미지가 있을 때만 삭제 버튼 표시 */}
-              {croppedImageBlob && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation(); // 부모 클릭 이벤트 방지
-                    setCroppedImageBlob(null); // 이미지 비우기
-                    setIsManualImage(false);   // 수동 모드 해제 (다시 MP3 커버 받을 수 있게 됨)
-                    if (imageInputRef.current) imageInputRef.current.value = ''; // input 초기화
-                  }}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"
-                  title="Remove cover art"
-                >
-                  <X size={14} />
-                </button>
-              )}
-
-            {/* 2. 오디오 파일 업로드 */}
-            <div 
-              onClick={() => fileInputRef.current?.click()}
-              className={`flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${
-                file
-                  ? 'border-green-500/80 bg-green-500/10'
-                  : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'
-              }`}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="audio/*"
-                className="hidden"
-              />
-              {file ? (
-                <>
-                  <Music size={24} className="text-green-400 mb-2" />
-                  <p className="text-green-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">
-                    {file.name}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <UploadCloud size={24} className="text-zinc-400 mb-2" />
-                  <p className="text-zinc-300 font-medium text-xs sm:text-sm">
-                    Upload MP3 / WAV
-                  </p>
-                  <p className="text-[10px] text-zinc-500 mt-1">
-                    Drag & drop coming soon
-                  </p>
-                </>
-              )}
+            {croppedImageBlob && <button onClick={(e) => { e.stopPropagation(); setCroppedImageBlob(null); setIsManualImage(false); if (imageInputRef.current) imageInputRef.current.value = ''; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"><X size={14}/></button>}
+            
+            <div onClick={() => fileInputRef.current?.click()} className={`flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${file ? 'border-green-500/80 bg-green-500/10' : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'}`}>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" className="hidden"/>
+              {file ? <><Music size={24} className="text-green-400 mb-2"/><p className="text-green-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">{file.name}</p></> : <><UploadCloud size={24} className="text-zinc-400 mb-2"/><p className="text-zinc-300 font-medium text-xs sm:text-sm">Upload MP3 / WAV</p></>}
             </div>
           </div>
 
-          {/* 0. Origin Selection (AI vs Human) */}
-          <div className="mb-2">
-            <label className="text-xs text-zinc-500 uppercase font-bold">
-              Who created the melody?
-            </label>
-          </div>
+          {/* Creation Type */}
+          <div className="mb-2"><label className="text-xs text-zinc-500 uppercase font-bold">Who created the melody?</label></div>
           <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4">
-            <button
-              onClick={() => setCreationType('ai')}
-              className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${
-                creationType === 'ai' 
-                  ? 'bg-zinc-900 border-cyan-500 text-white shadow-[0_0_18px_rgba(168,85,247,0.45)]'
-                  : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
-              }`}
-            >
-              <div
-                className={`p-3 rounded-full ${
-                  creationType === 'ai' ? 'bg-cyan-500 text-white' : 'bg-zinc-900'
-                }`}
-              >
-                <Bot size={22}/>
-              </div>
-              <div>
-                <div className="font-bold text-sm">Gen AI</div>
-                <div className="text-[10px] mt-1 opacity-70 leading-tight">
-                  Unlisted Native<br />(ecosystem-only exclusive asset)
-                </div>
-              </div>
-            </button>
-            <button
-              onClick={() => setCreationType('human')}
-              className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${
-                creationType === 'human' 
-                  ? 'bg-zinc-900 border-green-500 text-white shadow-[0_0_18px_rgba(34,197,94,0.45)]'
-                  : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
-              }`}
-            >
-              <div
-                className={`p-3 rounded-full ${
-                  creationType === 'human' ? 'bg-green-500 text-black' : 'bg-zinc-900'
-                }`}
-              >
-                <User size={22}/>
-              </div>
-              <div>
-                <div className="font-bold text-sm">Human</div>
-                <div className="text-[10px] mt-1 opacity-70 leading-tight">
-                  Real-world Ready<br />(can expand to Spotify/Melon)
-                </div>
-              </div>
-            </button>
+            <button onClick={() => setCreationType('ai')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${creationType === 'ai' ? 'bg-zinc-900 border-cyan-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}><div className={`p-3 rounded-full ${creationType === 'ai' ? 'bg-cyan-500 text-white' : 'bg-zinc-900'}`}><Bot size={22}/></div><div className="font-bold text-sm">Gen AI</div></button>
+            <button onClick={() => setCreationType('human')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${creationType === 'human' ? 'bg-zinc-900 border-green-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}><div className={`p-3 rounded-full ${creationType === 'human' ? 'bg-green-500 text-black' : 'bg-zinc-900'}`}><User size={22}/></div><div className="font-bold text-sm">Human</div></button>
           </div>
 
-          {/* 메타데이터 입력 */}
+          {/* Metadata Inputs */}
           <div className="space-y-4">
-            <div>
-              <label className="text-xs text-zinc-500 uppercase font-bold">
-                Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white text-sm focus:outline-none focus:border-cyan-500/80"
-                placeholder="Track Title"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-zinc-500 uppercase font-bold">
-                Lyrics
-              </label>
-              <textarea
-                value={lyrics}
-                onChange={(e) => setLyrics(e.target.value)}
-                className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white h-24 resize-none text-sm focus:outline-none focus:border-cyan-500/80"
-                placeholder="Paste full lyrics here (optional)."
-              />
-            </div>
+            <div><label className="text-xs text-zinc-500 uppercase font-bold">Title</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white text-sm focus:outline-none focus:border-cyan-500/80" placeholder="Track Title"/></div>
+            <div><label className="text-xs text-zinc-500 uppercase font-bold">Lyrics</label><textarea value={lyrics} onChange={(e) => setLyrics(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white h-24 resize-none text-sm focus:outline-none focus:border-cyan-500/80" placeholder="Paste full lyrics here (optional)."/></div>
           </div>
 
-          {/* 장르 & 무드 선택 UI */}
-          <div className="flex gap-4 mt-6 flex-col sm:flex-row">
-            <div className="flex-1">
-              <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider">
-                Genre
-              </label>
-              <select 
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 mt-1 text-white text-sm focus:outline-none focus:border-cyan-500/80"
-              >
-                {MUSIC_GENRES.map(g => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-2 block">
-              Moods (Max 3)
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {MUSIC_MOODS.map(m => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => toggleMood(m)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                    selectedMoods.includes(m) 
-                      ? 'bg-blue-600 border-cyan-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]' 
-                      : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* --- [NEW] BPM & Context Tags Section --- */}
-          <div className="mt-6 space-y-6 border-t border-zinc-800 pt-6">
-            {/* 1. BPM Input */}
-            <div>
-              <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider">
-                BPM (Optional)
-              </label>
-              <input
-                type="number"
-                value={bpm}
-                onChange={(e) => setBpm(e.target.value)}
-                placeholder="e.g. 120"
-                className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white text-sm focus:outline-none focus:border-cyan-500/80 font-mono"
-              />
-            </div>
-
-            {/* 2. Tag Input System */}
-            <div ref={tagInputRef} className="relative z-20">
-                <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center justify-between">
-                    <span>Context Tags</span>
-                    <span className="text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">Max 10</span>
+          {/* ----------------------------------------------------------- */}
+          {/* ✅ [REFACTORED] Genre & Mood & Tag (Dropdown System) */}
+          {/* ----------------------------------------------------------- */}
+          <div className="mt-8 space-y-6">
+            
+            {/* 1. Genre Selection (Single Select) */}
+            <div ref={genreInputRef} className="relative z-30">
+                <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
+                   <Disc size={12}/> Primary Genre
                 </label>
                 
-                {/* Selected Tags Display */}
-                <div className="flex flex-wrap gap-2 mb-2 min-h-[2rem] py-2">
-                    {selectedTags.length === 0 && (
-                        <span className="text-xs text-zinc-600 italic py-1">No tags selected.</span>
-                    )}
-                    {selectedTags.map(tag => (
-                        <span key={tag} className="bg-blue-900/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
-                            <Hash size={10} className="opacity-50"/>
-                            {tag}
-                            <button onClick={() => handleTagRemove(tag)} className="ml-1 hover:text-white"><X size={12}/></button>
-                        </span>
-                    ))}
-                </div>
-
-                {/* Search Input */}
+                {/* Selected Genre Display (or Input) */}
                 <div className="relative">
-                    <Search className="absolute left-3 top-3 text-zinc-500" size={16} />
                     <input 
                         type="text"
-                        value={tagSearch}
-                        onFocus={() => setIsTagDropdownOpen(true)}
-                        onChange={(e) => { setTagSearch(e.target.value); setIsTagDropdownOpen(true); }}
-                        className="w-full bg-black border border-zinc-700 rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-green-500 text-sm placeholder:text-zinc-600"
-                        placeholder="Search vibe tags (e.g. workout, coding, lofi...)"
+                        value={genreSearch}
+                        onFocus={() => setIsGenreDropdownOpen(true)}
+                        onChange={(e) => { setGenreSearch(e.target.value); setIsGenreDropdownOpen(true); }}
+                        className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-500"
+                        placeholder={genre || "Search Genre..."}
                     />
+                    <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
                 </div>
 
-                {/* Dropdown Results */}
-                {isTagDropdownOpen && (
-                    <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent">
-                        {filteredTags.length > 0 ? (
-                            filteredTags.map(tag => (
-                                <button 
-                                    key={tag}
-                                    onClick={() => handleTagAdd(tag)}
-                                    className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center justify-between group transition border-b border-zinc-800/50 last:border-0"
-                                >
-                                    <span className="text-sm text-zinc-300 group-hover:text-white font-medium">#{tag}</span>
-                                    <Plus size={14} className="text-zinc-600 group-hover:text-green-400"/>
-                                </button>
-                            ))
-                        ) : (
-                            <div className="px-4 py-3 text-xs text-zinc-500 text-center">
-                                {tagSearch ? "No matching tags." : "Type to search."}
-                            </div>
-                        )}
+                {isGenreDropdownOpen && (
+                    <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
+                        {filteredGenres.length > 0 ? filteredGenres.map(g => (
+                            <button key={g} onClick={() => handleGenreSelect(g)} className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center group">
+                                {g} {genre === g && <CheckCircle size={14} className="text-cyan-500"/>}
+                            </button>
+                        )) : <div className="p-3 text-xs text-zinc-500 text-center">No matching genre</div>}
                     </div>
                 )}
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* 2. Mood Selection (Multi Select) */}
+                <div ref={moodInputRef} className="relative z-20">
+                    <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
+                        <Smile size={12}/> Moods (Max 3)
+                    </label>
+                    
+                    {/* ✅ [수정] min-h-[2rem] 삭제, mb-2 -> mb-1로 변경 */}
+                    <div className="flex flex-wrap gap-2 mb-1"> 
+                        {selectedMoods.map(m => (
+                            <span key={m} className="bg-cyan-900/30 border border-cyan-500/30 text-cyan-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
+                                {m} <button onClick={() => setSelectedMoods(selectedMoods.filter(sm=>sm!==m))} className="ml-1 hover:text-white"><X size={12}/></button>
+                            </span>
+                        ))}
+                    </div>
+
+                    <div className="relative">
+                        <input 
+                            type="text"
+                            value={moodSearch}
+                            onFocus={() => setIsMoodDropdownOpen(true)}
+                            onChange={(e) => { setMoodSearch(e.target.value); setIsMoodDropdownOpen(true); }}
+                            className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
+                            placeholder="Search Mood..."
+                        />
+                        <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
+                    </div>
+
+                    {isMoodDropdownOpen && (
+                        <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
+                            {filteredMoods.length > 0 ? filteredMoods.map(m => (
+                                <button key={m} onClick={() => handleMoodSelect(m)} className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center">
+                                    {m} <Plus size={14} className="text-zinc-600"/>
+                                </button>
+                            )) : <div className="p-3 text-xs text-zinc-500 text-center">No matching mood</div>}
+                        </div>
+                    )}
+                </div>
+
+                {/* 3. Context Tags (Existing) */}
+                <div ref={tagInputRef} className="relative z-10">
+                    <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
+                        <Hash size={12}/> Context Tags
+                    </label>
+                     
+                    {/* ✅ [수정] min-h-[2rem] 삭제, mb-2 -> mb-1로 변경 */}
+                    <div className="flex flex-wrap gap-2 mb-1">
+                        {selectedTags.map(t => (
+                            <span key={t} className="bg-blue-900/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
+                                {t} <button onClick={() => setSelectedTags(selectedTags.filter(st=>st!==t))} className="ml-1 hover:text-white"><X size={12}/></button>
+                            </span>
+                        ))}
+                    </div>
+
+                    <div className="relative">
+                        <input 
+                            type="text"
+                            value={tagSearch}
+                            onFocus={() => setIsTagDropdownOpen(true)}
+                            onChange={(e) => { setTagSearch(e.target.value); setIsTagDropdownOpen(true); }}
+                            className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
+                            placeholder="Search Tags..."
+                        />
+                        <Search size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
+                    </div>
+
+                    {isTagDropdownOpen && (
+                        <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
+                             {filteredTags.length > 0 ? filteredTags.map(t => (
+                                <button key={t} onClick={() => handleTagAdd(t)} className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center">
+                                    #{t} <Plus size={14} className="text-zinc-600"/>
+                                </button>
+                            )) : <div className="p-3 text-xs text-zinc-500 text-center">No matching tags</div>}
+                        </div>
+                    )}
+                </div>
+            </div>
+          </div>
+          
+          {/* AI Reference (Optional) */}
+          <div className="mt-8 space-y-4 border-t border-zinc-800 pt-6">
+              <div className="flex items-center gap-2 mb-2"><Bot size={16} className="text-purple-400"/><span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">AI Reference (Optional)</span></div>
+              <p className="text-[11px] text-zinc-500 mb-4">Help our AI understand your track better.</p>
+              <div className="grid grid-cols-2 gap-4">
+                  <div><label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Ref Artist</label><input type="text" value={refArtist} onChange={(e) => setRefArtist(e.target.value)} placeholder="e.g. The Weeknd" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-purple-500/80"/></div>
+                  <div><label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Ref Track</label><input type="text" value={refTrack} onChange={(e) => setRefTrack(e.target.value)} placeholder="e.g. Blinding Lights" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-purple-500/80"/></div>
+              </div>
           </div>
 
           {/* ✅ [NEW] Investor Share Slider Section */}
@@ -729,57 +586,11 @@ export default function UploadPage() {
               </div>
             </div>
           </div>
-
-          <button
-            onClick={handleUpload}
-            disabled={!file || !title || uploading}
-            className="w-full mt-8 py-4 bg-white text-black rounded-xl font-bold hover:scale-[1.02] transition disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {uploading ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="animate-spin" size={18}/>
-                Publishing...
-              </span>
-            ) : (
-              'Publish Track'
-            )}
-          </button>
+          <button onClick={handleUpload} disabled={!file || !title || uploading} className="w-full mt-8 py-4 bg-white text-black rounded-xl font-bold hover:scale-[1.02] transition disabled:opacity-40 disabled:cursor-not-allowed">{uploading ? <span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={18}/> Publishing...</span> : 'Publish Track'}</button>
         </div>
       </div>
 
-      {/* 크롭 모달 */}
-      {showCropModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 w-full max-w-md p-6 rounded-2xl relative h-[500px] flex flex-col border border-zinc-700">
-            <h3 className="text-lg font-bold mb-4">Adjust Cover Art</h3>
-            <div className="relative flex-1 bg-black rounded-lg overflow-hidden mb-4">
-              <Cropper
-                image={imageSrc!}
-                crop={crop}
-                zoom={zoom}
-                aspect={1}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={onCropComplete}
-              />
-            </div>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowCropModal(false)}
-                className="flex-1 py-3 bg-zinc-800 rounded-lg font-bold hover:bg-zinc-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCropSave}
-                className="flex-1 py-3 bg-white text-black rounded-lg font-bold hover:bg-zinc-200"
-              >
-                Save Cover
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showCropModal && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 w-full max-w-md p-6 rounded-2xl relative h-[500px] flex flex-col border border-zinc-700"><h3 className="text-lg font-bold mb-4">Adjust Cover Art</h3><div className="relative flex-1 bg-black rounded-lg overflow-hidden mb-4"><Cropper image={imageSrc!} crop={crop} zoom={zoom} aspect={1} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}/></div><div className="flex gap-4"><button onClick={() => setShowCropModal(false)} className="flex-1 py-3 bg-zinc-800 rounded-lg font-bold hover:bg-zinc-700">Cancel</button><button onClick={handleCropSave} className="flex-1 py-3 bg-white text-black rounded-lg font-bold hover:bg-zinc-200">Save Cover</button></div></div></div>}
     </div>
   );
 }

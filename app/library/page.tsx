@@ -434,7 +434,7 @@ export default function LibraryPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col bg-black relative">
+      <div className="flex-1 flex flex-col bg-black relative w-full overflow-x-hidden">
         
         {/* Mobile Header */}
         <div className="md:hidden pt-4 px-4 bg-gradient-to-b from-zinc-900 to-black sticky top-0 z-20">
@@ -463,7 +463,7 @@ export default function LibraryPage() {
                      </h1>
                 </div>
                 {filteredTracks.length > 0 && (
-                    <button onClick={() => { setCurrentTrack(filteredTracks[0]); setIsPlaying(true); setMobilePlayerOpen(true); }} className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/20 active:scale-95 transition"><Play fill="black" className="ml-1"/></button>
+                    <button onClick={() => { setCurrentTrack(filteredTracks[0]); setIsPlaying(true); setMobilePlayerOpen(true); }} className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/20 text-black active:scale-95 transition"><Play fill="black" className="ml-1"/></button>
                 )}
             </div>
             
@@ -682,9 +682,9 @@ export default function LibraryPage() {
                             <div 
                                 key={track.id} 
                                 onClick={() => { setCurrentTrack(track); setIsPlaying(true); setMobilePlayerOpen(true); }}
-                                className={`flex items-center justify-between p-2 rounded-xl active:bg-zinc-900 transition ${currentTrack?.id === track.id ? 'bg-zinc-900' : ''}`}
+                                className={`w-full max-w-full flex items-center justify-between p-2 rounded-xl active:bg-zinc-900 transition ${currentTrack?.id === track.id ? 'bg-zinc-900' : ''}`}
                             >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
                                     <div className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative shadow-sm">
                                         {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover" /> : <Music className="p-3 text-zinc-500" />}
                                         {isExpired ? (
@@ -700,7 +700,7 @@ export default function LibraryPage() {
                                 </div>
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setActiveMobileTrack(track); }} 
-                                    className="p-3 text-zinc-500 hover:text-white"
+                                    className="p-3 text-zinc-500 hover:text-white flex-shrink-0"
                                 >
                                     <MoreVertical size={20}/>
                                 </button>

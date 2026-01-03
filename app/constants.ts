@@ -225,19 +225,150 @@ export const MELODY_IP_ABI = [
 export const MUSIC_GENRES = [
   // Basic
   'Pop', 'Hip-Hop', 'R&B', 'Electronic', 'Rock', 'Jazz', 'Lo-Fi', 'Classical', 'Ambient',
-  // Billboard & Trendy (Added from Seed)
+
+  // Billboard & Trendy
   'Modern Pop', 'Synthwave', 'Future Bass', 'Trap Soul', 'Alternative R&B',
-  'K-Pop', 'Pop Rock', 'Disco Pop', 'Deep House', 'Afrobeat', 'Hyperpop'
+  'K-Pop', 'Pop Rock', 'Disco Pop', 'Deep House', 'Afrobeat', 'Hyperpop',
+
+  // Expanded: Pop / Modern Pop / Hyperpop related
+  'Indie Pop', 'Electro Pop', 'Dance Pop', 'Teen Pop', 'Adult Contemporary',
+  'Pop Rap', 'Pop Soul', 'Bedroom Pop', 'Art Pop', 'Alt Pop', 'Dream Pop',
+  'Bubblegum Pop', 'Power Pop', 'Sad Pop', 'Anthem Pop', 'Festival Pop',
+  'PC Music', 'Digicore', 'Glitch Pop',
+
+  // Expanded: Hip-Hop related
+  'Boom Bap', 'East Coast Hip-Hop', 'West Coast Hip-Hop', 'Southern Hip-Hop',
+  'Trap', 'Drill', 'UK Drill', 'Jersey Club Rap', 'Cloud Rap', 'Emo Rap',
+  'Melodic Rap', 'Conscious Hip-Hop', 'Hardcore Hip-Hop', 'G-Funk',
+  'Experimental Hip-Hop', 'Alternative Hip-Hop',
+
+  // Expanded: R&B / Alternative R&B / Trap Soul related
+  'Contemporary R&B', 'Neo-Soul', 'Soul', 'Funk', 'Quiet Storm',
+  'Progressive R&B', 'Electro R&B', 'RnBass', 'PBR&B',
+
+  // Expanded: Electronic / House / Future Bass / Synthwave related
+  'EDM', 'Electro House', 'Progressive House', 'Tech House', 'Bass House',
+  'Tropical House', 'Future House', 'Slap House', 'G-House',
+  'Techno', 'Melodic Techno', 'Minimal Techno',
+  'Trance', 'Progressive Trance', 'Psytrance',
+  'Dubstep', 'Melodic Dubstep', 'Brostep',
+  'Drum & Bass', 'Liquid DnB', 'Jungle', 'Breakbeat',
+  'Garage', 'UK Garage', 'Future Garage',
+  'Electro', 'IDM', 'Glitch', 'Chillwave', 'Vaporwave', 'Retrowave',
+
+  // Expanded: Rock / Pop Rock related
+  'Alternative Rock', 'Indie Rock', 'Post-Punk', 'Punk Rock', 'Pop Punk',
+  'Hard Rock', 'Garage Rock', 'Post-Rock', 'Shoegaze', 'Grunge',
+  'Emo', 'Metal', 'Indie Folk',
+
+  // Expanded: Jazz related
+  'Smooth Jazz', 'Bebop', 'Hard Bop', 'Cool Jazz', 'Fusion',
+  'Jazz Funk', 'Jazz Hop', 'Bossa Nova', 'Swing',
+
+  // Expanded: Lo-Fi / Chill / Study related
+  'Lo-Fi Hip-Hop', 'Chillhop', 'Study Beats', 'Chillout', 'Downtempo',
+  'Trip-Hop', 'Instrumental Hip-Hop',
+
+  // Expanded: Classical / Cinematic / Orchestral related
+  'Orchestral', 'Cinematic', 'Film Score', 'Neo-Classical', 'Contemporary Classical',
+  'Chamber Music', 'Piano Solo', 'String Quartet',
+
+  // Expanded: Ambient related
+  'Ambient Pop', 'Dark Ambient', 'Drone', 'Space Ambient', 'Meditation',
+  'Soundscape', 'New Age',
+
+  // Expanded: K-Pop / Global Pop ecosystems
+  'K-R&B', 'K-Hip-Hop', 'J-Pop', 'City Pop', 'Latin Pop',
+
+  // Expanded: Afrobeat related
+  'Afrobeats', 'Afro Pop', 'Amapiano', 'Afro House', 'Dancehall',
+
+  // Extra: widely used modern tags
+  'House', 'Electropop', 'Synth Pop', 'Indietronica', 'Chill R&B'
 ];
 
+// [Optional] Genre Normalization Map (Sub-genre -> Parent Genre)
+// GPT 분석 후 저장 시, 또는 추천 알고리즘에서 가중치 계산 시 사용
+export const GENRE_MAPPING: Record<string, string> = {
+  'Trap': 'Hip-Hop', 'Drill': 'Hip-Hop', 'Boom Bap': 'Hip-Hop',
+  'Electro Pop': 'Pop', 'Indie Pop': 'Pop', 'K-Pop': 'Pop',
+  'Deep House': 'Electronic', 'Techno': 'Electronic', 'Dubstep': 'Electronic', 'EDM': 'Electronic',
+  'Alternative Rock': 'Rock', 'Indie Rock': 'Rock',
+  'Neo-Soul': 'R&B', 'Trap Soul': 'R&B',
+  'Lo-Fi Hip-Hop': 'Lo-Fi', 'Chillhop': 'Lo-Fi',
+  'Afrobeats': 'Afrobeat', 'Amapiano': 'Afrobeat'
+};
+
+
+// ==============================================================================
+// 2. MUSIC MOODS (Expanded)
+// ==============================================================================
 export const MUSIC_MOODS = [
   // Basic
   'Happy', 'Chill', 'Sad', 'Energetic', 'Focus', 'Romantic', 'Dark', 'Dreamy',
+
   // Added from Seed
-  'Sexy', 'Groovy'
-  // Note: 'Melancholic' will be mapped to 'Sad'
+  'Sexy', 'Groovy',
+
+  // Expanded: Happy
+  'Joyful', 'Uplifting', 'Playful', 'Cheerful', 'Bright', 'Carefree',
+  'Optimistic', 'Hopeful', 'Feel-Good', 'Bubbly', 'Sunny', 'Fun',
+
+  // Expanded: Chill
+  'Calm', 'Relaxed', 'Laid-Back', 'Smooth', 'Warm', 'Cozy',
+  'Mellow', 'Easygoing', 'Gentle', 'Peaceful', 'Soothing', 'Comforting',
+
+  // Expanded: Sad
+  'Melancholic', 'Heartbroken', 'Emotional', 'Bittersweet', 'Lonely',
+  'Wistful', 'Somber', 'Blue', 'Crying', 'Regretful', 'Nostalgic',
+
+  // Expanded: Energetic
+  'Hype', 'High Energy', 'Intense', 'Powerful', 'Explosive', 'Driving',
+  'Up-Tempo', 'Fast-Paced', 'Adrenaline', 'Aggressive', 'Punchy',
+
+  // Expanded: Focus
+  'Concentration', 'Study', 'Work', 'Deep Focus', 'Minimal',
+  'Steady', 'Non-Distracting', 'Flow State', 'Productive', 'Analytical',
+
+  // Expanded: Romantic
+  'Love', 'Tender', 'Sweet', 'Sentimental', 'Intimate',
+  'Passionate', 'Soft', 'Candlelit', 'Date Night', 'Warmhearted',
+
+  // Expanded: Dark
+  'Moody', 'Gritty', 'Mysterious', 'Eerie', 'Sinister',
+  'Tense', 'Brooding', 'Menacing', 'Haunting', 'Noir', 'Dystopian',
+
+  // Expanded: Dreamy
+  'Ethereal', 'Floating', 'Airy', 'Surreal', 'Cosmic',
+  'Ambient Dream', 'Hazy', 'Lush', 'Shimmering', 'Celestial',
+
+  // Expanded: Sexy
+  'Sultry', 'Sensual', 'Flirty', 'Seductive', 'Alluring',
+  'Late Night', 'Hot', 'Smooth Sexy', 'Bedroom', 'Intimate Groove',
+
+  // Expanded: Groovy
+  'Funky', 'Bouncy', 'Rhythmic', 'Swinging', 'Danceable',
+  'Pocket', 'Feel the Groove', 'Rolling', 'Slinky', 'Upbeat Groove'
 ];
 
+// [Optional] Mood Normalization Map (Synonym -> Parent Mood)
+export const MOOD_MAPPING: Record<string, string> = {
+  'Joyful': 'Happy', 'Uplifting': 'Happy', 'Cheerful': 'Happy',
+  'Calm': 'Chill', 'Relaxed': 'Chill', 'Mellow': 'Chill',
+  'Melancholic': 'Sad', 'Heartbroken': 'Sad', 'Lonely': 'Sad',
+  'Hype': 'Energetic', 'Intense': 'Energetic', 'Powerful': 'Energetic',
+  'Concentration': 'Focus', 'Study': 'Focus', 'Deep Focus': 'Focus',
+  'Love': 'Romantic', 'Intimate': 'Romantic', 'Passionate': 'Romantic',
+  'Moody': 'Dark', 'Eerie': 'Dark', 'Sinister': 'Dark',
+  'Ethereal': 'Dreamy', 'Surreal': 'Dreamy', 'Cosmic': 'Dreamy',
+  'Sultry': 'Sexy', 'Seductive': 'Sexy',
+  'Funky': 'Groovy', 'Bouncy': 'Groovy'
+};
+
+
+// ==============================================================================
+// 3. MUSIC TAGS (Expanded Context & Texture)
+// ==============================================================================
 export const MUSIC_TAGS = [
   // --- Situational / Functional (Basic) ---
   "coding", "focus", "study", "reading", "writing", "work", "productivity",
@@ -247,19 +378,68 @@ export const MUSIC_TAGS = [
   "weekday", "weekend", "city", "subway", "cafe", "lounge", "bedroom", "home",
   "office", "beach", "roadtrip", "rooftop", "rainy", "afterrain", "summer",
 
-  // --- Vibe & Quality (Added from Seed) ---
+  // --- Vibe & Quality ---
   "Chart topping", "Radio ready", "Viral hit", "Billboard top 100",
   "High fidelity", "Modern mix", "Catchy hook", "Heavy bass",
   "Club banger", "Summer vibe", "Late night drive", "TikTok viral",
   "Mainstream appeal", "Dynamic production",
 
-  // --- Vocal Styles (Added from Seed) ---
+  // --- Vocal Styles ---
   "Female Vocals", "Male Vocals",
-  "Airy", "Breathy", "Emotional", "Narrative", // Taylor style
-  "Gritty", "Raspy", "Vibrato", // Post Malone style
-  "Soulful", "Powerful", "Diva", "Belting", // Beyonce style
-  "Falsetto", "Smooth", "High-register", // The Weeknd style
-  "Bright", "Polished", "Trendy", "Youthful", "Clean" // K-Pop style
+  "Airy", "Breathy", "Emotional", "Narrative",
+  "Gritty", "Raspy", "Vibrato",
+  "Soulful", "Powerful", "Diva", "Belting",
+  "Falsetto", "Smooth", "High-register",
+  "Bright", "Polished", "Trendy", "Youthful", "Clean",
+
+  // --- Energy / Tempo / Intensity ---
+  "low energy", "mid energy", "high energy",
+  "slow tempo", "mid tempo", "up-tempo",
+  "driving", "punchy", "aggressive", "soft", "gentle",
+  "build-up", "drop", "anthemic", "minimal", "maximal",
+
+  // --- Groove / Rhythm feel ---
+  "four-on-the-floor", "shuffle", "swing", "syncopated",
+  "bounce", "rolling groove", "funk groove", "tight pocket",
+  "breakbeat", "half-time", "double-time",
+
+  // --- Production / Sound design ---
+  "lo-fi texture", "tape warmth", "vinyl crackle",
+  "glossy", "crisp", "dirty", "raw", "gritty mix",
+  "wide stereo", "mono vibe", "big reverb", "dry mix",
+  "sidechain", "compressed", "open dynamics",
+  "glitchy", "distorted", "saturated", "airy top",
+  "sub bass", "808", "rumbling low-end",
+
+  // --- Instrumentation & Arrangement ---
+  "piano-led", "guitar-led", "synth-led", "string section", "orchestral",
+  "acoustic", "electric guitar", "funk guitar", "bass guitar",
+  "live drums", "drum machine", "trap hats", "claps", "percussion",
+  "brass", "sax", "flute", "pads", "arpeggio", "pluck synth",
+
+  // --- Vocal processing & performance ---
+  "autotune", "vocal chops", "vocal stack", "lush harmonies",
+  "whispery", "spoken", "rap-sung", "ad-libs", "runs",
+  "reverb vocals", "dry vocals", "intimate vocals", "arena vocals",
+
+  // --- Songwriting / Structure ---
+  "verse-pre-chorus-chorus", "pre-chorus lift", "big chorus",
+  "hook-first", "repetitive mantra", "bridge moment", "breakdown",
+  "short form", "long build", "instant hook",
+
+  // --- Era / Reference flavors ---
+  "80s", "90s", "00s", "2010s", "2020s",
+  "retro", "modern", "futuristic", "classic vibe", "throwback",
+
+  // --- Emotional color ---
+  "uplifting", "feel-good", "nostalgic", "bittersweet",
+  "moody", "mysterious", "romantic", "sensual",
+  "dark noir", "dreamlike", "spacey", "cozy",
+
+  // --- Setting / Aesthetic micro-context ---
+  "neon city", "late night", "sunrise", "golden hour",
+  "rainy window", "ocean breeze", "road lights", "afterparty",
+  "minimal workspace", "coffee shop buzz"
 ];
 
 // (Scenario List Keep or Update as needed - 기존 유지)

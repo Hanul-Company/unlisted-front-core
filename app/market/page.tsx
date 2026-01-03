@@ -466,7 +466,7 @@ export default function MarketPage() {
             <div className="pb-10 pt-4">
                 {/* 0. Playlists for you (수정됨: 패딩 이슈 해결) */}
                 <section className="mb-2">
-                    <div className="px-6 mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white flex items-center gap-2">Playlists for you</h2></div>
+                    <div className="px-6 mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white flex items-center gap-2">Playlists from unlisted</h2></div>
                     {/* ✅ !px-6 scroll-pl-6 추가하여 모바일 패딩 강제 적용 */}
                     <HorizontalScroll className="gap-4 !px-6 scroll-pl-6 pb-4 snap-x pt-2"> 
                     {featuredPlaylists.length === 0 ? ( <div className="text-zinc-500 text-sm px-6">No playlists available yet.</div> ) : (
@@ -501,7 +501,7 @@ export default function MarketPage() {
 
                 {/* ✅ 2. Hot Playlists (수정됨: 패딩 해결 & UI 변경) */}
                 <section className="py-6 border-b border-zinc-800/50 bg-zinc-900/10">
-                    <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2"><ListMusic className="text-purple-400" size={20}/> Hot Playlists</h2></div>
+                    <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2"> Hot Playlists</h2></div>
                     {/* ✅ !px-6 scroll-pl-6 추가 */}
                     <HorizontalScroll className="gap-4 !px-6 scroll-pl-6 pb-4 snap-x pt-2"> 
                         {hotPlaylists.map((pl: any) => (
