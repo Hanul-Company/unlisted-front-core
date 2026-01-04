@@ -182,6 +182,7 @@ export default function MarketPage() {
                 wallet_address
             )
         `)
+        .is('original_playlist_id', null) // ✅ [추가됨] 원본 ID가 비어있는 것(즉, 원본)만 조회
         .order('fork_count', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(15);

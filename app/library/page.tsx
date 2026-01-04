@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
 import { 
-  ArrowLeft, Pencil, Check, ArrowUpToLine, Mic2, Loader2, Heart, Play, Pause, Plus, Trash2, 
+  DatabaseZap, Crown, ArrowLeft, Pencil, Check, ArrowUpToLine, Mic2, Loader2, Heart, Play, Pause, Plus, Trash2, 
   Music, ListMusic, MoreHorizontal, Search, X, Shuffle, SkipForward, SkipBack, 
   Repeat, Repeat1, Disc, Volume2, VolumeX, Menu, Clock, AlertTriangle, Zap, 
   MoreVertical, Calendar, Share2
@@ -54,6 +54,9 @@ export default function LibraryPage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
+  // ✅ [NEW] 선택된 곡 ID 관리용 State
+  const [selectedTrackIds, setSelectedTrackIds] = useState<Set<number>>(new Set());
+  const [isAddingSongs, setIsAddingSongs] = useState(false);
 
   // UI States
   const [isRenaming, setIsRenaming] = useState(false);
@@ -373,17 +376,27 @@ export default function LibraryPage() {
 
   const openAddSongModal = async () => {
     if (!profileId) return;
-    setShowAddModal(true); setModalSearchQuery("");
+    // 1. 초기화
+    setSelectedTrackIds(new Set());
+    setModalSearchQuery("");
+    setShowAddModal(true); 
+    // 2. 내 라이브러리(좋아요한 곡) 가져오기
     const { data: likedData } = await supabase.from('collections').select('tracks(*)').eq('profile_id', profileId);
     const likedList = likedData?.map((d: any) => d.tracks).filter(Boolean) || [];
+    // 3. 내가 업로드한 곡(기여한 곡) 가져오기
     let myList: Track[] = [];
     if (address) {
       const { data: myData } = await supabase.from('track_contributors').select('tracks(*)').eq('wallet_address', address);
       myList = myData?.map((d: any) => d.tracks).filter(Boolean) || [];
     }
+    // 4. 합치고 중복 제거 (내 라이브러리 전체 목록)
     const combinedTracks = [...likedList, ...myList];
-    const uniqueTracks = Array.from(new Map(combinedTracks.map(t => [t.id, t])).values());
-    setLikedTracks(uniqueTracks);
+    const uniqueAllTracks = Array.from(new Map(combinedTracks.map(t => [t.id, t])).values());
+    // ✅ [핵심 수정] 현재 플레이리스트에 이미 있는 곡 필터링 tracks는 현재 화면에 렌더링되고 있는 플레이리스트의 곡 목록입니다.
+    const currentPlaylistTrackIds = new Set(tracks.map(t => t.id));
+    const filteredTracks = uniqueAllTracks.filter(track => !currentPlaylistTrackIds.has(track.id));
+    // 5. 필터링된 목록만 state에 저장
+    setLikedTracks(filteredTracks);
   };
 
   const addToPlaylist = async (trackId: number) => {
@@ -391,6 +404,60 @@ export default function LibraryPage() {
     if (data) return toast.error("Already in playlist.");
     await supabase.from('playlist_items').insert({ playlist_id: selectedPlaylist, track_id: trackId });
     toast.success("Added!"); fetchTracks(selectedPlaylist); setShowAddModal(false);
+  };
+
+  // ✅ [NEW] 체크박스 토글 함수
+  const toggleTrackSelection = (trackId: number) => {
+    const newSet = new Set(selectedTrackIds);
+    if (newSet.has(trackId)) {
+      newSet.delete(trackId);
+    } else {
+      newSet.add(trackId);
+    }
+    setSelectedTrackIds(newSet);
+  };
+
+  const handleAddSelectedTracks = async () => {
+    if (typeof selectedPlaylist !== 'number') return;
+    if (selectedTrackIds.size === 0) return;
+
+    setIsAddingSongs(true);
+    const toastId = toast.loading(`Adding ${selectedTrackIds.size} songs...`);
+
+    try {
+      const itemsToInsert = Array.from(selectedTrackIds).map(trackId => ({
+        playlist_id: selectedPlaylist,
+        track_id: trackId
+      }));
+
+      // ✅ [핵심 수정] insert -> upsert로 변경
+      // onConflict: 중복 체크할 기준 컬럼
+      // ignoreDuplicates: true -> 중복이면 에러 뱉지 말고 무시 (Skip)
+      const { error } = await supabase
+        .from('playlist_items')
+        .upsert(itemsToInsert, { 
+            onConflict: 'playlist_id, track_id', 
+            ignoreDuplicates: true 
+        });
+
+      if (error) {
+        // 에러 상세 내용을 확인하기 위해 문자열로 변환해 로그 출력
+        console.error("Upsert Error:", JSON.stringify(error, null, 2));
+        throw error;
+      }
+
+      toast.success("Songs added successfully!", { id: toastId });
+      
+      setShowAddModal(false);
+      setSelectedTrackIds(new Set());
+      fetchTracks(selectedPlaylist); 
+
+    } catch (e: any) {
+      console.error("Add Logic Error:", e);
+      toast.error("Failed to add songs.", { id: toastId });
+    } finally {
+      setIsAddingSongs(false);
+    }
   };
 
   const filteredTracks = tracks.filter(t => t && t.title && t.title.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -423,7 +490,7 @@ export default function LibraryPage() {
           {playlists.map((p) => (
             <div key={p.id} className={`flex items-center justify-between p-2 rounded cursor-pointer text-sm ${selectedPlaylist === p.id ? 'bg-zinc-800 text-white font-bold' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'}`} onClick={() => setSelectedPlaylist(p.id)}>
               <div className="flex items-center gap-3 overflow-hidden">
-                {p.id === 'liked' ? <Heart size={16} className="text-indigo-500 fill-indigo-500" /> : p.id === 'my_songs' ? <Mic2 size={16} className="text-green-500" /> : <ListMusic size={16} />}
+                {p.id === 'liked' ? <Heart size={16} className="text-indigo-500 fill-indigo-500" /> : p.id === 'my_songs' ? <DatabaseZap size={16} className="text-green-500" /> : <ListMusic size={16} />}
                 <span className="truncate">{p.name}</span>
               </div>
               {p.is_custom && <button onClick={(e) => { e.stopPropagation(); handleDeletePlaylist(p.id); }} className="text-zinc-500 hover:text-red-500"><Trash2 size={14} /></button>}
@@ -501,7 +568,7 @@ export default function LibraryPage() {
                             <button onClick={() => setIsRenaming(false)} className="p-2 bg-zinc-800 rounded-full text-white hover:bg-zinc-700 transition"><X size={20} /></button>
                         </div>
                     ) : (
-                        <h1 className="text-5xl font-black tracking-tight truncate max-w-3xl flex items-center gap-4 group">
+                        <h1 className="text-5xl font-black tracking-tight truncate max-w-3xl flex items-center gap-4 group pb-1">
                             {playlists.find(p => p.id === selectedPlaylist)?.name}
                             
                             {/* Rename Button (Only for custom playlists) */}
@@ -587,7 +654,7 @@ export default function LibraryPage() {
                                                 </div>
                                             ) : (
                                                 <span className="text-zinc-600 text-xs flex items-center gap-1 whitespace-nowrap">
-                                                    <Zap size={12} className="text-yellow-500"/> Owned
+                                                    <Crown size={12} className="text-yellow-500"/> Owned
                                                 </span>
                                             )}
                                             
@@ -917,31 +984,102 @@ export default function LibraryPage() {
             </div>
         )}
 
+        {/* Add Song Modal */}
         {showAddModal && (
-            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-                <div className="bg-zinc-900 w-full max-w-md h-[600px] rounded-2xl flex flex-col shadow-2xl border border-zinc-800">
-                    <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-                        <h3 className="font-bold">Add from Library</h3>
-                        <button onClick={() => setShowAddModal(false)}><X size={20} className="text-zinc-500 hover:text-white" /></button>
-                    </div>
-                    <div className="p-3 border-b border-zinc-800/50 relative">
-                        <Search className="absolute left-6 top-5 text-zinc-500" size={14} />
-                        <input type="text" placeholder="Find a song..." className="w-full bg-black/50 border border-zinc-700 rounded-lg py-2 pl-9 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500" value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} autoFocus />
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {filteredModalTracks.length === 0 ? <div className="p-10 text-center text-zinc-500 text-xs">No results.</div> : filteredModalTracks.map(t => (
-                            <div key={t.id} className="flex items-center justify-between p-2 hover:bg-zinc-800 rounded-lg group transition">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-zinc-800 rounded overflow-hidden flex-shrink-0"><img src={t.cover_image_url || ''} className="w-full h-full object-cover" /></div>
-                                    <div className="overflow-hidden"><div className="font-bold text-sm truncate w-40">{t.title}</div><div className="text-xs text-zinc-500 truncate">{t.artist_name}</div></div>
-                                </div>
-                                <button onClick={() => addToPlaylist(t.id)} className="bg-zinc-700 hover:bg-green-600 hover:text-white text-zinc-400 p-1.5 rounded-full transition"><Plus size={16} /></button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md h-[80vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center shrink-0">
+              <h3 className="text-xl font-bold text-white">Add Songs</h3>
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition">
+                <X size={20}/>
+              </button>
             </div>
-        )}
+
+            {/* Search Input */}
+            <div className="p-4 border-b border-zinc-800 shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 text-zinc-500" size={18}/>
+                <input 
+                  type="text" 
+                  placeholder="Search your library..." 
+                  value={modalSearchQuery}
+                  onChange={(e) => setModalSearchQuery(e.target.value)}
+                  className="w-full bg-black border border-zinc-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-green-500 transition"
+                />
+              </div>
+            </div>
+
+            {/* Track List (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {likedTracks
+                .filter(t => t.title.toLowerCase().includes(modalSearchQuery.toLowerCase()))
+                .map(track => {
+                  const isSelected = selectedTrackIds.has(track.id);
+                  return (
+                    <div 
+                      key={track.id} 
+                      onClick={() => toggleTrackSelection(track.id)} // 클릭 시 토글
+                      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition group border ${
+                        isSelected 
+                          ? 'bg-green-500/10 border-green-500/30' 
+                          : 'bg-transparent border-transparent hover:bg-zinc-800'
+                      }`}
+                    >
+                      {/* Checkbox Icon */}
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition ${
+                        isSelected 
+                          ? 'bg-green-500 border-green-500 text-black' 
+                          : 'border-zinc-600 group-hover:border-zinc-400'
+                      }`}>
+                        {isSelected && <Check size={14} strokeWidth={4} />}
+                      </div>
+
+                      {/* Cover */}
+                      <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden shrink-0">
+                        {track.cover_image_url && <img src={track.cover_image_url} className="w-full h-full object-cover"/>}
+                      </div>
+                      
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-bold text-sm truncate ${isSelected ? 'text-green-400' : 'text-white'}`}>
+                            {track.title}
+                        </div>
+                        <div className="text-xs text-zinc-500 truncate">{track.artist_name}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {likedTracks.length === 0 && (
+                   <div className="text-center text-zinc-500 py-10 text-sm">
+                      No songs in your library.
+                   </div>
+                )}
+            </div>
+
+            {/* Footer Action Button */}
+            <div className="p-4 border-t border-zinc-800 bg-zinc-900 rounded-b-2xl shrink-0">
+              <button 
+                onClick={handleAddSelectedTracks}
+                disabled={selectedTrackIds.size === 0 || isAddingSongs}
+                className="w-full py-4 bg-white text-black font-black rounded-xl hover:bg-zinc-200 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isAddingSongs ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <>
+                    Add {selectedTrackIds.size > 0 ? `${selectedTrackIds.size} Songs` : ''}
+                    <Plus size={18} />
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
         {showRentalModal && (
             <RentalModal

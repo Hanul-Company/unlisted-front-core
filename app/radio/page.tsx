@@ -199,7 +199,6 @@ function RadioContent() {
       setShowPlaylistModal(false);
   };
 
-
   // ==================================================================================
   // RENDER: SELECTION SCREEN
   // ==================================================================================
@@ -208,7 +207,7 @@ function RadioContent() {
       <div className="min-h-screen bg-black text-white p-6 font-sans flex flex-col relative overflow-hidden pt-24">
         {/* Header */}
         <Link href="/market" className="absolute top-6 left-6 text-zinc-500 hover:text-white transition flex items-center gap-2 z-50 text-sm font-bold">
-          <ChevronLeft size={18} /> Exit Radio
+          <ChevronLeft size={18} /> Exit
         </Link>
         <div className="absolute top-6 right-6 z-50"><HeaderProfile/></div>
 
@@ -216,28 +215,32 @@ function RadioContent() {
           
           <div className="text-center space-y-2">
             <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-white">
-              Start Your Stream
+              Stream is always free
             </h1>
             <p className="text-zinc-500">Select a mode to begin listening.</p>
           </div>
 
           {/* 1. AI Personalized Card */}
           <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-[2rem] blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[2rem] blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
             <div className="relative bg-zinc-900 border border-zinc-800 rounded-[2rem] p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 overflow-hidden">
                 
                 {/* Visual Graphic */}
                 <div className="w-32 h-32 md:w-40 md:h-40 flex-shrink-0 bg-black rounded-full flex items-center justify-center border-4 border-zinc-800 shadow-2xl relative">
-                    <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/20 to-transparent rounded-full animate-spin-slow"/>
-                    <BrainCircuit size={48} className="text-purple-400 relative z-10"/>
-                    <Sparkles size={24} className="text-pink-400 absolute top-2 right-4 animate-pulse"/>
+                    <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 to-transparent rounded-full animate-spin-slow"/>
+                    <img 
+                        src="/icon-192.png" 
+                        alt="Logo" 
+                        className="w-16 h-16 md:w-12 md:h-12 object-contain relative z-10" 
+                    />
+                    <Sparkles size={24} className="text-indigo-400 absolute top-2 right-4 animate-pulse"/>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 text-center md:text-left space-y-4">
                     <div className="space-y-2">
                         <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-purple-200">
-                            AI Personalized Mix
+                            Mix only for you
                         </h2>
                         {tasteSummary ? (
                             <>
@@ -248,7 +251,7 @@ function RadioContent() {
                                 </p>
                                 <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
                                     {tasteSummary.expanded_genres?.slice(0, 3).map((g: string) => (
-                                        <span key={g} className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-300 font-bold uppercase">{g}</span>
+                                        <span key={g} className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-bold uppercase">{g}</span>
                                     ))}
                                     {tasteSummary.expanded_moods?.slice(0, 2).map((m: string) => (
                                         <span key={m} className="px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-[10px] text-zinc-400 font-bold uppercase">{m}</span>
@@ -269,7 +272,7 @@ function RadioContent() {
                                 disabled={loading}
                                 className="bg-white text-black font-black px-8 py-3 rounded-full hover:scale-105 active:scale-95 transition flex items-center justify-center gap-2 mx-auto md:mx-0 shadow-xl shadow-white/10"
                             >
-                                {loading ? <Loader2 className="animate-spin"/> : <><Play fill="black" size={18}/> Play My Vibe</>}
+                                {loading ? <Loader2 className="animate-spin"/> : <><Play fill="black" size={18}/> Play on</>}
                             </button>
                         ) : (
                              <div className="flex gap-3 justify-center md:justify-start">
