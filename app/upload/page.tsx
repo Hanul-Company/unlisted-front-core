@@ -12,10 +12,11 @@ import toast from 'react-hot-toast';
 import { useActiveAccount } from "thirdweb/react";
 import * as mm from 'music-metadata-browser';
 import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 type Contributor = { address: string; share: string; role: string; };
 
-export default function UploadPage() {
+function UploadContent() {
   const account = useActiveAccount();
   const address = account?.address;
   const router = useRouter();
@@ -588,5 +589,18 @@ export default function UploadPage() {
 
       {showCropModal && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 w-full max-w-md p-6 rounded-2xl relative h-[500px] flex flex-col border border-zinc-700"><h3 className="text-lg font-bold mb-4">Adjust Cover Art</h3><div className="relative flex-1 bg-black rounded-lg overflow-hidden mb-4"><Cropper image={imageSrc!} crop={crop} zoom={zoom} aspect={1} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}/></div><div className="flex gap-4"><button onClick={() => setShowCropModal(false)} className="flex-1 py-3 bg-zinc-800 rounded-lg font-bold hover:bg-zinc-700">Cancel</button><button onClick={handleCropSave} className="flex-1 py-3 bg-white text-black rounded-lg font-bold hover:bg-zinc-200">Save Cover</button></div></div></div>}
     </div>
+  );
+}
+
+// ✅ [수정 3] Suspense로 감싼 새로운 Page 컴포넌트 export
+export default function UploadPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <Loader2 className="animate-spin text-green-500" size={40} />
+      </div>
+    }>
+      <UploadContent />
+    </Suspense>
   );
 }
