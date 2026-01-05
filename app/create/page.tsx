@@ -123,6 +123,19 @@ type PlayerTrack = {
   index: number;
 };
 
+// --- Helper: 타이머 포맷 (HH:mm:ss) ---
+const formatCountdown = (targetDate: Date | null) => {
+  if (!targetDate) return "";
+  const diff = targetDate.getTime() - Date.now();
+  if (diff <= 0) return "";
+  
+  const h = Math.floor(diff / (1000 * 60 * 60));
+  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((diff % (1000 * 60)) / 1000);
+  
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
 export default function CreateDashboard() {
   const account = useActiveAccount();
   const router = useRouter();
@@ -163,6 +176,11 @@ export default function CreateDashboard() {
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(false); // ✅ [추가] 데스크탑 플레이어 최소화 상태
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffle, setIsShuffle] = useState(false);
+
+  // ✅ [추가] Credit & Timer State
+  const [credits, setCredits] = useState(3); // 기본 3개
+  const [nextResetTime, setNextResetTime] = useState<Date | null>(null);
+  const [timerString, setTimerString] = useState("");
 
   const formatTime = (sec: number) => {
     if (!sec || Number.isNaN(sec)) return "0:00";
@@ -313,6 +331,12 @@ export default function CreateDashboard() {
   // 2. Request Creation
   const handleRequestCreate = async () => {
     if (!account?.address) return toast.error("Please connect wallet.");
+
+    // ✅ [추가] 크레딧 체크 (프론트엔드 방어)
+    if (credits <= 0) {
+        return toast.error(`Daily limit reached. Resets in ${timerString}`);
+    }
+
     if (!refSongTitle || !refSongArtist || !targetVoice || !targetTitle) {
       return toast.error(isKorean ? "필수 정보를 입력해주세요." : "Required fields missing.");
     }
@@ -354,6 +378,7 @@ export default function CreateDashboard() {
       setRefSongTitle(''); setRefSongArtist(''); setTargetVoice('');
       setTargetTitle(''); setLyrics(''); setEtcInfo('');
       fetchJobs();
+      checkCredits(); // ✅ [추가] 사용했으니 크레딧 갱신
     } catch (e: any) {
       toast.dismiss();
       toast.error(e.message);
@@ -392,6 +417,58 @@ export default function CreateDashboard() {
     await supabase.from('suno_jobs').delete().eq('id', id);
     fetchJobs();
   };
+
+  // ✅ [추가] 1. 크레딧 상태 조회 (로드 시 + 작업 완료 시)
+  const checkCredits = async () => {
+    if (!account?.address) return;
+
+    // 24시간 전 시각 구하기
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: recentJobs } = await supabase
+      .from('suno_jobs')
+      .select('created_at')
+      .eq('user_wallet', account.address)
+      .gte('created_at', oneDayAgo) // 24시간 이내 생성된 것만
+      .order('created_at', { ascending: true }); // 오래된 순 정렬
+
+    if (recentJobs) {
+      const used = recentJobs.length;
+      setCredits(Math.max(0, 3 - used));
+
+      // 만약 3개 다 썼다면, 가장 먼저 생성한 작업 시점으로부터 24시간 뒤가 리셋 타임
+      if (used >= 3) {
+        const oldestJobTime = new Date(recentJobs[0].created_at).getTime();
+        const resetAt = new Date(oldestJobTime + 24 * 60 * 60 * 1000);
+        setNextResetTime(resetAt);
+      } else {
+        setNextResetTime(null);
+        setTimerString("");
+      }
+    }
+  };
+
+  // ✅ [추가] 2. 초기 로드 및 계정 변경 시 크레딧 체크
+  useEffect(() => {
+    checkCredits();
+  }, [account?.address]);
+
+  // ✅ [추가] 3. 타이머 돌리기 (1초마다)
+  useEffect(() => {
+    if (!nextResetTime) return;
+
+    const interval = setInterval(() => {
+      const str = formatCountdown(nextResetTime);
+      if (str === "") {
+        // 시간이 다 되면 다시 크레딧 체크 (리셋)
+        checkCredits();
+      } else {
+        setTimerString(str);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [nextResetTime]);
 
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col">
@@ -499,29 +576,60 @@ export default function CreateDashboard() {
                 <input value={etcInfo} onChange={e => setEtcInfo(e.target.value)} placeholder={t.vibe_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm focus:border-zinc-500 outline-none transition" />
               </div>
             </div>
-
-            {/* Submit Button */}
-            <div className="space-y-2">
-                <button
-                onClick={handleRequestCreate}
-                disabled={isSubmitting || !account?.address}
-                className={`group relative w-full rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 p-[2px]
-                    shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] hover:scale-[1.01]
-                    transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                <div className="absolute inset-[2px] bg-zinc-900 rounded-[10px] transition-opacity duration-300 ease-in-out group-hover:opacity-0" />
-                <div className="relative z-10 flex items-center justify-center gap-2 py-4 font-black text-white tracking-wide">
-                    {isSubmitting ? (
-                    <Loader2 className="animate-spin text-white" />
-                    ) : (
-                    <>
-                        <Wand2 size={20} className="text-cyan-300 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
-                        <span className="group-hover:text-white transition-colors">{t.btn_generate}</span>
-                    </>
-                    )}
+            {/* Input Form 내부의 Submit Button 부분 교체 */}
+            <div className="space-y-3">
+                {/* ✅ [추가] Credit Status Bar */}
+                <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider">
+                        Daily Credits
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${credits === 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                        {credits} / 3 Available
+                    </span>
                 </div>
+
+                {/* Progress Bar (Visual) */}
+                <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                        className={`h-full rounded-full transition-all duration-500 ${credits === 0 ? 'bg-red-500' : 'bg-blue-500'}`} 
+                        style={{ width: `${(credits / 3) * 100}%` }}
+                    />
+                </div>
+
+                <button
+                    onClick={handleRequestCreate}
+                    // ✅ [수정] 크레딧 없으면 비활성화
+                    disabled={isSubmitting || !account?.address || credits <= 0}
+                    className={`group relative w-full rounded-xl p-[2px] transition-all duration-300
+                        ${credits > 0 
+                            ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] hover:scale-[1.01]' 
+                            : 'bg-zinc-800 cursor-not-allowed opacity-70'}
+                    `}
+                >
+                    <div className="absolute inset-[2px] bg-zinc-900 rounded-[10px] transition-opacity duration-300 ease-in-out group-hover:opacity-0" />
+                    <div className="relative z-10 flex items-center justify-center gap-2 py-4 font-black text-white tracking-wide">
+                        {isSubmitting ? (
+                            <Loader2 className="animate-spin text-white" />
+                        ) : (
+                            <>
+                                {credits > 0 ? (
+                                    <>
+                                        <Wand2 size={20} className="text-cyan-300 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
+                                        <span className="group-hover:text-white transition-colors">{t.btn_generate}</span>
+                                    </>
+                                ) : (
+                                    // ⏳ 크레딧 소진 시 타이머 표시
+                                    <div className="flex items-center gap-2 text-red-400">
+                                        <Clock size={18} />
+                                        <span>Refill in {timerString || "calculating..."}</span>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </button>
-                {/* ✅ [추가] Beta Notice */}
+                
+                {/* Beta Notice */}
                 <p className="text-center text-[10px] text-zinc-600">
                     (Still a beta version. May take 1~10 mins to create)
                 </p>
