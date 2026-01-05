@@ -107,7 +107,7 @@ export async function analyzeUserTaste(favArtists: string[], favTracks: string[]
 export async function analyzeTrackMetadata(
   refArtist: string, 
   refTrack: string, 
-  genre: string, 
+  genre: string[], 
   moods: string[]
 ) {
   // 1. 레퍼런스 정보가 없으면 분석 스킵 (비용 절약)

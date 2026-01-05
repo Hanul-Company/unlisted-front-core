@@ -3,45 +3,144 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
 import { generateSunoPrompt } from '@/app/actions/generate-suno-prompt';
-import { useActiveAccount } from "thirdweb/react"; 
-import HeaderProfile from '../components/HeaderProfile'; // ✅ 기존 컴포넌트 사용
-import { 
-  Loader2, Mic2, Disc, UploadCloud, Play, Pause, Trash2, 
-  Clock, RefreshCw, AlertCircle, Wand2, Menu 
+import { useActiveAccount } from "thirdweb/react";
+import HeaderProfile from '../components/HeaderProfile';
+import MobilePlayer from '../components/MobilePlayer'; // ✅ 기존 컴포넌트 그대로 사용
+import { Link } from "../../lib/i18n";
+
+import {
+  Loader2, Mic2, Disc, UploadCloud, Play, Pause, Trash2,
+  Clock, RefreshCw, AlertCircle, Wand2, Menu, Quote,
+  ChevronDown, Globe, Sparkles, Layers,
+  SkipBack, SkipForward, Volume2, VolumeX
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from "@/lib/i18n";
 
-type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+// --- Types ---
+type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
+
+type SunoTrackResult = {
+  id: string;
+  dom_title: string;
+  target_title: string;
+  audio_cdn_url: string;
+  cover_cdn_url: string;
+  created_at: string;
+};
 
 type SunoJob = {
   id: number;
-  target_title: string;
+  user_wallet: string;
+  ref_track: string;
   ref_artist: string;
+  target_title: string;
+  lyrics?: string;
+  etc_info?: string;
+  gpt_prompt?: string;
   status: JobStatus;
-  created_at: string;
+  genres: string[] | null;
+  moods: string[] | null;
+  tags: string[] | null;
   result_data: {
-    tracks?: {
-      title: string;
-      audio_url: string;
-      cover_url: string;
-      tags: string;
-    }[]
+    job_id?: number;
+    wallet?: string;
+    tracks?: SunoTrackResult[];
+    prompt_used?: string;
   } | null;
   error_message?: string;
+  created_at: string;
+};
+
+// --- Language Dictionary ---
+const DICT = {
+  en: {
+    welcome: "Let's create with your taste.",
+    badge: "Beta v.0.5",
+    engine: "Multi-Model Aggregator Engine",
+    essential: "Essential Info",
+    ref_song_title: "Reference song",
+    ref_song_ph: "e.g. Sunday morning",
+    ref_song_artist: "by",
+    ref_artist_ph: "Maroon5",
+    target_voice: "Target Voice (Artist)",
+    target_voice_ph: "e.g. Tyla (Vocal Style)",
+    title: "Song Title",
+    title_ph: "New Song Title",
+    optional: "Optional Details",
+    lyrics: "Lyrics",
+    lyrics_ph: "Paste lyrics or leave empty for AI generation.",
+    vibe: "Extra Vibe / Requirements",
+    vibe_ph: "e.g. Dreamy, Reverb heavy, Faster tempo...",
+    btn_generate: "Generate Request",
+    queue_title: "Generation Queue",
+    status_pending: "Pending",
+    status_processing: "Processing",
+    status_done: "Completed",
+    status_failed: "Failed",
+    empty_queue: "Your queue is empty. Start creating!",
+    history: "History",
+    select: "Select"
+  },
+  kr: {
+    welcome: "당신의 취향으로 음악을 만들어보세요.",
+    badge: "베타 v.0.5",
+    engine: "멀티 모델 생성 엔진 (Suno + GPT-4o)",
+    essential: "필수 정보",
+    ref_song_title: "레퍼런스 곡 (곡명 - 가수)",
+    ref_song_ph: "예: Ditto",
+    ref_song_artist: "by",
+    ref_artist_ph: "예: New Jeans",
+    target_voice: '보컬 레퍼런스',
+    target_voice_ph: '보컬 레퍼런스',
+    title: "노래 제목",
+    title_ph: "만들고 싶은 곡 제목",
+    optional: "선택 사항",
+    lyrics: "가사",
+    lyrics_ph: "가사를 입력하거나 비워두면 AI가 작사합니다.",
+    vibe: "추가 요청 사항 (분위기 등)",
+    vibe_ph: "예: 몽환적인 리버브, 템포 빠르게...",
+    btn_generate: "생성 요청하기",
+    queue_title: "작업 대기열",
+    status_pending: "대기중",
+    status_processing: "생성중",
+    status_done: "완료됨",
+    status_failed: "실패",
+    empty_queue: "대기열이 비어있습니다.",
+    history: "히스토리",
+    select: "선택 및 업로드"
+  }
+};
+
+type PlayerTrack = {
+  id: string;
+  title: string;
+  artist_name: string;
+  cover_image_url: string;
+  audio_url: string;
+  job: SunoJob;
+  rawTrack: SunoTrackResult;
+  index: number;
 };
 
 export default function CreateDashboard() {
-  const account = useActiveAccount(); 
+  const account = useActiveAccount();
   const router = useRouter();
-  
-  // --- Tabs ---
-  const [activeTab, setActiveTab] = useState<'new' | 'queue'>('new');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // 모바일 메뉴용 (Header 호환)
+
+  // --- UI State ---
+  const [isKorean, setIsKorean] = useState(false);
+  const t = isKorean ? DICT.kr : DICT.en;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [expandedJobIds, setExpandedJobIds] = useState<Set<number>>(new Set());
+
+  // --- User Data ---
+  const [username, setUsername] = useState<string>('Creator');
 
   // --- Input State ---
-  const [refTrack, setRefTrack] = useState('');
-  const [refArtist, setRefArtist] = useState('');
+  const [refTrack, setRefTrack] = useState(''); // (기존 유지)
+  const [refSongTitle, setRefSongTitle] = useState('');
+  const [refSongArtist, setRefSongArtist] = useState('');
+  const [targetVoice, setTargetVoice] = useState('');
   const [targetTitle, setTargetTitle] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [etcInfo, setEtcInfo] = useState('');
@@ -50,30 +149,151 @@ export default function CreateDashboard() {
   // --- Queue State ---
   const [jobs, setJobs] = useState<SunoJob[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
-  
-  // --- Preview State ---
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playingUrl, setPlayingUrl] = useState<string | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-  const [selectedTrackIdx, setSelectedTrackIdx] = useState<number | null>(null);
 
-  // 1. 초기 로드
+  // --- Player State (Footer/Mobile 동기화) ---
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.9);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Mobile Player UI state
+  const [mobilePlayerOpen, setMobilePlayerOpen] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
+  const [isShuffle, setIsShuffle] = useState(false);
+
+  const formatTime = (sec: number) => {
+    if (!sec || Number.isNaN(sec)) return "0:00";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
+  const buildPlayerTrack = (job: SunoJob, track: SunoTrackResult, idx: number): PlayerTrack => ({
+    id: track.id,
+    title: `${job.target_title} v${idx + 1}`,
+    artist_name: `${job.ref_artist} Style (AI)`,
+    cover_image_url: track.cover_cdn_url,
+    audio_url: track.audio_cdn_url,
+    job,
+    rawTrack: track,
+    index: idx
+  });
+
+  const playFromFooter = (pt: PlayerTrack) => {
+    setCurrentTime(0);
+    setDuration(0);
+    setCurrentTrack(pt);
+    setIsPlaying(true);
+  };
+
+  const resolveTracksOfCurrentJob = () => currentTrack?.job?.result_data?.tracks || [];
+
+  const handleNext = () => {
+    const tracks = resolveTracksOfCurrentJob();
+    if (!currentTrack || tracks.length === 0) return;
+
+    if (repeatMode === 'one') {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {});
+      }
+      setIsPlaying(true);
+      return;
+    }
+
+    const curIdx = currentTrack.index;
+
+    if (isShuffle && tracks.length > 1) {
+      let nextIdx = curIdx;
+      while (nextIdx === curIdx) nextIdx = Math.floor(Math.random() * tracks.length);
+      playFromFooter(buildPlayerTrack(currentTrack.job, tracks[nextIdx], nextIdx));
+      return;
+    }
+
+    const nextIdx = curIdx + 1;
+    if (nextIdx >= tracks.length) {
+      if (repeatMode === 'all') playFromFooter(buildPlayerTrack(currentTrack.job, tracks[0], 0));
+      else setIsPlaying(false);
+      return;
+    }
+    playFromFooter(buildPlayerTrack(currentTrack.job, tracks[nextIdx], nextIdx));
+  };
+
+  const handlePrev = () => {
+    const tracks = resolveTracksOfCurrentJob();
+    if (!currentTrack || tracks.length === 0) return;
+
+    if (audioRef.current && audioRef.current.currentTime > 3) {
+      audioRef.current.currentTime = 0;
+      return;
+    }
+
+    const curIdx = currentTrack.index;
+    const prevIdx = curIdx - 1;
+    if (prevIdx < 0) {
+      if (repeatMode === 'all') playFromFooter(buildPlayerTrack(currentTrack.job, tracks[tracks.length - 1], tracks.length - 1));
+      else audioRef.current && (audioRef.current.currentTime = 0);
+      return;
+    }
+    playFromFooter(buildPlayerTrack(currentTrack.job, tracks[prevIdx], prevIdx));
+  };
+
+  const toggleRepeat = () => {
+    setRepeatMode(repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off');
+  };
+
+  // audio 연결/재생 제어
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (!currentTrack?.audio_url) return;
+
+    audioRef.current.src = currentTrack.audio_url;
+    audioRef.current.currentTime = 0;
+    audioRef.current.volume = isMuted ? 0 : volume;
+
+    if (isPlaying) audioRef.current.play().catch(() => {});
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (!currentTrack?.audio_url) return;
+
+    if (isPlaying) audioRef.current.play().catch(() => {});
+    else audioRef.current.pause();
+  }, [isPlaying, currentTrack?.audio_url]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = isMuted ? 0 : volume;
+  }, [volume, isMuted]);
+
+  // 1. Initial Load (User & Jobs)
   useEffect(() => {
     if (account?.address) {
+      fetchProfile();
       fetchJobs();
-      
+
       const channel = supabase
         .channel('suno_jobs_changes')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'suno_jobs', filter: `user_wallet=eq.${account.address}` },
-          (payload) => { fetchJobs(); }
+          () => { fetchJobs(); }
         )
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [account?.address, activeTab]);
+  }, [account?.address]);
+
+  const fetchProfile = async () => {
+    if (!account?.address) return;
+    const { data } = await supabase.from('profiles').select('username').eq('wallet_address', account.address).single();
+    if (data?.username) setUsername(data.username);
+  };
 
   const fetchJobs = async () => {
     if (!account?.address) return;
@@ -82,54 +302,57 @@ export default function CreateDashboard() {
       .from('suno_jobs')
       .select('*')
       .eq('user_wallet', account.address)
+      .eq('discarded', false)
       .order('created_at', { ascending: false });
-    
-    if (data) setJobs(data);
+
+    if (data) setJobs(data as SunoJob[]);
     setLoadingJobs(false);
   };
 
-  // 2. 작업 요청
+  // 2. Request Creation
   const handleRequestCreate = async () => {
-    if (!account?.address) return toast.error("지갑을 연결해주세요.");
-    if (!refTrack || !refArtist || !targetTitle) return toast.error("필수 정보를 입력해주세요.");
+    if (!account?.address) return toast.error("Please connect wallet.");
+    if (!refSongTitle || !refSongArtist || !targetVoice || !targetTitle) {
+      return toast.error(isKorean ? "필수 정보를 입력해주세요." : "Required fields missing.");
+    }
 
     try {
       setIsSubmitting(true);
-      toast.loading("스타일 분석 및 작업 대기열 등록 중...");
+      toast.loading(isKorean ? "한글 발음 변환 및 스타일 분석 중..." : "Translating & Analyzing...");
 
-      // A. GPT 분석 요청 (새로운 로직)
-      const analyzedData = await generateSunoPrompt(refTrack, refArtist, targetTitle, lyrics, etcInfo);
-      
-      if (!analyzedData) throw new Error("분석 실패. 다시 시도해주세요.");
+      const analyzedData = await generateSunoPrompt(
+        refSongTitle,
+        refSongArtist,
+        targetVoice,
+        targetTitle,
+        lyrics,
+        etcInfo
+      );
 
-      // B. DB Queue에 삽입 (컬럼 추가됨)
+      if (!analyzedData) throw new Error("Analysis failed");
+
       const { error } = await supabase.from('suno_jobs').insert({
         user_wallet: account.address,
-        ref_track: refTrack,
-        ref_artist: refArtist,
+        ref_track: `${refSongTitle} - ${refSongArtist}`,
+        ref_artist: targetVoice,
         target_title: analyzedData.title,
         lyrics: analyzedData.lyrics,
         etc_info: etcInfo,
-        
-        // ✅ [핵심] 분석된 데이터 저장
-        gpt_prompt: analyzedData.prompt, // Suno에게 던질 최종 문자열
-        genres: analyzedData.genres,     // 나중에 마켓 업로드 시 사용
+        gpt_prompt: analyzedData.prompt,
+        genres: analyzedData.genres,
         moods: analyzedData.moods,
         tags: analyzedData.tags,
-        
         status: 'pending'
       });
 
       if (error) throw error;
 
       toast.dismiss();
-      toast.success("작업이 대기열에 등록되었습니다!");
-      
-      // 초기화 및 탭 이동
-      setRefTrack(''); setRefArtist(''); setTargetTitle(''); setLyrics(''); setEtcInfo('');
-      setActiveTab('queue');
-      fetchJobs();
+      toast.success(isKorean ? "요청 완료!" : "Request queued!");
 
+      setRefSongTitle(''); setRefSongArtist(''); setTargetVoice('');
+      setTargetTitle(''); setLyrics(''); setEtcInfo('');
+      fetchJobs();
     } catch (e: any) {
       toast.dismiss();
       toast.error(e.message);
@@ -138,212 +361,455 @@ export default function CreateDashboard() {
     }
   };
 
-  // 3. Play/Publish Logic
-  const togglePlay = (url: string) => {
-    if (!audioRef.current) return;
-    if (playingUrl === url) {
-      audioRef.current.pause();
-      setPlayingUrl(null);
-    } else {
-      audioRef.current.src = url;
-      audioRef.current.play();
-      setPlayingUrl(url);
-    }
+  // 3. Handlers
+  const toggleAccordion = (id: number) => {
+    const newSet = new Set(expandedJobIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setExpandedJobIds(newSet);
   };
 
-  const handlePublish = async (job: SunoJob, trackIdx: number) => {
-    if (!job.result_data?.tracks || !account?.address) return;
-    const track = job.result_data.tracks[trackIdx];
-    const toastId = toast.loading("마켓에 업로드 중...");
-
-    try {
-        const { error } = await supabase.from('tracks').insert({
-            title: track.title,
-            artist_name: `${job.ref_artist} Style (AI)`,
-            audio_url: track.audio_url,
-            cover_image_url: track.cover_url,
-            genre: "AI Generated",
-            ai_metadata: { 
-                vibe_tags: track.tags.split(',').map((t:string) => t.trim()),
-                ref_artists: [job.ref_artist]
-            },
-            uploader_address: account.address,
-            creation_type: 'ai',
-            investor_share: 3000
-        });
-
-        if (error) throw error;
-        await supabase.from('suno_jobs').delete().eq('id', job.id);
-        toast.success("발행 완료!", { id: toastId });
-        router.push('/market');
-
-    } catch (e: any) {
-        toast.error("발행 실패: " + e.message, { id: toastId });
-    }
+  const handleGoToUpload = async (job: SunoJob, track: SunoTrackResult, index: number) => {
+    await supabase.from('suno_jobs').update({ selected_index: index }).eq('id', job.id);
+    const query = new URLSearchParams({
+      title: job.target_title,
+      artist: `${job.ref_artist} Style (AI)`,
+      audioUrl: track.audio_cdn_url,
+      coverUrl: track.cover_cdn_url,
+      genres: (job.genres || []).join(','),
+      moods: (job.moods || []).join(','),
+      tags: (job.tags || []).join(','),
+      jobId: job.id.toString(),
+      refInfo: `${job.ref_track} by ${job.ref_artist}`
+    }).toString();
+    router.push(`/upload?${query}`);
   };
 
-  const handleDeleteJob = async (id: number) => {
-    if(!confirm("삭제하시겠습니까?")) return;
+  const handleDiscardJob = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Discard this job?")) return;
     await supabase.from('suno_jobs').delete().eq('id', id);
     fetchJobs();
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans">
-      <audio ref={audioRef} onEnded={() => setPlayingUrl(null)} className="hidden"/>
+    <div className="min-h-screen bg-black text-white font-sans flex flex-col">
+      <audio
+        ref={audioRef}
+        className="hidden"
+        onTimeUpdate={() => { if (audioRef.current) setCurrentTime(audioRef.current.currentTime); }}
+        onLoadedMetadata={() => { if (audioRef.current) setDuration(audioRef.current.duration || 0); }}
+        onEnded={handleNext}
+      />
 
-      {/* ✅ [Header] 기존 스타일 적용 */}
-      <header className="flex justify-between items-center p-6 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-20 border-b border-zinc-800">
-          <div className="flex items-center gap-4">
-             {/* 모바일 메뉴 버튼 (필요시 기능 연결) */}
-             <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white"><Menu/></button>
-             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
-                AI Studio
-             </h1>
-          </div>
-          <div className="flex items-center gap-3"> 
-             {/* 토큰 밸런스 등이 있다면 여기에 추가 */}
-             <HeaderProfile /> 
-          </div>
-      </header>
+      {/* MobilePlayer 내부 Like/Invest 버튼 숨김용(파일 수정 없이) */}
+      <style jsx global>{`
+        .create-mobile-player button:has(.lucide-heart),
+        .create-mobile-player button:has(.lucide-zap) {
+          display: none !important;
+        }
+      `}</style>
 
-      {/* ✅ [Main Content] */}
-      <main className="max-w-4xl mx-auto p-6 pb-20">
-        
-        {/* Intro & Tabs */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-            <div>
-                <p className="text-zinc-500 text-sm">Create, Queue, and Publish your AI music.</p>
-            </div>
-            
-            <div className="flex bg-zinc-900 p-1 rounded-xl">
-                <button 
-                    onClick={() => setActiveTab('new')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'new' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}
-                >
-                    New Request
-                </button>
-                <button 
-                    onClick={() => setActiveTab('queue')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeTab === 'queue' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}
-                >
-                    Job Queue
-                    {jobs.filter(j => j.status === 'processing').length > 0 && (
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
-                    )}
-                </button>
-            </div>
+      {/* Header */}
+      <header className="flex justify-between items-center px-6 py-3 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white"><Menu /></button>
+
+          <Link href="/market" className="text-zinc-500 hover:text-white text-sm font-bold transition inline-flex items-center">
+            ← Back
+          </Link>
+
+          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+            unlisted Studio
+          </h1>
         </div>
 
-        {/* === TAB 1: NEW REQUEST === */}
-        {activeTab === 'new' && (
-            <div className="animate-in fade-in slide-in-from-left-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 space-y-4">
-                        <h3 className="font-bold flex items-center gap-2 text-green-400"><Disc size={18}/> Essential Info</h3>
-                        <div>
-                            <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">Ref Track</label>
-                            <input value={refTrack} onChange={e=>setRefTrack(e.target.value)} placeholder="e.g. Ditto - NewJeans" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-green-500 outline-none"/>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">Target Voice</label>
-                            <input value={refArtist} onChange={e=>setRefArtist(e.target.value)} placeholder="e.g. NewJeans" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-green-500 outline-none"/>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">Song Title</label>
-                            <input value={targetTitle} onChange={e=>setTargetTitle(e.target.value)} placeholder="New Song Title" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-green-500 outline-none"/>
-                        </div>
-                    </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsKorean(!isKorean)}
+            className="flex items-center gap-1 text-xs font-bold text-zinc-500 hover:text-white transition bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800"
+          >
+            <Globe size={14} /> {isKorean ? "KOR" : "ENG"}
+          </button>
+          <HeaderProfile />
+        </div>
+      </header>
 
-                    <div className="space-y-6">
-                        <div className="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 space-y-4">
-                            <h3 className="font-bold flex items-center gap-2 text-zinc-400"><Mic2 size={18}/> Optional</h3>
-                            <textarea value={lyrics} onChange={e=>setLyrics(e.target.value)} placeholder="Lyrics (Optional)" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm h-24 focus:border-zinc-500 outline-none resize-none"/>
-                            <input value={etcInfo} onChange={e=>setEtcInfo(e.target.value)} placeholder="Extra style requirements..." className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-zinc-500 outline-none"/>
-                        </div>
-
-                        <button 
-                            onClick={handleRequestCreate}
-                            disabled={isSubmitting || !account?.address}
-                            className="w-full py-4 bg-white text-black font-black rounded-xl hover:scale-[1.02] transition flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isSubmitting ? <Loader2 className="animate-spin"/> : <><Wand2 size={18}/> Add to Queue</>}
-                        </button>
-                        {!account?.address && <p className="text-center text-xs text-red-500">Please connect wallet via header profile.</p>}
-                    </div>
-                </div>
+      {/* Main Content: Split View */}
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 lg:p-8 pb-32 md:pb-24 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* === LEFT PANEL: Request Input (Sticky) === */}
+        <div className="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-24 h-fit">
+          {/* Welcome & Badge */}
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-900/20 border border-blue-500/20 text-blue-400 text-[10px] font-black tracking-wider uppercase">
+              <Sparkles size={12} /> {t.badge} <span className="text-zinc-600">|</span> <Layers size={12} /> {t.engine}
             </div>
-        )}
+            <h2 className="text-3xl md:text-4xl font-black text-white leading-tight">
+              Welcome, {username}.<br />
+              <span className="text-zinc-500 md:text-2xl">{t.welcome}</span>
+            </h2>
+          </div>
 
-        {/* === TAB 2: JOB QUEUE === */}
-        {activeTab === 'queue' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-right-5">
-                <div className="flex justify-between items-center px-2">
-                    <span className="text-xs font-bold text-zinc-500 uppercase">Your Jobs ({jobs.length})</span>
-                    <button onClick={fetchJobs} className="text-zinc-500 hover:text-white"><RefreshCw size={14}/></button>
+          {/* Input Form */}
+          <div className="bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800 shadow-2xl space-y-6">
+            {/* Essential Section */}
+            <div className="space-y-4">
+              <h3 className="font-bold flex items-center gap-2 text-blue-400 text-sm uppercase tracking-wider">
+                <Disc size={16} /> {t.essential}
+              </h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.ref_song_title}</label>
+                  <input value={refSongTitle} onChange={e => setRefSongTitle(e.target.value)} placeholder={t.ref_song_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm focus:border-blue-500 outline-none transition" />
                 </div>
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.ref_song_artist}</label>
+                  <input value={refSongArtist} onChange={e => setRefSongArtist(e.target.value)} placeholder={t.ref_artist_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm focus:border-blue-500 outline-none transition" />
+                </div>
+              </div>
 
-                {loadingJobs && <div className="text-center py-10"><Loader2 className="animate-spin mx-auto text-zinc-500"/></div>}
-                
-                {!loadingJobs && jobs.length === 0 && (
-                    <div className="text-center py-20 text-zinc-500 border border-dashed border-zinc-800 rounded-2xl">
-                        No jobs in queue.
-                    </div>
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.target_voice}</label>
+                <input value={targetVoice} onChange={e => setTargetVoice(e.target.value)} placeholder={t.target_voice_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm focus:border-blue-500 outline-none transition" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.title}</label>
+                <input value={targetTitle} onChange={e => setTargetTitle(e.target.value)} placeholder={t.title_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm focus:border-blue-500 outline-none transition" />
+              </div>
+            </div>
+
+            <div className="h-px bg-zinc-800" />
+
+            {/* Optional Section */}
+            <div className="space-y-4">
+              <h3 className="font-bold flex items-center gap-2 text-zinc-400 text-sm uppercase tracking-wider">
+                <Mic2 size={16} /> {t.optional}
+              </h3>
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.lyrics}</label>
+                <textarea value={lyrics} onChange={e => setLyrics(e.target.value)} placeholder={t.lyrics_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm h-20 focus:border-zinc-500 outline-none resize-none transition" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.vibe}</label>
+                <input value={etcInfo} onChange={e => setEtcInfo(e.target.value)} placeholder={t.vibe_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm focus:border-zinc-500 outline-none transition" />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              onClick={handleRequestCreate}
+              disabled={isSubmitting || !account?.address}
+              className={`group relative w-full rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 p-[2px]
+                shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] hover:scale-[1.01]
+                transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <div className="absolute inset-[2px] bg-zinc-900 rounded-[10px] transition-opacity duration-300 ease-in-out group-hover:opacity-0" />
+              <div className="relative z-10 flex items-center justify-center gap-2 py-4 font-black text-white tracking-wide">
+                {isSubmitting ? (
+                  <Loader2 className="animate-spin text-white" />
+                ) : (
+                  <>
+                    <Wand2 size={20} className="text-cyan-300 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
+                    <span className="group-hover:text-white transition-colors">{t.btn_generate}</span>
+                  </>
                 )}
+              </div>
+            </button>
+          </div>
+        </div>
 
-                {jobs.map((job) => (
-                    <div key={job.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden transition hover:border-zinc-700">
-                        <div className="p-4 flex items-center justify-between bg-zinc-950/30">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-2 h-2 rounded-full ${job.status === 'completed' ? 'bg-green-500' : job.status === 'processing' ? 'bg-blue-500 animate-pulse' : job.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'}`}/>
-                                <div>
-                                    <h3 className="font-bold text-sm text-white">{job.target_title}</h3>
-                                    <p className="text-xs text-zinc-500">{new Date(job.created_at).toLocaleString()} • {job.ref_artist} Style</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${job.status === 'completed' ? 'bg-green-900/30 text-green-400' : job.status === 'processing' ? 'bg-blue-900/30 text-blue-400' : job.status === 'failed' ? 'bg-red-900/30 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
-                                    {job.status}
-                                </span>
-                                <button onClick={() => handleDeleteJob(job.id)} className="text-zinc-600 hover:text-red-500"><Trash2 size={16}/></button>
-                            </div>
-                        </div>
+        {/* === RIGHT PANEL: Queue (Scrollable) === */}
+        <div className="lg:col-span-7 flex flex-col gap-4">
+          <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+            <h3 className="font-bold text-lg text-white flex items-center gap-2">
+              <RefreshCw size={18} className="text-zinc-500" /> {t.queue_title}
+              <span className="bg-zinc-800 text-zinc-400 text-xs px-2 py-0.5 rounded-full">{jobs.length}</span>
+            </h3>
+            <button onClick={fetchJobs} className="text-xs text-zinc-500 hover:text-white transition flex items-center gap-1">
+              <Clock size={12} /> {t.history}
+            </button>
+          </div>
 
-                        {job.status === 'pending' && <div className="p-4 text-xs text-zinc-500 flex items-center gap-2"><Clock size={14}/> Waiting for worker...</div>}
-                        {job.status === 'processing' && <div className="p-4 text-xs text-blue-400 flex items-center gap-2"><Loader2 size={14} className="animate-spin"/> Generating music on AI server...</div>}
-                        {job.status === 'failed' && <div className="p-4 text-xs text-red-400 flex items-center gap-2"><AlertCircle size={14}/> Error: {job.error_message || "Unknown error"}</div>}
+          {loadingJobs && <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-zinc-600" size={32} /></div>}
 
-                        {job.status === 'completed' && job.result_data?.tracks && (
-                            <div className="p-4 border-t border-zinc-800 bg-zinc-900/50">
-                                <p className="text-xs text-zinc-500 mb-3 font-bold uppercase">Generated Versions</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {job.result_data.tracks.map((track, tIdx) => (
-                                        <div key={tIdx} className={`relative flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${selectedJobId === job.id && selectedTrackIdx === tIdx ? 'bg-green-500/10 border-green-500' : 'bg-black border-zinc-800 hover:border-zinc-600'}`} onClick={() => { setSelectedJobId(job.id); setSelectedTrackIdx(tIdx); }}>
-                                            <div className="w-12 h-12 bg-zinc-800 rounded shrink-0 overflow-hidden relative group">
-                                                <img src={track.cover_url} className="w-full h-full object-cover"/>
-                                                <button onClick={(e) => { e.stopPropagation(); togglePlay(track.audio_url); }} className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                                                    {playingUrl === track.audio_url ? <Pause fill="white" size={16}/> : <Play fill="white" size={16}/>}
-                                                </button>
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="font-bold text-sm truncate">{track.title}</div>
-                                                <div className="text-[10px] text-zinc-500 truncate">{track.tags}</div>
-                                            </div>
-                                            {selectedJobId === job.id && selectedTrackIdx === tIdx && (
-                                                <button onClick={(e) => { e.stopPropagation(); handlePublish(job, tIdx); }} className="bg-green-500 text-black text-xs font-bold px-3 py-1.5 rounded-full hover:scale-105 transition flex items-center gap-1 shadow-lg">
-                                                    <UploadCloud size={12}/> Publish
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
+          {!loadingJobs && jobs.length === 0 && (
+            <div className="py-20 text-center border-2 border-dashed border-zinc-800 rounded-3xl text-zinc-500">
+              <Disc size={48} className="mx-auto mb-4 opacity-20" />
+              <p>{t.empty_queue}</p>
             </div>
-        )}
+          )}
+
+          <div className="flex flex-col gap-3">
+            {jobs.map((job) => (
+              <div
+                key={job.id}
+                className={`group bg-zinc-900 border transition-all rounded-2xl overflow-hidden ${
+                  job.status === 'done' ? 'border-zinc-700 shadow-md' : 'border-zinc-800 opacity-80 hover:opacity-100'
+                } ${expandedJobIds.has(job.id) ? 'ring-1 ring-zinc-700 bg-zinc-900' : ''}`}
+              >
+                {/* Queue Item Header (Clickable) */}
+                <div
+                  onClick={() => toggleAccordion(job.id)}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 transition"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div
+                        className={`w-3 h-3 rounded-full ${
+                          job.status === 'done' ? 'bg-green-500 shadow-[0_0_8px_lime]' :
+                          job.status === 'processing' ? 'bg-blue-500 animate-pulse' :
+                          job.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <h4 className={`font-bold text-sm ${job.status === 'done' ? 'text-white' : 'text-zinc-400'}`}>
+                        {job.target_title}
+                      </h4>
+                      <div className="flex items-center gap-2 text-[11px] text-zinc-500 mt-0.5">
+                        <span className="uppercase tracking-wider font-bold">{
+                          job.status === 'done' ? t.status_done :
+                          job.status === 'processing' ? t.status_processing :
+                          job.status === 'failed' ? t.status_failed : t.status_pending
+                        }</span>
+                        <span>•</span>
+                        <span>{new Date(job.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {job.status === 'done' && !expandedJobIds.has(job.id) && (
+                      <span className="text-[10px] font-bold bg-green-900/30 text-green-400 px-2 py-0.5 rounded border border-green-500/20">Ready</span>
+                    )}
+                    <button onClick={(e) => handleDiscardJob(job.id, e)} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-full transition"><Trash2 size={14} /></button>
+                    <div className={`p-2 rounded-full transition ${expandedJobIds.has(job.id) ? 'bg-zinc-800 text-white rotate-180' : 'text-zinc-500'}`}>
+                      <ChevronDown size={16} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Accordion Content */}
+                {expandedJobIds.has(job.id) && (
+                  <div className="border-t border-zinc-800 bg-black/20 p-5 animate-in slide-in-from-top-2 duration-200">
+                    {/* Info Block */}
+                    <div className="mb-6 flex flex-col md:flex-row gap-4 items-start">
+                      <div className="flex-1 bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50">
+                        <div className="flex gap-3 mb-2">
+                          <Quote size={16} className="text-zinc-600 shrink-0" />
+                          <p className="text-sm text-zinc-300 italic">
+                            Based on <strong className="text-white not-italic">{job.ref_track}</strong><br />
+                            Voice style of <strong className="text-blue-400 not-italic">{job.ref_artist}</strong>
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 ml-7">
+                          {job.genres?.slice(0, 3).map(g => <span key={g} className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20">{g}</span>)}
+                          {job.moods?.slice(0, 3).map(m => <span key={m} className="text-[10px] px-2 py-0.5 bg-purple-500/10 text-purple-400 rounded border border-purple-500/20">{m}</span>)}
+                        </div>
+                      </div>
+                      {job.error_message && (
+                        <div className="flex-1 bg-red-900/10 p-4 rounded-xl border border-red-500/20 text-red-400 text-xs">
+                          <AlertCircle size={14} className="mb-1" />
+                          {job.error_message}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Results (Tracks) */}
+                    {job.status === 'done' && job.result_data?.tracks ? (
+                      <div className="grid grid-cols-1 gap-3">
+                        {job.result_data.tracks.map((track, idx) => (
+                          <div
+                            key={idx}
+                            className={`relative flex items-center gap-4 p-3 rounded-xl border transition ${
+                              currentTrack?.audio_url === track.audio_cdn_url && isPlaying
+                                ? 'bg-zinc-800 border-green-500/50'
+                                : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
+                            }`}
+                          >
+                            {/* Cover & Play (Footer Player로 재생) */}
+                            <div
+                              className="w-14 h-14 rounded-lg overflow-hidden relative shrink-0 group cursor-pointer shadow-lg"
+                              onClick={() => playFromFooter(buildPlayerTrack(job, track, idx))}
+                            >
+                              <img src={track.cover_cdn_url} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition backdrop-blur-[1px]">
+                                {currentTrack?.audio_url === track.audio_cdn_url && isPlaying
+                                  ? <Pause fill="white" size={20} />
+                                  : <Play fill="white" size={20} />}
+                              </div>
+                            </div>
+
+                            {/* Meta */}
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-bold text-sm text-white truncate">
+                                {job.target_title} <span className="text-zinc-600 text-xs font-normal">v{idx + 1}</span>
+                              </h5>
+                              <p className="text-[11px] text-zinc-500">AI Generated • {((job.result_data?.tracks?.length || 0) * 1.5).toFixed(0)}MB</p>
+                            </div>
+
+                            {/* Action */}
+                            <button
+                              onClick={() => handleGoToUpload(job, track, idx)}
+                              className="px-4 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-zinc-200 transition shadow-md flex items-center gap-2"
+                            >
+                              <UploadCloud size={14} /> {t.select}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      job.status === 'processing' && (
+                        <div className="text-center py-6 text-zinc-500 text-xs animate-pulse">
+                          generating tracks...
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
+
+      {/* ✅ Desktop Footer Player (Select only, no time limit) */}
+      {currentTrack && (
+        <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl">
+          <div className="flex items-center gap-4 w-1/3">
+            <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative">
+              {currentTrack.cover_image_url ? (
+                <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700" /></div>
+              )}
+            </div>
+            <div className="overflow-hidden">
+              <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
+              <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center gap-2 w-1/3">
+            <div className="flex items-center gap-6">
+              <button className="text-zinc-400 hover:text-white transition" onClick={handlePrev}><SkipBack size={20} /></button>
+              <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">
+                {isPlaying ? <Pause size={20} fill="black" /> : <Play size={20} fill="black" className="ml-1" />}
+              </button>
+              <button className="text-zinc-400 hover:text-white transition" onClick={handleNext}><SkipForward size={20} /></button>
+            </div>
+
+            <div className="w-full max-w-sm flex items-center gap-3">
+              <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span>
+              <div
+                className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative cursor-pointer group"
+                onClick={(e) => {
+                  if (!audioRef.current || !duration) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const newTime = ((e.clientX - rect.left) / rect.width) * duration;
+                  audioRef.current.currentTime = newTime;
+                }}
+              >
+                <div className="h-full bg-white rounded-full relative z-10 group-hover:bg-green-500 transition-colors" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
+              </div>
+              <span className="text-[10px] font-mono w-8 text-zinc-500">{formatTime(duration)}</span>
+            </div>
+          </div>
+
+          <div className="w-1/3 flex justify-end items-center gap-4">
+            <button
+              onClick={() => handleGoToUpload(currentTrack.job, currentTrack.rawTrack, currentTrack.index)}
+              className="bg-white text-black px-4 py-1.5 rounded-full text-xs font-black hover:bg-zinc-200 transition flex items-center gap-2 shadow-md"
+            >
+              <UploadCloud size={14} /> {t.select}
+            </button>
+
+            <div className="w-px h-6 bg-zinc-800 mx-1"></div>
+
+            <button onClick={() => setIsMuted(!isMuted)} className="text-zinc-500 hover:text-white">
+              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+
+            <div
+              className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden cursor-pointer"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setVolume(Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1));
+                setIsMuted(false);
+              }}
+            >
+              <div className="h-full bg-zinc-500 rounded-full" style={{ width: `${isMuted ? 0 : volume * 100}%` }}></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Mobile Player (파일 수정 없이 사용 + Select 오버레이) */}
+      {currentTrack && mobilePlayerOpen && (
+        <>
+          <div className="md:hidden create-mobile-player">
+            <MobilePlayer
+              track={currentTrack}
+              isPlaying={isPlaying}
+              onPlayPause={() => setIsPlaying(!isPlaying)}
+              onNext={handleNext}
+              onPrev={handlePrev}
+              onClose={() => setMobilePlayerOpen(false)}
+              repeatMode={repeatMode}
+              onToggleRepeat={toggleRepeat}
+              isShuffle={isShuffle}
+              onToggleShuffle={() => setIsShuffle(!isShuffle)}
+              currentTime={currentTime}
+              duration={duration}
+              onSeek={(val: number) => { if (audioRef.current) audioRef.current.currentTime = val; }}
+              // ✅ 프리뷰 제한/락 UI 비활성화 목적
+              isRented={true}
+              // ✅ Like 버튼 클릭 에러 방지(노출은 CSS로 숨김)
+              isLiked={false}
+              onToggleLike={() => {}}
+            />
+          </div>
+
+          {/* ✅ Select 버튼 오버레이 */}
+          <div className="md:hidden fixed bottom-6 left-6 right-6 z-[110]">
+            <button
+              onClick={() => handleGoToUpload(currentTrack.job, currentTrack.rawTrack, currentTrack.index)}
+              className="w-full bg-white text-black py-4 rounded-2xl font-black shadow-2xl flex items-center justify-center gap-2 hover:bg-zinc-200 transition"
+            >
+              <UploadCloud size={18} /> {t.select}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Mobile Mini Player */}
+      {currentTrack && !mobilePlayerOpen && (
+        <div
+          className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40"
+          onClick={() => setMobilePlayerOpen(true)}
+        >
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
+              {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <Disc size={20} className="text-zinc-500 m-auto" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
+              <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 pr-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black"
+            >
+              {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

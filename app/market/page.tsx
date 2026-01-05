@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { AlertTriangle, Radio, Radius, Book, PlayCircle, Play, Pause, TrendingUp, Loader2, UploadCloud, Music as MusicIcon, Trash2, ExternalLink, Coins, CheckCircle, User, Heart, Mic2, LayoutGrid, Disc, SkipForward, SkipBack, Volume2, Star, Zap, ArrowRight, Search, Menu, ListMusic } from 'lucide-react';
+import { Wand2, AlertTriangle, Radio, Radius, Book, PlayCircle, Play, Pause, TrendingUp, Loader2, UploadCloud, Music as MusicIcon, Trash2, ExternalLink, Coins, CheckCircle, User, Heart, Mic2, LayoutGrid, Disc, SkipForward, SkipBack, Volume2, Star, Zap, ArrowRight, Search, Menu, ListMusic } from 'lucide-react';
 import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI, MELODY_IP_ADDRESS, MELODY_IP_ABI } from '../constants';
 import { supabase } from '@/utils/supabase';
 import { Link } from "@/lib/i18n";
@@ -448,6 +448,9 @@ export default function MarketPage() {
              </div>
             <div className="pt-6 mt-auto border-t border-zinc-800">
                 <Link href="/upload"><button className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group"><UploadCloud size={18} className="group-hover:text-cyan-400 transition-colors"/> <span className="text-sm">Upload & Earn</span></button></Link>
+            </div>
+            <div className="pt-4 border-t border-zinc-800">
+                <Link href="/create"><button className="w-full rounded-xl py-3 font-black text-sm flex items-center justify-center gap-2 text-white bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-blue-900/30 hover:from-cyan-400 hover:via-blue-400 hover:to-indigo-500 hover:shadow-blue-900/50 transition-all duration-200 active:scale-[0.99] group"><Wand2 size={18} className="opacity-95 group-hover:opacity-100 transition-opacity" /><span>Create Track</span></button></Link>
             </div>
          </nav>
       </aside>

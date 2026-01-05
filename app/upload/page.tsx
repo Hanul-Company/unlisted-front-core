@@ -11,6 +11,7 @@ import { getCroppedImg } from '@/utils/image';
 import toast from 'react-hot-toast';
 import { useActiveAccount } from "thirdweb/react";
 import * as mm from 'music-metadata-browser';
+import { useSearchParams } from 'next/navigation';
 
 type Contributor = { address: string; share: string; role: string; };
 
@@ -18,13 +19,14 @@ export default function UploadPage() {
   const account = useActiveAccount();
   const address = account?.address;
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   // Refs for Dropdowns (Click Outside)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLDivElement>(null);
-  const genreInputRef = useRef<HTMLDivElement>(null); // ✅ NEW
-  const moodInputRef = useRef<HTMLDivElement>(null);  // ✅ NEW
+  const genreInputRef = useRef<HTMLDivElement>(null);
+  const moodInputRef = useRef<HTMLDivElement>(null);
 
   // --- Audio State ---
   const [file, setFile] = useState<File | null>(null);
@@ -55,12 +57,12 @@ export default function UploadPage() {
   const [tagSearch, setTagSearch] = useState('');
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
 
-  // 2. Genre Logic (✅ REFACTORED)
-  const [genre, setGenre] = useState<string>(''); // 초기값 비워둠 or MUSIC_GENRES[0]
+  // 2. Genre Logic (✅ REFACTORED: Array Support)
+  const [genres, setGenres] = useState<string[]>([]); 
   const [genreSearch, setGenreSearch] = useState('');
   const [isGenreDropdownOpen, setIsGenreDropdownOpen] = useState(false);
 
-  // 3. Mood Logic (✅ REFACTORED)
+  // 3. Mood Logic
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [moodSearch, setMoodSearch] = useState('');
   const [isMoodDropdownOpen, setIsMoodDropdownOpen] = useState(false);
@@ -71,6 +73,10 @@ export default function UploadPage() {
 
   // 5. Investor Share Logic
   const [investorShare, setInvestorShare] = useState<number>(30);
+
+  // Suno Job Linking
+  const [sunoJobId, setSunoJobId] = useState<string | null>(null);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
 
   // Computed Values
   const currentTotalShare = contributors.reduce((sum, c) => sum + Number(c.share || 0), 0);
@@ -87,7 +93,7 @@ export default function UploadPage() {
     }
   }, [address]);
 
-  // Click Outside Handler (통합)
+  // Click Outside Handler
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
@@ -98,6 +104,72 @@ export default function UploadPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // 3. Auto-Fill from Query Params (Suno Integration)
+  useEffect(() => {
+    const initFromParams = async () => {
+        const pTitle = searchParams.get('title');
+        const pAudioUrl = searchParams.get('audioUrl');
+        const pCoverUrl = searchParams.get('coverUrl');
+        const pGenres = searchParams.get('genres');
+        const pMoods = searchParams.get('moods');
+        const pTags = searchParams.get('tags');
+        const pJobId = searchParams.get('jobId');
+        const pRefInfo = searchParams.get('refInfo');
+
+        if (pAudioUrl && pTitle) {
+            setIsAutoFilling(true);
+            const toastId = toast.loading("Importing from AI Studio...");
+            
+            try {
+                // A. Basic Info
+                setTitle(pTitle);
+                setSunoJobId(pJobId);
+                
+                if (pRefInfo) {
+                    const parts = pRefInfo.split(' by ');
+                    if (parts.length === 2) {
+                        setRefTrack(parts[0]);
+                        setRefArtist(parts[1]);
+                    }
+                }
+
+                // B. Tags (Fix: Handle string[] correctly)
+                // ✅ 수정 1: 콤마로 쪼개서 배열로 저장
+                if (pGenres) setGenres(pGenres.split(',').slice(0, 3)); 
+                if (pMoods) setSelectedMoods(pMoods.split(',').slice(0, 3));
+                if (pTags) setSelectedTags(pTags.split(',').slice(0, 10));
+
+                // C. Audio File
+                const audioRes = await fetch(pAudioUrl);
+                const audioBlob = await audioRes.blob();
+                const audioFile = new File([audioBlob], `${pTitle}.mp3`, { type: 'audio/mpeg' });
+                setFile(audioFile);
+
+                // D. Cover Image
+                if (pCoverUrl) {
+                    const imgRes = await fetch(pCoverUrl);
+                    const imgBlob = await imgRes.blob();
+                    setCroppedImageBlob(imgBlob);
+                    setIsManualImage(true);
+                    setImageSrc(URL.createObjectURL(imgBlob));
+                }
+
+                toast.success("Import successful!", { id: toastId });
+
+            } catch (e) {
+                console.error(e);
+                toast.error("Failed to import AI tracks.", { id: toastId });
+            } finally {
+                setIsAutoFilling(false);
+            }
+        }
+    };
+
+    if (searchParams.get('audioUrl') && !file && !isAutoFilling) {
+        initFromParams();
+    }
+  }, [searchParams]);
 
   // --- File Handlers ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,37 +212,33 @@ export default function UploadPage() {
     } catch (e) { console.error(e); }
   };
 
-  // --- [NEW] Search & Filter Logic ---
-
-  // Genre Filtering
+  // --- Search & Filter Logic ---
   const filteredGenres = MUSIC_GENRES.filter(g => 
-    g.toLowerCase().includes(genreSearch.toLowerCase())
+    g.toLowerCase().includes(genreSearch.toLowerCase()) && !genres.includes(g)
   );
 
-  // Mood Filtering (exclude selected)
   const filteredMoods = MUSIC_MOODS.filter(m => 
     m.toLowerCase().includes(moodSearch.toLowerCase()) && 
     !selectedMoods.includes(m)
   );
 
-  // Tag Filtering
   const filteredTags = MUSIC_TAGS.filter(t => 
     t.toLowerCase().includes(tagSearch.toLowerCase()) && 
     !selectedTags.includes(t)
   );
 
-  // Handlers
   const handleGenreSelect = (g: string) => {
-    setGenre(g);
-    setGenreSearch(''); // 검색어 초기화 (선택됨 표시)
-    setIsGenreDropdownOpen(false);
+      if (genres.length >= 3) return toast.error("Max 3 genres allowed.");
+      setGenres([...genres, g]);
+      setGenreSearch('');
+      setIsGenreDropdownOpen(false);
   };
 
   const handleMoodSelect = (m: string) => {
     if (selectedMoods.length >= 3) return toast.error("Max 3 moods allowed.");
     setSelectedMoods([...selectedMoods, m]);
     setMoodSearch('');
-    setIsMoodDropdownOpen(false); // 계속 선택하게 하려면 true로 유지
+    setIsMoodDropdownOpen(false);
   };
 
   const handleTagAdd = (t: string) => {
@@ -182,7 +250,8 @@ export default function UploadPage() {
   // --- Upload Logic ---
   const handleUpload = async () => {
     if (!file || !title) return toast.error("Please choose a file and enter a title.");
-    if (!genre) return toast.error("Please select a genre.");
+    // ✅ 수정 2: 배열 길이로 유효성 검사
+    if (genres.length === 0) return toast.error("Please select at least one genre.");
     const totalShare = contributors.reduce((sum, c) => sum + Number(c.share), 0);
     if (totalShare !== 100) return toast.error("Revenue split must total 100%.");
 
@@ -191,7 +260,6 @@ export default function UploadPage() {
       const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
       const timestamp = Date.now();
       
-      // Artist Info Logic... (기존 동일)
       let artistName = "Anonymous";
       let artistId = null;
       if (address) {
@@ -199,35 +267,33 @@ export default function UploadPage() {
         if (profile) { artistName = profile.username || "Anonymous"; artistId = profile.id; }
       }
 
-// 1. AI Analysis 실행
-      // ✅ 수정: 빈 배열([]) 뒤에 'as string[]'을 붙여서 타입을 명시합니다.
+      // 1. AI Analysis 실행
       let aiMetadataResult = {
           ref_artists: refArtist ? [refArtist] : [],
           ref_tracks: refTrack ? [refTrack] : [],
-          similar_artists: [] as string[], // ✅ as string[] 추가
-          voice_style: [] as string[],     // ✅ as string[] 추가
-          vibe_tags: [] as string[],       // ✅ as string[] 추가
-          analyzed_genres: [] as string[], // ✅ as string[] 추가
-          analyzed_moods: [] as string[]   // ✅ as string[] 추가
+          similar_artists: [] as string[], 
+          voice_style: [] as string[],     
+          vibe_tags: [] as string[],       
+          analyzed_genres: [] as string[], 
+          analyzed_moods: [] as string[]   
       };
 
       if (refArtist || refTrack) {
           toast.loading("AI analyzing track metadata...", { duration: 2000 });
-          // ... (이하 동일)
-          const analysis = await analyzeTrackMetadata(refArtist, refTrack, genre, selectedMoods);
-          
+          // 주의: analyzeTrackMetadata 함수도 genres(배열)를 받도록 수정되어 있어야 함
+          const analysis = await analyzeTrackMetadata(refArtist, refTrack, genres, selectedMoods);
           if (analysis) {
               aiMetadataResult = { ...aiMetadataResult, ...analysis };
           }
       }
 
-      // 2. Audio Upload (기존 동일)
+      // 2. Audio Upload
       const audioName = `${timestamp}_${safeTitle}.mp3`;
       const { error: audioErr } = await supabase.storage.from('music_assets').upload(audioName, file);
       if (audioErr) throw audioErr;
       const { data: { publicUrl: audioUrl } } = supabase.storage.from('music_assets').getPublicUrl(audioName);
 
-      // 3. Cover Upload (기존 동일)
+      // 3. Cover Upload
       let coverUrl = null;
       if (croppedImageBlob) {
         const imageName = `${timestamp}_${safeTitle}_cover.jpg`;
@@ -239,18 +305,18 @@ export default function UploadPage() {
         coverUrl = '/images/default_cover.jpg';
       }
 
-      // 4. DB Insert (✅ AI 결과 반영)
+      // 4. DB Insert
       const { data: newTrack, error: dbError } = await supabase
         .from('tracks')
         .insert([{
             title, description, lyrics, audio_url: audioUrl, cover_image_url: coverUrl,
-            genre, 
+            // ✅ 수정 3: genres 배열을 DB 'genre' 컬럼(text[])에 매핑
+            genre: genres, 
             moods: selectedMoods, 
             bpm: bpm ? parseInt(bpm) : null,
             context_tags: selectedTags,
             investor_share: investorShare * 100,
             
-            // ✅ [핵심] 여기서 AI 분석 결과를 저장
             ai_metadata: aiMetadataResult,
 
             uploader_address: address, artist_name: artistName, creation_type: creationType, artist_id: artistId,
@@ -259,12 +325,21 @@ export default function UploadPage() {
 
       if (dbError) throw dbError;
 
-      // 5. Contributors (기존 동일)
+      // Update Suno Job
+      if (sunoJobId) {
+         await supabase.from('suno_jobs').update({ 
+             status: 'published',
+             published_track_id: newTrack.id,
+             uploaded_track_id: newTrack.id
+         }).eq('id', sunoJobId);
+      }
+
+      // 5. Contributors
       const contributorsData = contributors.map(c => ({ track_id: newTrack.id, wallet_address: c.address, role: c.role, share_percentage: Number(c.share) }));
       await supabase.from('track_contributors').insert(contributorsData);
 
-      toast.dismiss(); // 로딩 토스트 끄기
-      toast.success('Upload & Analysis complete!');
+      toast.dismiss();
+      toast.success('Upload complete!');
       router.push('/market');
 
     } catch (error: any) {
@@ -275,28 +350,10 @@ export default function UploadPage() {
     }
   };
 
-  // Contributors Helpers
+  // Contributors Helpers (생략 없이 유지)
   const addContributor = () => setContributors(p => [...p, { address: '', share: '0', role: 'Contributor' }]);
-  const removeContributor = (i: number) => setContributors(p => { 
-      const n = [...p]; n.splice(i, 1); 
-      const sum = n.reduce((s, c, x) => x===0 ? s : s + Number(c.share||0), 0);
-      if(n[0]) n[0].share = String(Math.max(0, 100 - sum));
-      return n; 
-  });
-  const updateContributor = (i: number, f: keyof Contributor, v: string) => setContributors(p => {
-      const n = [...p]; if(f!=='share') { n[i] = {...n[i], [f]: v}; return n; }
-      let val = Math.max(0, Math.min(100, Number(v)));
-      if(i===0) {
-         const others = p.reduce((s, c, x) => x===0 ? s : s+Number(c.share||0), 0);
-         n[0].share = String(Math.min(val, Math.max(0, 100 - others)));
-      } else {
-         const othersExMe = p.reduce((s, c, x) => (x===0||x===i) ? s : s+Number(c.share||0), 0);
-         n[i].share = String(Math.min(val, Math.max(0, 100 - othersExMe)));
-         const sumOthers = n.reduce((s, c, x) => x===0 ? s : s+Number(c.share||0), 0);
-         if(n[0]) n[0].share = String(Math.max(0, 100 - sumOthers));
-      }
-      return n;
-  });
+  const removeContributor = (i: number) => setContributors(p => { const n = [...p]; n.splice(i, 1); const sum = n.reduce((s, c, x) => x===0 ? s : s + Number(c.share||0), 0); if(n[0]) n[0].share = String(Math.max(0, 100 - sum)); return n; });
+  const updateContributor = (i: number, f: keyof Contributor, v: string) => setContributors(p => { const n = [...p]; if(f!=='share') { n[i] = {...n[i], [f]: v}; return n; } let val = Math.max(0, Math.min(100, Number(v))); if(i===0) { const others = p.reduce((s, c, x) => x===0 ? s : s+Number(c.share||0), 0); n[0].share = String(Math.min(val, Math.max(0, 100 - others))); } else { const othersExMe = p.reduce((s, c, x) => (x===0||x===i) ? s : s+Number(c.share||0), 0); n[i].share = String(Math.min(val, Math.max(0, 100 - othersExMe))); const sumOthers = n.reduce((s, c, x) => x===0 ? s : s+Number(c.share||0), 0); if(n[0]) n[0].share = String(Math.max(0, 100 - sumOthers)); } return n; });
 
   const getInvestorTier = (share: number) => {
       if (share <= 20) return { label: "DEFENSIVE", color: "text-blue-400", desc: "Low risk for you, low appeal for investors." };
@@ -317,9 +374,17 @@ export default function UploadPage() {
           </div>
         </div>
 
-        <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+        <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl relative overflow-hidden">
+
+          {/* Loading Overlay */}
+          {isAutoFilling && (
+             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+                 <Loader2 className="animate-spin text-green-500 mb-2" size={32}/>
+                 <p className="text-sm font-bold animate-pulse">Importing track from AI Studio...</p>
+             </div>
+          )}
           
-          {/* File Upload Section (Audio & Image) */}
+          {/* File Upload Section */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div onClick={() => imageInputRef.current?.click()} className="w-32 h-32 bg-zinc-900 rounded-xl border border-dashed border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500/80 hover:bg-zinc-900/80 overflow-hidden relative shrink-0">
               <input type="file" ref={imageInputRef} onChange={handleImageChange} accept="image/*" className="hidden"/>
@@ -346,18 +411,24 @@ export default function UploadPage() {
             <div><label className="text-xs text-zinc-500 uppercase font-bold">Lyrics</label><textarea value={lyrics} onChange={(e) => setLyrics(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white h-24 resize-none text-sm focus:outline-none focus:border-cyan-500/80" placeholder="Paste full lyrics here (optional)."/></div>
           </div>
 
-          {/* ----------------------------------------------------------- */}
-          {/* ✅ [REFACTORED] Genre & Mood & Tag (Dropdown System) */}
-          {/* ----------------------------------------------------------- */}
+          {/* Dropdown Section */}
           <div className="mt-8 space-y-6">
             
-            {/* 1. Genre Selection (Single Select) */}
+            {/* ✅ 수정 4: Genre Multi-Select UI 적용 */}
             <div ref={genreInputRef} className="relative z-30">
                 <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
-                   <Disc size={12}/> Primary Genre
+                   <Disc size={12}/> Primary Genres (Max 3)
                 </label>
                 
-                {/* Selected Genre Display (or Input) */}
+                {/* 선택된 장르 배지 표시 */}
+                <div className="flex flex-wrap gap-2 mb-1"> 
+                    {genres.map(g => (
+                        <span key={g} className="bg-indigo-900/30 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
+                            {g} <button onClick={() => setGenres(genres.filter(sg => sg !== g))} className="ml-1 hover:text-white"><X size={12}/></button>
+                        </span>
+                    ))}
+                </div>
+
                 <div className="relative">
                     <input 
                         type="text"
@@ -365,7 +436,7 @@ export default function UploadPage() {
                         onFocus={() => setIsGenreDropdownOpen(true)}
                         onChange={(e) => { setGenreSearch(e.target.value); setIsGenreDropdownOpen(true); }}
                         className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-500"
-                        placeholder={genre || "Search Genre..."}
+                        placeholder="Search Genre..."
                     />
                     <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
                 </div>
@@ -374,22 +445,19 @@ export default function UploadPage() {
                     <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
                         {filteredGenres.length > 0 ? filteredGenres.map(g => (
                             <button key={g} onClick={() => handleGenreSelect(g)} className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center group">
-                                {g} {genre === g && <CheckCircle size={14} className="text-cyan-500"/>}
+                                {g} {genres.includes(g) && <CheckCircle size={14} className="text-cyan-500"/>}
                             </button>
                         )) : <div className="p-3 text-xs text-zinc-500 text-center">No matching genre</div>}
                     </div>
                 )}
             </div>
 
+            {/* Moods & Tags (기존과 동일) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* 2. Mood Selection (Multi Select) */}
                 <div ref={moodInputRef} className="relative z-20">
                     <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
                         <Smile size={12}/> Moods (Max 3)
                     </label>
-                    
-                    {/* ✅ [수정] min-h-[2rem] 삭제, mb-2 -> mb-1로 변경 */}
                     <div className="flex flex-wrap gap-2 mb-1"> 
                         {selectedMoods.map(m => (
                             <span key={m} className="bg-cyan-900/30 border border-cyan-500/30 text-cyan-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
@@ -397,7 +465,6 @@ export default function UploadPage() {
                             </span>
                         ))}
                     </div>
-
                     <div className="relative">
                         <input 
                             type="text"
@@ -409,7 +476,6 @@ export default function UploadPage() {
                         />
                         <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
                     </div>
-
                     {isMoodDropdownOpen && (
                         <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
                             {filteredMoods.length > 0 ? filteredMoods.map(m => (
@@ -421,13 +487,10 @@ export default function UploadPage() {
                     )}
                 </div>
 
-                {/* 3. Context Tags (Existing) */}
                 <div ref={tagInputRef} className="relative z-10">
                     <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
                         <Hash size={12}/> Context Tags
                     </label>
-                     
-                    {/* ✅ [수정] min-h-[2rem] 삭제, mb-2 -> mb-1로 변경 */}
                     <div className="flex flex-wrap gap-2 mb-1">
                         {selectedTags.map(t => (
                             <span key={t} className="bg-blue-900/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
@@ -435,7 +498,6 @@ export default function UploadPage() {
                             </span>
                         ))}
                     </div>
-
                     <div className="relative">
                         <input 
                             type="text"
@@ -447,7 +509,6 @@ export default function UploadPage() {
                         />
                         <Search size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
                     </div>
-
                     {isTagDropdownOpen && (
                         <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
                              {filteredTags.length > 0 ? filteredTags.map(t => (
@@ -461,7 +522,6 @@ export default function UploadPage() {
             </div>
           </div>
           
-          {/* AI Reference (Optional) */}
           <div className="mt-8 space-y-4 border-t border-zinc-800 pt-6">
               <div className="flex items-center gap-2 mb-2"><Bot size={16} className="text-purple-400"/><span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">AI Reference (Optional)</span></div>
               <p className="text-[11px] text-zinc-500 mb-4">Help our AI understand your track better.</p>
@@ -471,120 +531,24 @@ export default function UploadPage() {
               </div>
           </div>
 
-          {/* ✅ [NEW] Investor Share Slider Section */}
           <div className="mt-8 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-bold text-white flex items-center gap-2">
-                      <TrendingUp size={16} className="text-green-500"/> Investor Share
-                  </label>
-                  <span className={`text-xs font-black px-2 py-0.5 rounded border border-white/10 bg-black/50 ${tier.color}`}>
-                      {tier.label}
-                  </span>
+                  <label className="text-sm font-bold text-white flex items-center gap-2"><TrendingUp size={16} className="text-green-500"/> Investor Share</label>
+                  <span className={`text-xs font-black px-2 py-0.5 rounded border border-white/10 bg-black/50 ${tier.color}`}>{tier.label}</span>
               </div>
-              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-                  Decide how much of the <strong>future revenue</strong> you want to share with investors.<br/>
-                  Higher share = Faster funding & Viral potential.
-              </p>
-              
-              <div className="relative h-10 flex items-center mb-6 px-2">
-                  <input 
-                      type="range" 
-                      min="10" max="50" step="5" 
-                      value={investorShare} 
-                      onChange={(e) => setInvestorShare(parseInt(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-green-500 z-10 relative"
-                  />
-                  {/* Ticks */}
-                  <div className="absolute top-6 left-0 right-0 flex justify-between text-[10px] text-zinc-600 font-mono px-1">
-                      <span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span>
-                  </div>
-              </div>
-
-              {/* Simulation Box */}
+              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">Decide how much of the <strong>future revenue</strong> you want to share with investors.<br/>Higher share = Faster funding & Viral potential.</p>
+              <div className="relative h-10 flex items-center mb-6 px-2"><input type="range" min="10" max="50" step="5" value={investorShare} onChange={(e) => setInvestorShare(parseInt(e.target.value))} className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-green-500 z-10 relative"/><div className="absolute top-6 left-0 right-0 flex justify-between text-[10px] text-zinc-600 font-mono px-1"><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span></div></div>
               <div className="bg-black rounded-xl p-4 border border-zinc-800 flex items-center gap-6">
-                  <div className="w-16 h-16 relative">
-                      {/* Donut Chart Visual */}
-                      <svg viewBox="0 0 36 36" className="w-full h-full rotate-[-90deg]">
-                          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#333" strokeWidth="4" />
-                          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" strokeWidth="4" strokeDasharray={`${investorShare}, 100`} />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{investorShare}%</div>
-                  </div>
-                  <div className="flex-1 space-y-2">
-                      <div className="flex justify-between text-xs">
-                          <span className="text-zinc-500">For Investors</span>
-                          <span className="text-green-400 font-bold">{investorShare}% (Revenue)</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                          <span className="text-zinc-500">For You & Team</span>
-                          <span className="text-white font-bold">{100 - investorShare}% (Retained)</span>
-                      </div>
-                      <div className="h-px bg-zinc-800 my-1"/>
-                      <p className="text-[10px] text-zinc-500 italic">
-                          "{tier.desc}"
-                      </p>
-                  </div>
+                  <div className="w-16 h-16 relative"><svg viewBox="0 0 36 36" className="w-full h-full rotate-[-90deg]"><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#333" strokeWidth="4" /><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" strokeWidth="4" strokeDasharray={`${investorShare}, 100`} /></svg><div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{investorShare}%</div></div>
+                  <div className="flex-1 space-y-2"><div className="flex justify-between text-xs"><span className="text-zinc-500">For Investors</span><span className="text-green-400 font-bold">{investorShare}% (Revenue)</span></div><div className="flex justify-between text-xs"><span className="text-zinc-500">For You & Team</span><span className="text-white font-bold">{100 - investorShare}% (Retained)</span></div><div className="h-px bg-zinc-800 my-1"/><p className="text-[10px] text-zinc-500 italic">"{tier.desc}"</p></div>
               </div>
           </div>
 
-          {/* Contributors */}
           <div className="mt-8">
-            <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">
-              Revenue Split
-            </label>
-            <p className="text-[11px] text-zinc-500 mb-3">
-              Your share starts at 100%. When you enter other contributors’ shares, your share decreases automatically. Total must remain 100% to publish.
-            </p>
-
-            <div className="space-y-2">
-              {contributors.map((c, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={idx === 0 ? (address || '') : c.address}
-                    onChange={(e) => updateContributor(idx, 'address', e.target.value)}
-                    className={`flex-1 border rounded-lg px-3 py-2 text-[11px] sm:text-xs focus:outline-none focus:border-cyan-500/80 ${
-                      idx === 0
-                        ? 'bg-zinc-950 text-zinc-500 cursor-not-allowed border-zinc-800'
-                        : 'bg-zinc-900 text-white border-zinc-700'
-                    }`}
-                    disabled={idx === 0}
-                    placeholder="0x..."
-                  />
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={c.share}
-                      onChange={(e) => updateContributor(idx, 'share', e.target.value)}
-                      className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-[11px] sm:text-xs text-right focus:outline-none focus:border-cyan-500/80"
-                    />
-                    <span className="text-[10px] text-zinc-500">% </span>
-                  </div>
-                  {contributors.length > 1 && idx !== 0 && (
-                    <button
-                      type="button"
-                      onClick={() => removeContributor(idx)}
-                      className="text-red-400 hover:text-red-300"
-                    >
-                      <Trash2 size={16}/>
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-2 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={addContributor}
-                className="text-xs text-blue-400 flex items-center gap-1 hover:text-blue-300"
-              >
-                <Plus size={14}/> Add contributor
-              </button>
-              <div className={`text-[11px] font-mono ${totalColorClass}`}>
-                Total: {currentTotalShare}%
-              </div>
-            </div>
+            <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">Revenue Split</label>
+            <p className="text-[11px] text-zinc-500 mb-3">Your share starts at 100%. When you enter other contributors’ shares, your share decreases automatically. Total must remain 100% to publish.</p>
+            <div className="space-y-2">{contributors.map((c, idx) => (<div key={idx} className="flex items-center gap-2"><input type="text" value={idx === 0 ? (address || '') : c.address} onChange={(e) => updateContributor(idx, 'address', e.target.value)} className={`flex-1 border rounded-lg px-3 py-2 text-[11px] sm:text-xs focus:outline-none focus:border-cyan-500/80 ${idx === 0 ? 'bg-zinc-950 text-zinc-500 cursor-not-allowed border-zinc-800' : 'bg-zinc-900 text-white border-zinc-700'}`} disabled={idx === 0} placeholder="0x..."/><div className="flex items-center gap-1"><input type="number" value={c.share} onChange={(e) => updateContributor(idx, 'share', e.target.value)} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-[11px] sm:text-xs text-right focus:outline-none focus:border-cyan-500/80"/><span className="text-[10px] text-zinc-500">% </span></div>{contributors.length > 1 && idx !== 0 && (<button type="button" onClick={() => removeContributor(idx)} className="text-red-400 hover:text-red-300"><Trash2 size={16}/></button>)}</div>))}</div>
+            <div className="mt-2 flex items-center justify-between"><button type="button" onClick={addContributor} className="text-xs text-blue-400 flex items-center gap-1 hover:text-blue-300"><Plus size={14}/> Add contributor</button><div className={`text-[11px] font-mono ${totalColorClass}`}>Total: {currentTotalShare}%</div></div>
           </div>
           <button onClick={handleUpload} disabled={!file || !title || uploading} className="w-full mt-8 py-4 bg-white text-black rounded-xl font-bold hover:scale-[1.02] transition disabled:opacity-40 disabled:cursor-not-allowed">{uploading ? <span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={18}/> Publishing...</span> : 'Publish Track'}</button>
         </div>
