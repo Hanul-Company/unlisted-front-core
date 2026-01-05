@@ -5,14 +5,14 @@ import { supabase } from '@/utils/supabase';
 import { generateSunoPrompt } from '@/app/actions/generate-suno-prompt';
 import { useActiveAccount } from "thirdweb/react";
 import HeaderProfile from '../components/HeaderProfile';
-import MobilePlayer from '../components/MobilePlayer'; // ✅ 기존 컴포넌트 그대로 사용
+import MobilePlayer from '../components/MobilePlayer'; 
 import { Link } from "../../lib/i18n";
 
 import {
   Loader2, Mic2, Disc, UploadCloud, Play, Pause, Trash2,
   Clock, RefreshCw, AlertCircle, Wand2, Menu, Quote,
-  ChevronDown, Globe, Sparkles, Layers,
-  SkipBack, SkipForward, Volume2, VolumeX
+  ChevronDown, ChevronUp, Globe, Sparkles, Layers,
+  SkipBack, SkipForward, Volume2, VolumeX, Minimize2, Maximize2, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from "@/lib/i18n";
@@ -137,12 +137,11 @@ export default function CreateDashboard() {
   const [username, setUsername] = useState<string>('Creator');
 
   // --- Input State ---
-  const [refTrack, setRefTrack] = useState(''); // (기존 유지)
   const [refSongTitle, setRefSongTitle] = useState('');
   const [refSongArtist, setRefSongArtist] = useState('');
   const [targetVoice, setTargetVoice] = useState('');
   const [targetTitle, setTargetTitle] = useState('');
-  const [lyrics, setLyrics] = useState('');
+  const [userLyrics, setLyrics] = useState('');
   const [etcInfo, setEtcInfo] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -150,7 +149,7 @@ export default function CreateDashboard() {
   const [jobs, setJobs] = useState<SunoJob[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
 
-  // --- Player State (Footer/Mobile 동기화) ---
+  // --- Player State ---
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -159,8 +158,9 @@ export default function CreateDashboard() {
   const [volume, setVolume] = useState(0.9);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Mobile Player UI state
+  // Mobile & Minimized Player UI state
   const [mobilePlayerOpen, setMobilePlayerOpen] = useState(false);
+  const [isPlayerMinimized, setIsPlayerMinimized] = useState(false); // ✅ [추가] 데스크탑 플레이어 최소화 상태
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffle, setIsShuffle] = useState(false);
 
@@ -187,6 +187,7 @@ export default function CreateDashboard() {
     setDuration(0);
     setCurrentTrack(pt);
     setIsPlaying(true);
+    setIsPlayerMinimized(false); // 재생 시 플레이어 다시 켬
   };
 
   const resolveTracksOfCurrentJob = () => currentTrack?.job?.result_data?.tracks || [];
@@ -325,7 +326,7 @@ export default function CreateDashboard() {
         refSongArtist,
         targetVoice,
         targetTitle,
-        lyrics,
+        userLyrics,
         etcInfo
       );
 
@@ -402,7 +403,7 @@ export default function CreateDashboard() {
         onEnded={handleNext}
       />
 
-      {/* MobilePlayer 내부 Like/Invest 버튼 숨김용(파일 수정 없이) */}
+      {/* CSS Hack: MobilePlayer 내부 버튼 숨김 */}
       <style jsx global>{`
         .create-mobile-player button:has(.lucide-heart),
         .create-mobile-player button:has(.lucide-zap) {
@@ -436,7 +437,9 @@ export default function CreateDashboard() {
       </header>
 
       {/* Main Content: Split View */}
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 lg:p-8 pb-32 md:pb-24 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* ✅ [수정] pb-32 추가하여 하단 플레이어 공간 확보 */}
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 lg:p-8 pb-40 md:pb-32 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
         {/* === LEFT PANEL: Request Input (Sticky) === */}
         <div className="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-24 h-fit">
           {/* Welcome & Badge */}
@@ -489,7 +492,7 @@ export default function CreateDashboard() {
               </h3>
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.lyrics}</label>
-                <textarea value={lyrics} onChange={e => setLyrics(e.target.value)} placeholder={t.lyrics_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm h-20 focus:border-zinc-500 outline-none resize-none transition" />
+                <textarea value={userLyrics} onChange={e => setLyrics(e.target.value)} placeholder={t.lyrics_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm h-20 focus:border-zinc-500 outline-none resize-none transition" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.vibe}</label>
@@ -498,25 +501,31 @@ export default function CreateDashboard() {
             </div>
 
             {/* Submit Button */}
-            <button
-              onClick={handleRequestCreate}
-              disabled={isSubmitting || !account?.address}
-              className={`group relative w-full rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 p-[2px]
-                shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] hover:scale-[1.01]
-                transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <div className="absolute inset-[2px] bg-zinc-900 rounded-[10px] transition-opacity duration-300 ease-in-out group-hover:opacity-0" />
-              <div className="relative z-10 flex items-center justify-center gap-2 py-4 font-black text-white tracking-wide">
-                {isSubmitting ? (
-                  <Loader2 className="animate-spin text-white" />
-                ) : (
-                  <>
-                    <Wand2 size={20} className="text-cyan-300 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
-                    <span className="group-hover:text-white transition-colors">{t.btn_generate}</span>
-                  </>
-                )}
-              </div>
-            </button>
+            <div className="space-y-2">
+                <button
+                onClick={handleRequestCreate}
+                disabled={isSubmitting || !account?.address}
+                className={`group relative w-full rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 p-[2px]
+                    shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] hover:scale-[1.01]
+                    transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                <div className="absolute inset-[2px] bg-zinc-900 rounded-[10px] transition-opacity duration-300 ease-in-out group-hover:opacity-0" />
+                <div className="relative z-10 flex items-center justify-center gap-2 py-4 font-black text-white tracking-wide">
+                    {isSubmitting ? (
+                    <Loader2 className="animate-spin text-white" />
+                    ) : (
+                    <>
+                        <Wand2 size={20} className="text-cyan-300 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
+                        <span className="group-hover:text-white transition-colors">{t.btn_generate}</span>
+                    </>
+                    )}
+                </div>
+                </button>
+                {/* ✅ [추가] Beta Notice */}
+                <p className="text-center text-[10px] text-zinc-600">
+                    (Still a beta version. May take 1~10 mins to create)
+                </p>
+            </div>
           </div>
         </div>
 
@@ -524,12 +533,23 @@ export default function CreateDashboard() {
         <div className="lg:col-span-7 flex flex-col gap-4">
           <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
             <h3 className="font-bold text-lg text-white flex items-center gap-2">
-              <RefreshCw size={18} className="text-zinc-500" /> {t.queue_title}
+              {t.queue_title}
               <span className="bg-zinc-800 text-zinc-400 text-xs px-2 py-0.5 rounded-full">{jobs.length}</span>
             </h3>
-            <button onClick={fetchJobs} className="text-xs text-zinc-500 hover:text-white transition flex items-center gap-1">
-              <Clock size={12} /> {t.history}
-            </button>
+            
+            {/* ✅ [수정] 새로고침 버튼 */}
+            <div className="flex items-center gap-2">
+                <button 
+                    onClick={fetchJobs} 
+                    className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-full text-xs font-bold text-zinc-400 hover:text-white hover:border-zinc-500 transition"
+                >
+                    <RefreshCw size={12} className={loadingJobs ? "animate-spin" : ""}/> 
+                    {loadingJobs ? "Loading..." : "Refresh Queue"}
+                </button>
+                <button className="text-xs text-zinc-500 hover:text-white transition flex items-center gap-1 ml-2">
+                    <Clock size={12} /> {t.history}
+                </button>
+            </div>
           </div>
 
           {loadingJobs && <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-zinc-600" size={32} /></div>}
@@ -598,14 +618,15 @@ export default function CreateDashboard() {
                     {/* Info Block */}
                     <div className="mb-6 flex flex-col md:flex-row gap-4 items-start">
                       <div className="flex-1 bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50">
+                        {/* ✅ [수정] Quote 스타일 개선 (따옴표 제거, 깔끔하게) */}
                         <div className="flex gap-3 mb-2">
-                          <Quote size={16} className="text-zinc-600 shrink-0" />
-                          <p className="text-sm text-zinc-300 italic">
-                            Based on <strong className="text-white not-italic">{job.ref_track}</strong><br />
-                            Voice style of <strong className="text-blue-400 not-italic">{job.ref_artist}</strong>
-                          </p>
+                          <Quote size={16} className="text-zinc-600 shrink-0 mt-1" />
+                          <div className="text-sm text-zinc-300 italic space-y-1">
+                            <p>Based on <strong className="text-white not-italic">{job.ref_track}</strong></p>
+                            <p>Voice style of <strong className="text-blue-400 not-italic">{job.ref_artist}</strong></p>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 ml-7">
+                        <div className="flex flex-wrap gap-1.5 ml-7 mt-3">
                           {job.genres?.slice(0, 3).map(g => <span key={g} className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20">{g}</span>)}
                           {job.moods?.slice(0, 3).map(m => <span key={m} className="text-[10px] px-2 py-0.5 bg-purple-500/10 text-purple-400 rounded border border-purple-500/20">{m}</span>)}
                         </div>
@@ -676,9 +697,9 @@ export default function CreateDashboard() {
         </div>
       </main>
 
-      {/* ✅ Desktop Footer Player (Select only, no time limit) */}
-      {currentTrack && (
-        <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl">
+      {/* ✅ Desktop Footer Player (with Minimize) */}
+      {currentTrack && !isPlayerMinimized && (
+        <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl animate-in slide-in-from-bottom-5">
           <div className="flex items-center gap-4 w-1/3">
             <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative">
               {currentTrack.cover_image_url ? (
@@ -729,25 +750,32 @@ export default function CreateDashboard() {
 
             <div className="w-px h-6 bg-zinc-800 mx-1"></div>
 
-            <button onClick={() => setIsMuted(!isMuted)} className="text-zinc-500 hover:text-white">
-              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            {/* ✅ [추가] Minimize Button */}
+            <button onClick={() => setIsPlayerMinimized(true)} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-full transition">
+                <Minimize2 size={18}/>
             </button>
-
-            <div
-              className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden cursor-pointer"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setVolume(Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1));
-                setIsMuted(false);
-              }}
-            >
-              <div className="h-full bg-zinc-500 rounded-full" style={{ width: `${isMuted ? 0 : volume * 100}%` }}></div>
-            </div>
           </div>
         </div>
       )}
 
-      {/* ✅ Mobile Player (파일 수정 없이 사용 + Select 오버레이) */}
+      {/* ✅ [추가] Minimized Floating Player (Desktop) */}
+      {currentTrack && isPlayerMinimized && (
+          <div 
+            onClick={() => setIsPlayerMinimized(false)}
+            className="hidden md:flex fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-700 rounded-full p-2 pr-6 items-center gap-3 shadow-2xl cursor-pointer hover:scale-105 transition animate-in zoom-in slide-in-from-bottom-5"
+          >
+              <div className={`w-10 h-10 rounded-full overflow-hidden border border-zinc-800 ${isPlaying ? 'animate-spin-slow' : ''}`}>
+                  <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/>
+              </div>
+              <div>
+                  <div className="text-xs font-bold text-white max-w-[100px] truncate">{currentTrack.title}</div>
+                  <div className="text-[10px] text-green-400">{isPlaying ? "Playing..." : "Paused"}</div>
+              </div>
+              <Maximize2 size={14} className="text-zinc-500 ml-2"/>
+          </div>
+      )}
+
+      {/* ✅ Mobile Player & Select Overlay (기존 유지) */}
       {currentTrack && mobilePlayerOpen && (
         <>
           <div className="md:hidden create-mobile-player">
@@ -765,15 +793,11 @@ export default function CreateDashboard() {
               currentTime={currentTime}
               duration={duration}
               onSeek={(val: number) => { if (audioRef.current) audioRef.current.currentTime = val; }}
-              // ✅ 프리뷰 제한/락 UI 비활성화 목적
               isRented={true}
-              // ✅ Like 버튼 클릭 에러 방지(노출은 CSS로 숨김)
               isLiked={false}
               onToggleLike={() => {}}
             />
           </div>
-
-          {/* ✅ Select 버튼 오버레이 */}
           <div className="md:hidden fixed bottom-6 left-6 right-6 z-[110]">
             <button
               onClick={() => handleGoToUpload(currentTrack.job, currentTrack.rawTrack, currentTrack.index)}
@@ -792,7 +816,7 @@ export default function CreateDashboard() {
           onClick={() => setMobilePlayerOpen(true)}
         >
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
+            <div className={`w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative ${isPlaying ? 'animate-pulse' : ''}`}>
               {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <Disc size={20} className="text-zinc-500 m-auto" />}
             </div>
             <div className="flex-1 min-w-0">
@@ -803,7 +827,7 @@ export default function CreateDashboard() {
           <div className="flex items-center gap-3 pr-1">
             <button
               onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black"
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black shadow-lg"
             >
               {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
             </button>

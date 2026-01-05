@@ -20,6 +20,7 @@ export default function UploadPage() {
   const address = account?.address;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const hasImported = useRef(false);
   
   // Refs for Dropdowns (Click Outside)
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -117,7 +118,8 @@ export default function UploadPage() {
         const pJobId = searchParams.get('jobId');
         const pRefInfo = searchParams.get('refInfo');
 
-        if (pAudioUrl && pTitle) {
+        if (pAudioUrl && pTitle && !hasImported.current) {
+            hasImported.current = true; // 🚩 실행 플래그 세우기 (중복 방지)
             setIsAutoFilling(true);
             const toastId = toast.loading("Importing from AI Studio...");
             
@@ -369,7 +371,7 @@ export default function UploadPage() {
         <div className="flex items-center gap-3 mb-8">
           <Link href="/" className="p-2 bg-zinc-900/80 rounded-full hover:bg-zinc-800 transition border border-zinc-700/70"><ArrowLeft size={18} /></Link>
           <div>
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">Upload Masterpiece</h1>
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">Publish</h1>
             <p className="text-xs text-zinc-500 mt-1">Upload your master track to the unlisted ecosystem.</p>
           </div>
         </div>
@@ -386,15 +388,45 @@ export default function UploadPage() {
           
           {/* File Upload Section */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            
+            {/* Image Upload Box (기존 유지) */}
             <div onClick={() => imageInputRef.current?.click()} className="w-32 h-32 bg-zinc-900 rounded-xl border border-dashed border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500/80 hover:bg-zinc-900/80 overflow-hidden relative shrink-0">
               <input type="file" ref={imageInputRef} onChange={handleImageChange} accept="image/*" className="hidden"/>
               {croppedImageBlob ? <img src={URL.createObjectURL(croppedImageBlob)} className="w-full h-full object-cover"/> : <><ImageIcon size={24} className="text-zinc-500 mb-1"/><span className="text-[10px] text-zinc-500 text-center leading-tight">300x300<br/>Cover Art</span></>}
             </div>
+            {/* Image Remove Button */}
             {croppedImageBlob && <button onClick={(e) => { e.stopPropagation(); setCroppedImageBlob(null); setIsManualImage(false); if (imageInputRef.current) imageInputRef.current.value = ''; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"><X size={14}/></button>}
             
-            <div onClick={() => fileInputRef.current?.click()} className={`flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${file ? 'border-green-500/80 bg-green-500/10' : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'}`}>
+            {/* ✅ [수정 2] Audio Upload Box */}
+            <div 
+                onClick={() => fileInputRef.current?.click()} 
+                // ✨ 'relative' 클래스 추가 (자식 버튼 위치 기준점)
+                className={`relative flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${file ? 'border-green-500/80 bg-green-500/10' : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'}`}
+            >
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" className="hidden"/>
-              {file ? <><Music size={24} className="text-green-400 mb-2"/><p className="text-green-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">{file.name}</p></> : <><UploadCloud size={24} className="text-zinc-400 mb-2"/><p className="text-zinc-300 font-medium text-xs sm:text-sm">Upload MP3 / WAV</p></>}
+              {file ? (
+                  <>
+                    <Music size={24} className="text-green-400 mb-2"/>
+                    <p className="text-green-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">{file.name}</p>
+                    
+                    {/* ✨ 오디오 삭제 버튼 추가 (박스 안쪽 우상단) */}
+                    <button 
+                        onClick={(e) => { 
+                            e.stopPropagation(); // 클릭 시 파일 탐색기 열림 방지
+                            setFile(null); 
+                            if(fileInputRef.current) fileInputRef.current.value = ''; 
+                        }} 
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"
+                    >
+                        <X size={14}/>
+                    </button>
+                  </>
+              ) : (
+                  <>
+                    <UploadCloud size={24} className="text-zinc-400 mb-2"/>
+                    <p className="text-zinc-300 font-medium text-xs sm:text-sm">Upload MP3 / WAV</p>
+                  </>
+              )}
             </div>
           </div>
 
