@@ -12,4 +12,5 @@ export const client = createThirdwebClient({
 });
 
 // Polygon Amoy Testnet 설정
-export const chain = defineChain({id:80002,rpc: "https://soft-misty-fog.matic-amoy.quiknode.pro/d0495edf3a9a23405ec71e33e2c7fa851e323076/"});
+export const chain = defineChain({id:80002,rpc: "https://polygon-amoy-bor-rpc.publicnode.com"});
+

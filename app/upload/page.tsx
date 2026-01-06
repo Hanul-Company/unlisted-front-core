@@ -370,7 +370,7 @@ function UploadContent() {
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-white px-4 py-8 sm:px-6 font-sans flex justify-center">
       <div className="w-full max-w-2xl">
         <div className="flex items-center gap-3 mb-8">
-          <Link href="/" className="p-2 bg-zinc-900/80 rounded-full hover:bg-zinc-800 transition border border-zinc-700/70"><ArrowLeft size={18} /></Link>
+          <Link href="/market" className="p-2 bg-zinc-900/80 rounded-full hover:bg-zinc-800 transition border border-zinc-700/70"><ArrowLeft size={18} /></Link>
           <div>
             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">Publish</h1>
             <p className="text-xs text-zinc-500 mt-1">Upload your master track to the unlisted ecosystem.</p>

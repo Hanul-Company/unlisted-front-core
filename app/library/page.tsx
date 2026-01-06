@@ -1087,6 +1087,7 @@ export default function LibraryPage() {
                 onClose={() => setShowRentalModal(false)}
                 onConfirm={handleExtendConfirm}
                 isLoading={false}
+                isExtension={true} // 👈 여기만 추가!
             />
         )}
         

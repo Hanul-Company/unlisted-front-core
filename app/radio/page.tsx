@@ -194,9 +194,60 @@ function RadioContent() {
       setShowPlaylistModal(true);
   };
   const processCollect = async (playlistId: string | 'liked') => {
-      // (기존 로직 유지 - 코드 길이상 생략, 이전 코드와 동일하게 구현)
-      toast.success("Added to library! (Simulation)");
-      setShowPlaylistModal(false);
+    if (!address) return toast.error("Wallet not connected.");
+
+    setShowPlaylistModal(false);
+
+    if (!tempRentalTerms) return toast.error("Error: Missing collection terms.");
+    const { months, price } = tempRentalTerms;
+
+    const toastId = toast.loading("Processing payment...");
+
+    try {
+      const { data: rpcResult } = await supabase.rpc('add_to_collection_using_p_mld_by_wallet', {
+        p_wallet_address: address,
+        p_track_id: currentTrack.id,
+        p_duration_months: months
+      });
+
+      if (rpcResult === 'OK') {
+        if (playlistId !== 'liked') {
+          await supabase.from('playlist_items').insert({ playlist_id: parseInt(playlistId), track_id: currentTrack.id });
+        }
+        await supabase.from('likes').upsert({ wallet_address: address, track_id: currentTrack.id }, { onConflict: 'wallet_address, track_id' });
+        toast.success("Collected using pMLD!", { id: toastId });
+        setTempRentalTerms(null);
+        return;
+      }
+
+      if (rpcResult === 'INSUFFICIENT_PMLD') {
+        toast.loading(`Insufficient pMLD. Requesting ${price} MLD...`, { id: toastId });
+
+        const { data: mldRpcResult } = await supabase.rpc('add_to_collection_using_mld_by_wallet', {
+            p_wallet_address: address,
+            p_track_id: currentTrack.id,
+            p_duration_months: months,
+            p_amount_mld: price
+        });
+
+        if (mldRpcResult === 'OK') {
+            if (playlistId !== 'liked') {
+                 await supabase.from('playlist_items').insert({ playlist_id: parseInt(playlistId), track_id: currentTrack.id });
+            }
+            await supabase.from('likes').upsert({ wallet_address: address, track_id: currentTrack.id }, { onConflict: 'wallet_address, track_id' });
+            toast.success("Payment complete via MLD!", { id: toastId });
+        } else {
+            toast.error("MLD Payment failed: " + mldRpcResult, { id: toastId });
+        }
+        setTempRentalTerms(null);
+      } else {
+        toast.error(`Error: ${rpcResult}`, { id: toastId });
+      }
+
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "An error occurred", { id: toastId });
+    }
   };
 
   // ==================================================================================
