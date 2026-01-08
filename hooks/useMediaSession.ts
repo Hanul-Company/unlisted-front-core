@@ -7,7 +7,7 @@ interface UseMediaSessionProps {
   album?: string;
   coverUrl: string;
   isPlaying: boolean;
-  audioRef: React.RefObject<HTMLAudioElement>;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
   play: () => void;
   pause: () => void;
   next?: () => void;

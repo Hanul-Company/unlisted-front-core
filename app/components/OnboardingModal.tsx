@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Loader2, Sparkles, CheckCircle, Music } from 'lucide-react';
+// ✅ X 아이콘 추가
+import { Loader2, Sparkles, CheckCircle, Music, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { analyzeUserTaste } from '@/app/actions/analyze-music'; // 아까 만든 서버 액션 활용
+import { analyzeUserTaste } from '@/app/actions/analyze-music';
 
 interface OnboardingModalProps {
   userAddress: string;
@@ -14,7 +15,7 @@ interface OnboardingModalProps {
 }
 
 export default function OnboardingModal({ userAddress, initialUsername, initialAvatar, onComplete }: OnboardingModalProps) {
-  const [step, setStep] = useState(1); // 1: Welcome & Name, 2: Music Taste
+  const [step, setStep] = useState(1);
   const [username, setUsername] = useState(initialUsername);
   const [loading, setLoading] = useState(false);
   
@@ -26,12 +27,10 @@ export default function OnboardingModal({ userAddress, initialUsername, initialA
     const toastId = toast.loading("Setting up your profile...");
 
     try {
-      // 1. AI Analysis (입력된 아티스트가 있을 경우)
       const cleanArtists = artists.filter(a => a.trim() !== '');
       let musicTasteData = {};
 
       if (cleanArtists.length > 0) {
-          // 트랙 정보는 없으니 빈 배열로 보냄
           const result = await analyzeUserTaste(cleanArtists, []); 
           if (result) {
             musicTasteData = {
@@ -42,20 +41,18 @@ export default function OnboardingModal({ userAddress, initialUsername, initialA
           }
       }
 
-      // 2. Update Profile
       const { error } = await supabase
         .from('profiles')
         .update({
           username: username,
-          music_taste: musicTasteData, // AI 분석 결과 저장
-          // avatar는 이미 생성때 들어갔으므로 수정 안함 (필요하면 추가)
+          music_taste: musicTasteData,
         })
         .eq('wallet_address', userAddress);
 
       if (error) throw error;
 
       toast.success("Welcome to Unlisted!", { id: toastId });
-      onComplete(); // 모달 닫기
+      onComplete();
     } catch (e: any) {
       toast.error(e.message, { id: toastId });
     } finally {
@@ -63,15 +60,32 @@ export default function OnboardingModal({ userAddress, initialUsername, initialA
     }
   };
 
+  // ✅ 나중에 하기 (X 버튼 핸들러)
+  const handleSkip = () => {
+    onComplete(); // 저장 없이 그냥 닫기
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+    // ✅ 정중앙 정렬 보장: flex items-center justify-center
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+      
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        
+        {/* ✅ [추가됨] X 닫기 버튼 (우측 상단) */}
+        <button 
+            onClick={handleSkip}
+            className="absolute top-4 right-4 text-zinc-500 hover:text-white transition p-2 rounded-full hover:bg-zinc-800 z-50"
+            title="Do it later"
+        >
+            <X size={20} />
+        </button>
+
         {/* Background Deco */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/2"/>
 
         <div className="relative z-10 text-center">
             <div className="w-16 h-16 mx-auto bg-zinc-800 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-900/20 border-2 border-zinc-800">
-                {initialAvatar ? <img src={initialAvatar} className="w-full h-full rounded-full"/> : <Sparkles className="text-green-400"/>}
+                {initialAvatar ? <img src={initialAvatar} className="w-full h-full rounded-full object-cover"/> : <Sparkles className="text-green-400"/>}
             </div>
 
             <h2 className="text-2xl font-black text-white mb-2">Welcome, Investor!</h2>
