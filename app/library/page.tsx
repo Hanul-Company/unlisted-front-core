@@ -21,7 +21,8 @@ import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { client, chain } from "@/utils/thirdweb";
 import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants'; 
-import { parseEther } from 'viem'; 
+import { parseEther } from 'viem';
+import { useMediaSession } from '@/hooks/useMediaSession';
 
 type Track = { 
   id: number; 
@@ -462,6 +463,26 @@ export default function LibraryPage() {
 
   const filteredTracks = tracks.filter(t => t && t.title && t.title.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredModalTracks = likedTracks.filter(t => t && t.title && t.title.toLowerCase().includes(modalSearchQuery.toLowerCase()));
+
+  // ✅ [적용] 딱 이 부분만 추가하면 됩니다!
+  useMediaSession({
+    title: currentTrack?.title || "No Title",
+    artist: currentTrack?.artist_name || "Unknown",
+    coverUrl: currentTrack?.cover_image_url || "",
+    isPlaying: isPlaying,
+    //@ts-ignore
+    audioRef: audioRef,
+    play: () => setIsPlaying(true),
+    pause: () => setIsPlaying(false),
+    next: handleNext, // 다음 곡 함수
+    prev: handlePrev, // 이전 곡 함수
+    seekTo: (time) => { // (선택사항) 탐색 기능
+        if(audioRef.current) {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+        }
+    }
+  });
 
   return (
     <div className="flex h-screen bg-black text-white font-sans overflow-hidden">

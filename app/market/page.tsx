@@ -17,6 +17,7 @@ import TokenBalance from '../components/TokenBalance';
 import HorizontalScroll from '../components/HorizontalScroll'; 
 import InvestmentCard from '../components/InvestmentCard';
 import { formatEther, parseEther } from 'viem';
+import { useMediaSession } from '@/hooks/useMediaSession';
 
 // [Thirdweb Imports]
 import { getContract, prepareContractCall } from "thirdweb";
@@ -405,10 +406,32 @@ export default function MarketPage() {
     } else audio.pause();
   }, [currentTrack, isPlaying]);
 
+  
+
   const handleNext = () => { if (!currentTrack) return; const list = newTracks; const idx = list.findIndex(t => t.id === currentTrack.id); if (idx !== -1 && idx < list.length - 1) setCurrentTrack(list[idx + 1]); };
   const handlePrev = () => { if (!currentTrack) return; const list = newTracks; const idx = list.findIndex(t => t.id === currentTrack.id); if (idx > 0) setCurrentTrack(list[idx - 1]); };
   const formatTime = (time: number) => { if(isNaN(time)) return "0:00"; const min = Math.floor(time / 60); const sec = Math.floor(time % 60); return `${min}:${sec < 10 ? '0' : ''}${sec}`; };
   const isCurrentTrackRented = currentTrack ? rentedTrackIds.has(currentTrack.id) : false;
+
+    // ✅ [적용] 딱 이 부분만 추가하면 됩니다!
+  useMediaSession({
+    title: currentTrack?.title || "No Title",
+    artist: currentTrack?.artist_name || "Unknown",
+    coverUrl: currentTrack?.cover_image_url || "",
+    isPlaying: isPlaying,
+    //@ts-ignore
+    audioRef: audioRef,
+    play: () => setIsPlaying(true),
+    pause: () => setIsPlaying(false),
+    next: handleNext, // 다음 곡 함수
+    prev: handlePrev, // 이전 곡 함수
+    seekTo: (time) => { // (선택사항) 탐색 기능
+        if(audioRef.current) {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+        }
+    }
+  });
 
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden font-sans">

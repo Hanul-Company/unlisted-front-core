@@ -12,6 +12,7 @@ import RentalModal from '../components/RentalModal';
 import TradeModal from '../components/TradeModal';
 import PlaylistSelectionModal from '../components/PlaylistSelectionModal';
 import { useRouter } from 'next/navigation';
+import { useMediaSession } from '@/hooks/useMediaSession';
 
 function RadioContent() {
   const account = useActiveAccount();
@@ -365,6 +366,25 @@ function RadioContent() {
       </div>
     );
   }
+
+  // ✅ [적용] 딱 이 부분만 추가하면 됩니다!
+  useMediaSession({
+    title: currentTrack?.title || "No Title",
+    artist: currentTrack?.artist_name || "Unknown",
+    coverUrl: currentTrack?.cover_image_url || "",
+    isPlaying: isPlaying,
+    //@ts-ignore
+    audioRef: audioRef,
+    play: () => setIsPlaying(true),
+    pause: () => setIsPlaying(false),
+    next: handleSkip, // 다음 곡 함수
+    seekTo: (time) => { // (선택사항) 탐색 기능
+        if(audioRef.current) {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+        }
+    }
+  });
 
 
   // ==================================================================================
