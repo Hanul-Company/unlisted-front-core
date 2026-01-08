@@ -5,6 +5,7 @@ import { ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Repeat1, Shuff
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareButton from './ui/ShareButton';
+import { Link } from "@/lib/i18n";
 
 interface MobilePlayerProps {
   track: any;
@@ -101,7 +102,7 @@ export default function MobilePlayer({
                         assetId={track.id.toString()}
                         trackData={{
                             title: track.title,
-                            artist: track.artist_name,
+                            artist: track.artist?.username,
                             coverUrl: track.cover_image_url || ""
                         }}
                         className="bg-black/20 backdrop-blur-md border border-white/5"
@@ -174,9 +175,12 @@ export default function MobilePlayer({
                         <h2 className="text-2xl font-black tracking-tight truncate text-white">
                             {track.title}
                         </h2>
-                        <p className="text-zinc-400 text-sm font-medium truncate">
-                            {track.artist_name}
-                        </p>
+                        <Link 
+                            href={`/u?wallet=${track.artist?.wallet_address}`} 
+                            className="text-sm font-medium text-zinc-400 hover:text-white hover:underline transition"
+                            >
+                            {track.artist?.username}
+                        </Link>
                     </div>
 
                     {/* Controls */}

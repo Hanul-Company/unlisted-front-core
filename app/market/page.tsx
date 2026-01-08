@@ -40,6 +40,12 @@ type Track = {
   created_at: string;
   mint_error?: string | null;
   duplicate_of_track_id?: number | null;
+  genre?: string[] | string | null; // 아까 배열로 바뀐 부분 대응
+  artist?: { 
+    username: string | null;
+    wallet_address: string | null;
+    avatar_url: string | null;
+  } | null;
 };
 
 type FeaturedPlaylist = {
@@ -71,7 +77,7 @@ function DuplicateCheckModal({ isOpen, onClose, originalTrack, onPlay }: any) {
                     <div className="flex-1 min-w-0">
                         <div className="text-[10px] text-zinc-500 uppercase font-bold mb-0.5">Original Registered Track</div>
                         <div className="font-bold text-white truncate">{originalTrack.title}</div>
-                        <div className="text-xs text-zinc-500 truncate">{originalTrack.artist_name}</div>
+                        <div className="text-xs text-zinc-500 truncate">{originalTrack.artist?.username}</div>
                     </div>
                     <button onClick={() => onPlay(originalTrack)} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition">
                         <Play size={16} fill="black" className="ml-0.5"/>
@@ -205,11 +211,11 @@ export default function MarketPage() {
       setHotPlaylists(formattedHotPlaylists);
 
       // [3] Fresh Drops
-      const { data: newData } = await supabase.from('tracks').select('*').order('created_at', { ascending: false }).limit(15);
+      const { data: newData } = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').order('created_at', { ascending: false }).limit(15);
       setNewTracks(newData || []);
 
       // [4] Invest Tracks
-      const { data: allData } = await supabase.from('tracks').select('*').eq('is_minted', true).limit(20);
+      const { data: allData } = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').eq('is_minted', true).limit(20);
       setInvestTracks((allData || []).slice(0, 5));
 
       // [5] Creators
@@ -250,7 +256,7 @@ export default function MarketPage() {
       setIsSearching(true);
       try {
           const [tracksRes, creatorsRes, playlistsRes] = await Promise.all([
-              supabase.from('tracks').select('*').ilike('title', `%${query}%`).limit(10),
+              supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').ilike('title', `%${query}%`).limit(10),
               supabase.from('profiles').select('*').ilike('username', `%${query}%`).limit(10),
               supabase.from('playlists').select('*').ilike('name', `%${query}%`).limit(10)
           ]);
@@ -386,7 +392,7 @@ export default function MarketPage() {
       if (!originalTrackId) return;
       const toastId = toast.loading("Checking info...");
       try {
-          const { data, error } = await supabase.from('tracks').select('*').eq('id', originalTrackId).single();
+          const { data, error } = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').eq('id', originalTrackId).single();
           if (error || !data) throw new Error("Original track not found");
           setDuplicateOriginalTrack(data);
           setShowDuplicateModal(true);
@@ -413,10 +419,10 @@ export default function MarketPage() {
   const formatTime = (time: number) => { if(isNaN(time)) return "0:00"; const min = Math.floor(time / 60); const sec = Math.floor(time % 60); return `${min}:${sec < 10 ? '0' : ''}${sec}`; };
   const isCurrentTrackRented = currentTrack ? rentedTrackIds.has(currentTrack.id) : false;
 
-    // ✅ [적용] 딱 이 부분만 추가하면 됩니다!
+  // ✅ [적용] 딱 이 부분만 추가하면 됩니다!
   useMediaSession({
     title: currentTrack?.title || "No Title",
-    artist: currentTrack?.artist_name || "Unknown",
+    artist: currentTrack?.artist?.username || "Unknown",
     coverUrl: currentTrack?.cover_image_url || "",
     isPlaying: isPlaying,
     //@ts-ignore
@@ -520,7 +526,7 @@ export default function MarketPage() {
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><Play fill="white"/></div>
                                 </div>
                                 <h3 className="font-bold text-sm truncate">{t.title}</h3>
-                                <p className="text-xs text-zinc-500 truncate">{t.artist_name}</p>
+                                <p className="text-xs text-zinc-500 truncate">{t.artist?.username}</p>
                             </div>
                         ))}
                     </HorizontalScroll>
@@ -587,7 +593,7 @@ export default function MarketPage() {
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><Play fill="white"/></div>
                                 </div>
                                 <h3 className="font-bold text-sm truncate">{t.title}</h3>
-                                <p className="text-xs text-zinc-500 truncate">{t.artist_name}</p>
+                                <p className="text-xs text-zinc-500 truncate">{t.artist?.username}</p>
                             </div>
                         ))}
                     </HorizontalScroll>
@@ -690,7 +696,7 @@ export default function MarketPage() {
                                                     </div>
                                                     <div>
                                                         <div className="font-bold text-base text-white">{track.title}</div>
-                                                        <div className="text-xs text-zinc-500">{track.artist_name || 'Unlisted Artist'}</div>
+                                                        <Link href={`/u?wallet=${track.artist?.wallet_address}`} className="text-xs text-zinc-500">{track.artist?.username || 'Unlisted Artist'}</Link>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
@@ -757,13 +763,12 @@ export default function MarketPage() {
         )}
       </main>
 
-        {/* ✅ Mobile Full Player */}
+      {/* ✅ Mobile Full Player */}
       {currentTrack && mobilePlayerOpen && ( <MobilePlayer track={currentTrack} isPlaying={isPlaying} onPlayPause={() => setIsPlaying(!isPlaying)} onNext={handleNext} onPrev={handlePrev} onClose={() => setMobilePlayerOpen(false)} repeatMode={repeatMode} onToggleRepeat={() => setRepeatMode(repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off')} isShuffle={isShuffle} onToggleShuffle={() => setIsShuffle(!isShuffle)} currentTime={currentTime} duration={duration} onSeek={(val) => { if(audioRef.current) audioRef.current.currentTime = val; }} isLiked={likedTrackIds.has(currentTrack.id)} isRented={rentedTrackIds.has(currentTrack.id)} onToggleLike={() => handleToggleLike(currentTrack)} onInvest={currentTrack.is_minted ? () => handleInvest(currentTrack) : undefined} /> )}
       {/* 2. Mobile Mini Player (Bottom Bar) */}
-      {currentTrack && !mobilePlayerOpen && ( <div className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" onClick={() => setMobilePlayerOpen(true)}> <div className="flex items-center gap-3 overflow-hidden"> <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative"> {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <Disc size={20} className="text-zinc-500 m-auto" />} </div> <div className="flex-1 min-w-0"> <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div> <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div> </div> </div> <div className="flex items-center gap-3 pr-1"> <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black"> {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />} </button> </div> </div> )}
+      {currentTrack && !mobilePlayerOpen && ( <div className="md:hidden fixed bottom-4 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-40" onClick={() => setMobilePlayerOpen(true)}> <div className="flex items-center gap-3 overflow-hidden"> <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative"> {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <Disc size={20} className="text-zinc-500 m-auto" />} </div> <div className="flex-1 min-w-0"> <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div> <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`} className="text-xs text-zinc-500 truncate">{currentTrack.artist?.username}</Link> </div> </div> <div className="flex items-center gap-3 pr-1"> <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black"> {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />} </button> </div> </div> )}
       {/* ✅ Desktop Footer Player */}
-      {currentTrack && ( <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl"> <div className="flex items-center gap-4 w-1/3"> <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative"> {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700 animate-spin-slow"/></div>} </div> <div className="overflow-hidden"> <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div> <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name || 'unlisted Artist'}</div> </div> <button onClick={() => handleToggleLike(currentTrack)} className={`ml-2 hover:scale-110 transition ${likedTrackIds.has(currentTrack.id) ? 'text-pink-500' : 'text-zinc-500 hover:text-white'}`}> <Heart size={20} fill={likedTrackIds.has(currentTrack.id) ? "currentColor" : "none"} /> </button> </div> <div className="flex flex-col items-center gap-2 w-1/3"> <div className="flex items-center gap-6"> <button className="text-zinc-400 hover:text-white transition" onClick={handlePrev}><SkipBack size={20}/></button> <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">{isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}</button> <button className="text-zinc-400 hover:text-white transition" onClick={handleNext}><SkipForward size={20}/></button> </div> <div className="w-full max-w-sm flex items-center gap-3"> <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span> <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative cursor-pointer" onClick={(e) => { if(!audioRef.current) return; const rect = e.currentTarget.getBoundingClientRect(); const clickX = e.clientX - rect.left; const width = rect.width; const newTime = (clickX / width) * duration; if (!isCurrentTrackRented && newTime > 60) { toast.error("Preview limited to 1 minute"); audioRef.current.currentTime = 60; } else { audioRef.current.currentTime = newTime; } }}> {!isCurrentTrackRented && duration > 60 && ( <div className="absolute top-0 left-0 h-full bg-purple-500/30 z-0" style={{ width: `${(60/duration)*100}%` }} /> )} <div className="h-full bg-white rounded-full relative z-10" style={{ width: `${duration ? (currentTime/duration)*100 : 0}%` }}/> </div> <span className="text-[10px] text-zinc-500 font-mono w-8"> {!isCurrentTrackRented && duration > 60 ? "1:00" : formatTime(duration)} </span> </div> </div> <div className="w-1/3 flex justify-end items-center gap-4"> {currentTrack.is_minted && ( <button onClick={() => handleInvest(currentTrack)} className="bg-green-500/10 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-green-500 hover:text-black transition flex items-center gap-1.5"> <Zap size={14} fill="currentColor"/> Invest </button> )} <div className="w-px h-6 bg-zinc-800 mx-1"></div> <Volume2 size={18} className="text-zinc-500"/> <div className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-zinc-500 rounded-full"></div></div> </div> </div> )}
-
+      {currentTrack && ( <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl"> <div className="flex items-center gap-4 w-1/3"> <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative"> {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700 animate-spin-slow"/></div>} </div> <div className="overflow-hidden"> <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div> <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`} className="text-xs text-zinc-400 truncate hover:text-white hover:underline transition">{currentTrack.artist?.username} </Link> </div> <button onClick={() => handleToggleLike(currentTrack)} className={`ml-2 hover:scale-110 transition ${likedTrackIds.has(currentTrack.id) ? 'text-pink-500' : 'text-zinc-500 hover:text-white'}`}> <Heart size={20} fill={likedTrackIds.has(currentTrack.id) ? "currentColor" : "none"} /> </button> </div> <div className="flex flex-col items-center gap-2 w-1/3"> <div className="flex items-center gap-6"> <button className="text-zinc-400 hover:text-white transition" onClick={handlePrev}><SkipBack size={20}/></button> <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">{isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}</button> <button className="text-zinc-400 hover:text-white transition" onClick={handleNext}><SkipForward size={20}/></button> </div> <div className="w-full max-w-sm flex items-center gap-3"> <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span> <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative cursor-pointer" onClick={(e) => { if(!audioRef.current) return; const rect = e.currentTarget.getBoundingClientRect(); const clickX = e.clientX - rect.left; const width = rect.width; const newTime = (clickX / width) * duration; if (!isCurrentTrackRented && newTime > 60) { toast.error("Preview limited to 1 minute"); audioRef.current.currentTime = 60; } else { audioRef.current.currentTime = newTime; } }}> {!isCurrentTrackRented && duration > 60 && ( <div className="absolute top-0 left-0 h-full bg-purple-500/30 z-0" style={{ width: `${(60/duration)*100}%` }} /> )} <div className="h-full bg-white rounded-full relative z-10" style={{ width: `${duration ? (currentTime/duration)*100 : 0}%` }}/> </div> <span className="text-[10px] text-zinc-500 font-mono w-8"> {!isCurrentTrackRented && duration > 60 ? "1:00" : formatTime(duration)} </span> </div> </div> <div className="w-1/3 flex justify-end items-center gap-4"> {currentTrack.is_minted && ( <button onClick={() => handleInvest(currentTrack)} className="bg-green-500/10 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-green-500 hover:text-black transition flex items-center gap-1.5"> <Zap size={14} fill="currentColor"/> Invest </button> )} <div className="w-px h-6 bg-zinc-800 mx-1"></div> <Volume2 size={18} className="text-zinc-500"/> <div className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-zinc-500 rounded-full"></div></div> </div> </div> )}
       {selectedTrack && ( <TradeModal isOpen={!!selectedTrack} onClose={() => setSelectedTrack(null)} track={selectedTrack} /> )}
       {isRentalModalOpen && ( <RentalModal isOpen={isRentalModalOpen} onClose={() => { setIsRentalModalOpen(false); setPendingRentalTrack(null); }} onConfirm={handleRentalConfirm} isLoading={isRentalLoading} /> )}
       <PlaylistSelectionModal isOpen={showPlaylistModal} onClose={() => setShowPlaylistModal(false)} playlists={myPlaylists} onSelect={processCollect} />

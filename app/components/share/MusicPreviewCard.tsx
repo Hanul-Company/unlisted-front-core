@@ -31,6 +31,11 @@ type Track = {
   melody_hash: string | null;
   uploader_address: string | null;
   created_at: string;
+  artist?: { 
+    username: string | null;
+    wallet_address: string | null;
+    avatar_url: string | null;
+  } | null;
 };
 
 interface MusicCardProps {

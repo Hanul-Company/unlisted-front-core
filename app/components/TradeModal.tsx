@@ -18,8 +18,7 @@ const ipContract = getContract({ client, chain, address: MELODY_IP_ADDRESS, abi:
 interface TradeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  track: { id: number; title: string; token_id: number | null; artist_name: string; };
-}
+  track: { id: number; title: string; token_id: number | null; artist_name: string;   artist?: { username: string | null;wallet_address: string | null; avatar_url: string | null;} | null;};}
 
 export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) {
   const account = useActiveAccount();
@@ -213,7 +212,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                         </span>
                     )}
                 </h3>
-                <p className="text-xs text-zinc-500">{track.artist_name}</p>
+                <p className="text-xs text-zinc-500">{track.artist?.username}</p>
             </div>
             <button onClick={onClose} className="p-2 bg-zinc-800 rounded-full hover:bg-zinc-700 transition text-zinc-400 hover:text-white"><X size={18}/></button>
         </div>

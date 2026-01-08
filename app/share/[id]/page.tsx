@@ -28,7 +28,7 @@ const getAssetData = async (id: string) => {
   return {
     id: data.id.toString(),
     title: data.title || "Untitled",
-    artist: data.artist_name || "Unknown Artist",
+    artist: data.artist?.username || "Unknown Artist",
     albumArt: data.cover_image_url || "https://via.placeholder.com/400",
     audioUrl: data.audio_url || "",
     // tracks 테이블에 없는 정보는 임시값

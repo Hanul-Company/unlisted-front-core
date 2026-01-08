@@ -251,6 +251,28 @@ function RadioContent() {
     }
   };
 
+
+  // ✅ [수정] 라디오 전용 Media Session 설정
+  // 라디오는 '이전 곡'이 없으므로 prev는 생략합니다.
+  useMediaSession({
+    title: currentTrack?.title || "Loading...",
+    artist: currentTrack?.artist?.username || "unlisted Radio",
+    coverUrl: currentTrack?.cover_image_url || "/images/default_cover.jpg",
+    isPlaying: isPlaying,
+    
+    audioRef: audioRef,
+    play: () => setIsPlaying(true),
+    pause: () => setIsPlaying(false),
+    next: handleSkip, // 라디오에서는 Skip이 Next 역할
+    // prev: handlePrev, // ❌ 라디오는 뒤로가기 없음 (생략하면 잠금화면 버튼 비활성화)
+    seekTo: (time) => {
+        if(audioRef.current) {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+        }
+    }
+  });
+
   // ==================================================================================
   // RENDER: SELECTION SCREEN
   // ==================================================================================
@@ -367,26 +389,6 @@ function RadioContent() {
     );
   }
 
-  // ✅ [적용] 딱 이 부분만 추가하면 됩니다!
-  useMediaSession({
-    title: currentTrack?.title || "No Title",
-    artist: currentTrack?.artist_name || "Unknown",
-    coverUrl: currentTrack?.cover_image_url || "",
-    isPlaying: isPlaying,
-    //@ts-ignore
-    audioRef: audioRef,
-    play: () => setIsPlaying(true),
-    pause: () => setIsPlaying(false),
-    next: handleSkip, // 다음 곡 함수
-    seekTo: (time) => { // (선택사항) 탐색 기능
-        if(audioRef.current) {
-            audioRef.current.currentTime = time;
-            setCurrentTime(time);
-        }
-    }
-  });
-
-
   // ==================================================================================
   // RENDER: PLAYER SCREEN (Existing UI)
   // ==================================================================================
@@ -419,9 +421,14 @@ function RadioContent() {
               <div className="w-full h-full bg-zinc-900 flex items-center justify-center"><Radio size={48} className="text-zinc-700" /></div>
             )}
             
-            {/* Genre Badge on Cover */}
+          {/* Genre Badge on Cover */}
             <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10">
-                <span className="text-[10px] font-bold text-white uppercase">{currentTrack?.genre || 'Unknown'}</span>
+                <span className="text-[10px] font-bold text-white uppercase">
+                    {/* ✅ 배열이면 join으로 합치고, 아니면 그대로 출력 */}
+                    {Array.isArray(currentTrack?.genre) 
+                        ? currentTrack.genre.join(', ') 
+                        : (currentTrack?.genre || 'Unknown')}
+                </span>
             </div>
           </div>
 
@@ -441,7 +448,13 @@ function RadioContent() {
         <div className="text-center space-y-4 mt-8">
           <div>
             <h2 className="text-2xl md:text-3xl font-black tracking-tight px-4 truncate">{currentTrack?.title}</h2>
-            <p className="text-zinc-400 text-sm mt-1">{currentTrack?.artist_name}</p>
+            <p className="text-zinc-400 text-sm mt-1">{currentTrack?.artist?.username}</p>
+            <Link 
+                href={`/u?wallet=${currentTrack.artist?.wallet_address}`} 
+                className="text-sm mt-1 text-zinc-400 hover:text-white hover:underline transition"
+                >
+                {currentTrack.artist?.username}
+            </Link>
           </div>
 
           <div className="flex items-center justify-center gap-6 pt-2">
@@ -490,7 +503,7 @@ function RadioContent() {
       {/* Modals */}
       <RentalModal isOpen={showRentalModal} onClose={() => setShowRentalModal(false)} onConfirm={handleRentalConfirm} isLoading={false} />
       <PlaylistSelectionModal isOpen={showPlaylistModal} onClose={() => setShowPlaylistModal(false)} playlists={myPlaylists} onSelect={processCollect} />
-      {currentTrack && <TradeModal isOpen={showTradeModal} onClose={() => setShowTradeModal(false)} track={{ id: currentTrack.id, title: currentTrack.title, token_id: currentTrack.token_id || currentTrack.id, artist_name: currentTrack.artist_name }} />}
+      {currentTrack && <TradeModal isOpen={showTradeModal} onClose={() => setShowTradeModal(false)} track={{ id: currentTrack.id, title: currentTrack.title, token_id: currentTrack.token_id || currentTrack.id, artist_name: currentTrack.artist?.username }} />}
     </div>
   );
 }

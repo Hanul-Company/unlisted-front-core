@@ -43,6 +43,11 @@ type Track = {
   is_minted?: boolean;
   uploader_address?: string;
   expires_at?: string | null;
+  artist?: { 
+    username: string | null;
+    wallet_address: string | null;
+    avatar_url: string | null;
+  } | null;
 };
 
 type PlaylistInfo = {
@@ -408,7 +413,7 @@ export default function PublicPlaylistPage() {
                                 </div>
                                 <div>
                                     <div className={`font-bold text-sm md:text-base ${currentTrack?.id === track.id ? 'text-green-500' : 'text-white'}`}>{track.title}</div>
-                                    <div className="text-zinc-500 text-xs md:text-sm">{track.artist_name}</div>
+                                    <div className="text-zinc-500 text-xs md:text-sm">{track.artist?.username}</div>
                                 </div>
                             </div>
                         </td>
@@ -472,7 +477,7 @@ export default function PublicPlaylistPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
-                    <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
+                    <div className="text-xs text-zinc-500 truncate">{currentTrack.artist?.username}</div>
                 </div>
             </div>
             <button onClick={(e) => { e.stopPropagation(); setIsPlaying(!isPlaying); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
@@ -489,7 +494,7 @@ export default function PublicPlaylistPage() {
                 </div>
                 <div className="overflow-hidden">
                     <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
-                    <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name}</div>
+                    <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist?.username}</div>
                 </div>
                 <button className="ml-2 text-pink-500 hover:scale-110 transition"><Heart size={20} fill="currentColor" /></button>
             </div>

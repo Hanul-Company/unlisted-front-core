@@ -36,6 +36,11 @@ type Track = {
   uploader_address?: string;
   mint_error?: string | null;
   duplicate_of_track_id?: number | null;
+  artist?: { 
+    username: string | null;
+    wallet_address: string | null;
+    avatar_url: string | null;
+  } | null;
 };
 
 type Playlist = { id: string; name: string; is_custom: boolean; };
@@ -467,7 +472,7 @@ export default function LibraryPage() {
   // ✅ [적용] 딱 이 부분만 추가하면 됩니다!
   useMediaSession({
     title: currentTrack?.title || "No Title",
-    artist: currentTrack?.artist_name || "Unknown",
+    artist: currentTrack?.artist?.username || "Unknown",
     coverUrl: currentTrack?.cover_image_url || "",
     isPlaying: isPlaying,
     //@ts-ignore
@@ -661,7 +666,7 @@ export default function LibraryPage() {
                                             <div className="w-10 h-10 bg-zinc-800 rounded overflow-hidden flex-shrink-0 relative">
                                                 {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover" /> : <Music className="p-2 text-zinc-500" />}
                                             </div>
-                                            <div><div className="font-bold text-sm">{track.title}</div><div className="text-xs text-zinc-500">{track.artist_name}</div></div>
+                                            <div><div className="font-bold text-sm">{track.title}</div><div className="text-xs text-zinc-500">{track.artist?.username}</div></div>
                                         </div>
                                     </td>
 
@@ -783,7 +788,7 @@ export default function LibraryPage() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className={`font-bold text-sm truncate ${currentTrack?.id === track.id ? 'text-green-500' : 'text-white'}`}>{track.title}</div>
-                                        <div className="text-xs text-zinc-500 truncate">{track.artist_name}</div>
+                                        <div className="text-xs text-zinc-500 truncate">{track.artist?.username}</div>
                                     </div>
                                 </div>
                                 <button 
@@ -810,7 +815,7 @@ export default function LibraryPage() {
                         </div>
                         <div>
                             <h3 className="font-bold text-lg text-white line-clamp-1">{activeMobileTrack.title}</h3>
-                            <p className="text-zinc-500 text-sm">{activeMobileTrack.artist_name}</p>
+                            <p className="text-zinc-500 text-sm">{activeMobileTrack.artist?.username}</p>
                         </div>
                     </div>
                     
@@ -898,7 +903,16 @@ export default function LibraryPage() {
                                     <div className="text-xs text-zinc-500">Instagram & Link</div>
                                 </div>
                             </div>
-                            <ShareButton assetId={activeMobileTrack.id.toString()} trackData={{ title: activeMobileTrack.title, artist: activeMobileTrack.artist_name, coverUrl: activeMobileTrack.cover_image_url || "" }} className="bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white" />
+                            <ShareButton 
+                              assetId={activeMobileTrack.id.toString()} 
+                              trackData={{ 
+                                  title: activeMobileTrack.title, 
+                                  // ✅ [수정] username이 없으면 -> 옛날 artist_name -> 그것도 없으면 "Unknown"
+                                  artist: activeMobileTrack.artist?.username || activeMobileTrack.artist_name || "Unknown", 
+                                  coverUrl: activeMobileTrack.cover_image_url || "" 
+                              }} 
+                              className="bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white" 
+                          />
                         </div>
                     </div>
 
@@ -937,7 +951,7 @@ export default function LibraryPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
-                        <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
+                        <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`} className="text-xs text-zinc-500 truncate">{currentTrack.artist?.username}</Link>
                     </div>
                 </div>
                 <div className="flex items-center gap-3 pr-1">
@@ -956,7 +970,7 @@ export default function LibraryPage() {
                     </div>
                     <div className="overflow-hidden">
                         <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
-                        <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name}</div>
+                        <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`}  className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist?.username}</Link>
                     </div>
                     <button className="ml-2 text-pink-500 hover:scale-110 transition"><Heart size={20} fill="currentColor" /></button>
                 </div>
@@ -1067,7 +1081,7 @@ export default function LibraryPage() {
                         <div className={`font-bold text-sm truncate ${isSelected ? 'text-green-400' : 'text-white'}`}>
                             {track.title}
                         </div>
-                        <div className="text-xs text-zinc-500 truncate">{track.artist_name}</div>
+                        <div className="text-xs text-zinc-500 truncate">{track.artist?.username}</div>
                       </div>
                     </div>
                   );

@@ -27,6 +27,11 @@ type Track = {
   } | null;
   cover_image_url: string;
   created_at: string;
+  artist?: { 
+    username: string | null;
+    wallet_address: string | null;
+    avatar_url: string | null;
+  } | null;
 };
 
 export default function AdminTracksPage() {
@@ -45,7 +50,7 @@ export default function AdminTracksPage() {
   const fetchTracks = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('tracks').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+      let query = supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)', { count: 'exact' }).order('created_at', { ascending: false });
       if (search) query = query.or(`title.ilike.%${search}%,artist_name.ilike.%${search}%`);
 
       const from = (page - 1) * ITEMS_PER_PAGE;
@@ -301,7 +306,7 @@ export default function AdminTracksPage() {
 
                   <td className="p-4">
                     <div className="font-bold text-white text-base">{track.title}</div>
-                    <div className="text-zinc-500">{track.artist_name}</div>
+                    <div className="text-zinc-500">{track.artist?.username}</div>
                   </td>
 
                   <td className="p-4">

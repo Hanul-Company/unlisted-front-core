@@ -69,7 +69,7 @@ export default function PortfolioPage() {
         setLoading(true);
 
         // A. 모든 트랙 가져오기 (지분 확인용)
-        const { data: allTracks } = await supabase.from('tracks').select('*').eq('is_minted', true);
+        const { data: allTracks } = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').eq('is_minted', true);
         
         // B. 유저 정보 (렌탈, 좋아요 내역)
         const { data: profile } = await supabase.from('profiles').select('id').eq('wallet_address', address).single();
@@ -315,7 +315,7 @@ export default function PortfolioPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                       <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
-                      <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
+                      <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`} className="text-xs text-zinc-500 truncate">{currentTrack.artist?.username}</Link>
                   </div>
               </div>
               <div className="flex items-center gap-3 pr-1">
@@ -436,7 +436,7 @@ function PortfolioCard({ track, address, onPlay, onPause, isCurrentTrack, isPlay
                         assetId={track.id.toString()}
                         trackData={{
                             title: track.title,
-                            artist: track.artist_name,
+                            artist: track.artist?.username,
                             coverUrl: track.cover_image_url || ""
                         }} 
                         className="w-8 h-8 bg-black/40 hover:bg-white/20 backdrop-blur-md border border-white/10 hover:border-white/50 rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-all duration-300 hover:scale-110 shadow-lg"
@@ -448,7 +448,7 @@ function PortfolioCard({ track, address, onPlay, onPause, isCurrentTrack, isPlay
             <div className="p-5 flex-1 flex flex-col">
                 <div className="mb-4">
                     <h4 className="font-bold text-lg text-white truncate">{track.title}</h4>
-                    <p className="text-xs text-zinc-500">{track.artist_name}</p>
+                    <p className="text-xs text-zinc-500">{track.artist?.username}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-zinc-950 p-2 rounded-lg border border-zinc-800">
@@ -521,7 +521,7 @@ function FooterPlayer({
                 </div>
                 <div className="overflow-hidden">
                     <div className="text-sm font-bold truncate text-white">{track.title}</div>
-                    <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{track.artist_name}</div>
+                    <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{track.artist?.username}</div>
                 </div>
                 <button onClick={onToggleLike} className={`ml-2 hover:scale-110 transition ${isLiked ? 'text-pink-500' : 'text-zinc-500 hover:text-white'}`}>
                     <Heart size={20} fill={isLiked ? "currentColor" : "none"} />

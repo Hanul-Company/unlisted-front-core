@@ -121,6 +121,11 @@ type PlayerTrack = {
   job: SunoJob;
   rawTrack: SunoTrackResult;
   index: number;
+  artist?: { 
+    username: string | null;
+    wallet_address: string | null;
+    avatar_url: string | null;
+  } | null;
 };
 
 // --- Helper: 타이머 포맷 (HH:mm:ss) ---
@@ -818,7 +823,12 @@ export default function CreateDashboard() {
             </div>
             <div className="overflow-hidden">
               <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
-              <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name}</div>
+              <Link 
+                  href={`/u?wallet=${currentTrack.artist?.wallet_address}`} 
+                  className="text-xs text-zinc-400 truncate hover:underline cursor-pointer"
+                  >
+                  {currentTrack.artist?.username}
+              </Link>
             </div>
           </div>
 
@@ -929,7 +939,12 @@ export default function CreateDashboard() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
-              <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
+              <Link 
+                  href={`/u?wallet=${currentTrack.artist?.wallet_address}`} 
+                  className="text-xs text-zinc-500 truncate hover:underline cursor-pointer"
+                  >
+                  {currentTrack.artist?.username}
+              </Link>
             </div>
           </div>
           <div className="flex items-center gap-3 pr-1">

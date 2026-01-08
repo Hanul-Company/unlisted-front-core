@@ -107,7 +107,7 @@ export default function InvestmentCard({ track, onPlay, onInvest }: InvestmentCa
                 {/* Title */}
                 <div>
                     <h3 className="font-bold text-sm text-white truncate group-hover:text-green-400 transition">{track.title}</h3>
-                    <p className="text-xs text-zinc-500 truncate">{track.artist_name}</p>
+                    <p className="text-xs text-zinc-500 truncate">{track.artist?.username}</p>
                 </div>
 
                 {/* Stats Grid */}

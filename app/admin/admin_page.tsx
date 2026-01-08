@@ -10,7 +10,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
-      const { count: trackCount } = await supabase.from('tracks').select('*', { count: 'exact', head: true });
+      const { count: trackCount } = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)', { count: 'exact', head: true });
       const { data: pmldData } = await supabase.from('p_mld_balances').select('balance');
       
       const totalPmld = pmldData?.reduce((sum, row) => sum + (row.balance || 0), 0) || 0;

@@ -218,7 +218,7 @@ function JackpotCard({ item, onTrade }: { item: any, onTrade: () => void }) {
             <div className="p-5 flex-1 flex flex-col">
                 <div className="mb-4">
                     <h3 className="text-xl font-bold text-white mb-1 line-clamp-1 group-hover:text-green-400 transition">{item.title}</h3>
-                    <p className="text-sm text-zinc-500">{item.artist_name}</p>
+                    <p className="text-sm text-zinc-500">{item.artist?.username}</p>
                 </div>
 
                 {/* Jackpot & Timer Box */}

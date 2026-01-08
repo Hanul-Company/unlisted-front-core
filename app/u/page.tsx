@@ -272,7 +272,7 @@ function ProfileContent() {
     
     try {
         if (tab === 'tracks') {
-            const res = await supabase.from('tracks').select('*').eq('uploader_address', targetWallet).order('created_at', { ascending: false });
+            const res = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').eq('uploader_address', targetWallet).order('created_at', { ascending: false });
             setTracks(res.data || []);
         } else if (tab === 'likes') {
             const res = await supabase.from('likes').select('tracks(*)').eq('wallet_address', targetWallet);
@@ -538,7 +538,6 @@ function ProfileContent() {
           {loading ? ( <div className="col-span-full text-center py-32 text-zinc-500"><Loader2 className="animate-spin mb-2 text-green-500 inline"/> Loading...</div> ) : (
             
             // ✅ Playlist Grid (Playlists 탭일 때)
-// ✅ Playlist Grid (Playlists 탭일 때)
             activeTab === 'playlists' ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
                     {playlists.length === 0 ? (
@@ -615,7 +614,7 @@ function ProfileContent() {
                                     <h3 className={`font-bold truncate text-sm mb-1 ${currentTrack?.id === track.id ? 'text-green-500' : 'text-white'}`}>{track.title}</h3>
                                     <div className="flex justify-between items-center text-xs text-zinc-500">
                                         <span className="truncate max-w-[80px]">{new Date(track.created_at).toLocaleDateString()}</span>
-                                        {track.genre && <span className="border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] uppercase">{track.genre}</span>}
+                                        {track.genre && <span className="border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] uppercase">{Array.isArray(track?.genre) ? track.genre.join(' ') : (track?.genre || 'Unknown')}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -661,7 +660,7 @@ function ProfileContent() {
                   </div>
                   <div className="flex-1 min-w-0">
                       <div className="font-bold text-sm truncate text-white">{currentTrack.title}</div>
-                      <div className="text-xs text-zinc-500 truncate">{currentTrack.artist_name}</div>
+                      <div className="text-xs text-zinc-500 truncate">{currentTrack.artist?.username}</div>
                   </div>
               </div>
               <div className="flex items-center gap-3 pr-1">
@@ -681,7 +680,7 @@ function ProfileContent() {
                   </div>
                   <div className="overflow-hidden">
                       <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
-                      <div className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist_name}</div>
+                      <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`} className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist?.username}</Link>
                   </div>
                   {/* Like Button */}
                   <button 
