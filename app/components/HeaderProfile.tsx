@@ -8,10 +8,10 @@ import {
   useActiveWallet, 
   useDisconnect, 
   useReadContract,
-  useSendTransaction // [Added] Transaction send hook
+  useSendTransaction 
 } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
-import { getContract, prepareContractCall } from "thirdweb"; // [Added]
+import { getContract, prepareContractCall } from "thirdweb";
 import { formatEther } from "viem";
 
 import { supabase } from '@/utils/supabase';
@@ -19,9 +19,9 @@ import { User, LogOut, Wallet, ChevronDown, Settings, ShieldCheck, Link as LinkI
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI, UNLISTED_STOCK_ADDRESS } from '@/app/constants';
-import OnboardingModal from './OnboardingModal';
+// ❌ [삭제 1] OnboardingModal import 삭제
+// import OnboardingModal from './OnboardingModal'; 
 
-// [Wallet setup]
 const wallets = [
   inAppWallet({
     auth: { options: ["google", "email", "apple"] },
@@ -30,12 +30,11 @@ const wallets = [
   createWallet("com.coinbase.wallet"),
 ];
 
-// [Core fix 1] Define contract with ABI included (fixes method errors)
 const mldContract = getContract({
   client,
   chain,
   address: MELODY_TOKEN_ADDRESS,
-  abi: MELODY_TOKEN_ABI as any, // ABI required!
+  abi: MELODY_TOKEN_ABI as any,
 });
 
 type Profile = {
@@ -52,29 +51,26 @@ export default function HeaderProfile() {
   const wallet = useActiveWallet();
   const { disconnect } = useDisconnect();
   
-  // [Core fix 2] Use Thirdweb transaction hook (replaces writeContract)
   const { mutate: sendTransaction, isPending } = useSendTransaction();
   
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [showMenu, setShowMenu] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // ❌ [삭제 2] showOnboarding 상태 삭제
+  // const [showOnboarding, setShowOnboarding] = useState(false); 
 
-  // MLD balance
   const { data: mldBalanceVal, refetch: refetchMld } = useReadContract({
     contract: mldContract,
     method: "balanceOf",
     params: [account?.address || "0x0000000000000000000000000000000000000000"]
   });
 
-  // Profile sync
   useEffect(() => {
-  const syncProfile = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    setUser(authUser);
+    const syncProfile = async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      setUser(authUser);
 
-const currentAddress = account?.address;
+      const currentAddress = account?.address;
       if (currentAddress) {
         let { data: profileRow } = await supabase
           .from('profiles')
@@ -82,9 +78,8 @@ const currentAddress = account?.address;
           .eq('wallet_address', currentAddress)
           .maybeSingle();
 
-        // [✨ 핵심 수정 부분]
         if (!profileRow) {
-          // 1. 프로필이 없으면 기본값으로 생성
+          // 1. 프로필 생성 로직은 유지 (DB를 위해)
           const randomAvatarUrl = `https://api.dicebear.com/9.x/pixel-art/svg?seed=${currentAddress}`;
           const defaultUsername = `User_${currentAddress.slice(0, 4)}`;
 
@@ -100,42 +95,35 @@ const currentAddress = account?.address;
 
           if (!insertErr && inserted) {
              profileRow = inserted;
-             
-             // 2. 환영 보너스 지급 (기존 로직)
              await supabase.from('p_mld_balances').insert({ profile_id: profileRow.id, balance: 100 });
              
-             // 🚀 3. 온보딩 모달 띄우기 (여기서 Trigger!)
-             setShowOnboarding(true); 
+             // ❌ [삭제 3] 여기서 모달을 띄우는 로직 삭제 (전역 모달이 알아서 감지함)
+             // setShowOnboarding(true); 
           }
         } 
-        // (Optional) 이미 가입되어 있지만 username이 기본값(User_...)인 경우에도 띄우고 싶다면 조건 추가 가능
-        else if (profileRow.username.startsWith('User_')) {
-          setShowOnboarding(true);
+        
+        const { data: balRow, error: balError } = await supabase
+          .from('p_mld_balances')
+          .select('balance')
+          .eq('profile_id', profileRow.id)
+          .maybeSingle();
+
+        if (balError) {
+          console.error('p_mld_balances select error', balError);
         }
 
-      // ... (아래 로직 기존 유지)
-      const { data: balRow, error: balError } = await supabase
-        .from('p_mld_balances')
-        .select('balance')
-        .eq('profile_id', profileRow.id)
-        .maybeSingle();
-
-      if (balError) {
-        console.error('p_mld_balances select error', balError);
+        const balance = balRow?.balance ?? 0;
+        setProfile({
+          ...(profileRow as any),
+          p_mld_balance: balance,
+        });
+      } else {
+        setProfile(null);
       }
+    };
 
-      const balance = balRow?.balance ?? 0;
-      setProfile({
-        ...(profileRow as any),
-        p_mld_balance: balance,
-      });
-    } else {
-      setProfile(null);
-    }
-  };
-
-  syncProfile();
-}, [account?.address]);
+    syncProfile();
+  }, [account?.address]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -152,18 +140,14 @@ const currentAddress = account?.address;
     else { toast.success("Wallet linked!", { id: toastId }); window.location.reload(); }
   };
 
-  // [Core fix 3] Faucet handler (Thirdweb style)
   const handleMintTokens = () => {
     if (!account?.address) return toast.error("Please connect your wallet.");
-    
     const toastId = toast.loading("Requesting 1000 MLD mint...");
-    
     const transaction = prepareContractCall({
       contract: mldContract,
       method: "mint",
       params: [account.address, BigInt(1000 * 1e18)],
     });
-
     sendTransaction(transaction, {
       onSuccess: () => {
         toast.success("1000 MLD has been sent to your wallet!", { id: toastId });
@@ -176,18 +160,14 @@ const currentAddress = account?.address;
     });
   };
 
-  // [Core fix 4] Approve handler (Thirdweb style)
   const handleApprove = () => {
     if (!account?.address) return toast.error("Please connect your wallet.");
-    
     const toastId = toast.loading("Requesting contract approval...");
-    
     const transaction = prepareContractCall({
       contract: mldContract,
       method: "approve",
       params: [UNLISTED_STOCK_ADDRESS, BigInt(100000 * 1e18)],
     });
-
     sendTransaction(transaction, {
       onSuccess: () => {
         toast.success("Approved! You can invest now.", { id: toastId });
@@ -202,31 +182,29 @@ const currentAddress = account?.address;
   // 1. Not logged in
   if (!user && !account) {
     return (
-      <>
-        <ConnectButton
-          client={client}
-          wallets={wallets}
-          chain={chain}
-          accountAbstraction={{ chain: chain, sponsorGas: true }}
-          connectButton={{
-            label: "Sign in / Connect",
-            style: {
-              backgroundColor: "#18181b",
-              color: "white",
-              border: "1px solid #3f3f46",
-              borderRadius: "99px",
-              fontSize: "14px",
-              fontWeight: "bold",
-              padding: "10px 20px",
-            }
-          }}
-          connectModal={{
-            size: "compact",
-            title: "Join Unlisted",
-            welcomeScreen: { title: "Your Music Assets", subtitle: "Login to start collecting & investing" }
-          }}
-        />
-      </>
+      <ConnectButton
+        client={client}
+        wallets={wallets}
+        chain={chain}
+        accountAbstraction={{ chain: chain, sponsorGas: true }}
+        connectButton={{
+          label: "Sign in / Connect",
+          style: {
+            backgroundColor: "#18181b",
+            color: "white",
+            border: "1px solid #3f3f46",
+            borderRadius: "99px",
+            fontSize: "14px",
+            fontWeight: "bold",
+            padding: "10px 20px",
+          }
+        }}
+        connectModal={{
+          size: "compact",
+          title: "Join Unlisted",
+          welcomeScreen: { title: "Your Music Assets", subtitle: "Login to start collecting & investing" }
+        }}
+      />
     );
   }
 
@@ -234,18 +212,7 @@ const currentAddress = account?.address;
   return (
     <div className="relative">
 
-    {/* ✅ [Added] 온보딩 모달 렌더링 */}
-      {showOnboarding && profile && (
-        <OnboardingModal 
-            userAddress={profile.wallet_address!}
-            initialUsername={profile.username || ''}
-            initialAvatar={profile.avatar_url}
-            onComplete={() => {
-                setShowOnboarding(false);
-                window.location.reload(); // 정보 갱신을 위해 리로드 (선택사항)
-            }}
-        />
-      )}
+    {/* ❌ [삭제 4] <OnboardingModal ... /> JSX 삭제 */}
 
       <button onClick={() => setShowMenu(!showMenu)} className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 pr-4 pl-2 py-1.5 rounded-full hover:border-zinc-600 transition">
         <div className="w-8 h-8 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs border-2 border-zinc-900 overflow-hidden">
@@ -288,7 +255,6 @@ const currentAddress = account?.address;
             <div className="flex items-center justify-between text-xs text-zinc-500 font-bold uppercase mb-2">
               <span className="flex items-center gap-1"><Wallet size={12}/> Connection</span>
               
-              {/* Disconnect */}
               {account && (
                 <button 
                   onClick={() => { if(wallet) disconnect(wallet); window.location.reload(); }} 
@@ -306,7 +272,6 @@ const currentAddress = account?.address;
                   <span className="truncate flex-1 font-mono">{account.address.slice(0,6)}...{account.address.slice(-4)}</span>
                 </div>
 
-                {/* Faucet & Approve Buttons */}
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <button 
                     onClick={handleMintTokens} 

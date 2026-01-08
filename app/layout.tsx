@@ -8,8 +8,10 @@ import { PWAProvider } from './context/PWAContext';
 import PWAPrompt from './components/PWAPrompt';
 import IOSInstallPrompt from './components/IOSInstallPrompt';
 import { GoogleAnalytics } from "@next/third-parties/google";
-// ✅ [수정 1] next/script 임포트
 import Script from 'next/script';
+
+// ✅ [추가] 전역 온보딩 모달 임포트
+import OnboardingModal from './components/OnboardingModal';
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit', display: 'swap' });
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' });
@@ -32,7 +34,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <head>
-        {/* ✅ [수정 3] 구글 애드센스 스크립트 추가 (next/script 사용) */}
         <Script
           id="adsense-init"
           async
@@ -46,9 +47,13 @@ export default function RootLayout({
         <Providers>
           <AuthProvider>
             <PWAProvider>
+              
+              {/* ✅ [추가] 전역 온보딩 모달 배치 */}
+              {/* 스스로 지갑 연결 여부와 DB를 체크하여 렌더링되므로 Props가 필요 없습니다. */}
+              <OnboardingModal />
+
               {children}
 
-              {/* ✅ [수정 2] PC(md 이상)에서는 PWA 설치 프롬프트 숨기기 */}
               <div className="block md:hidden">
                 <PWAPrompt />
                 <IOSInstallPrompt />
@@ -75,7 +80,6 @@ export default function RootLayout({
         </Providers>
       </body>
       
-      {/* Google Analytics는 body 밖(html 내부) 혹은 body 끝에 위치해도 괜찮습니다 */}
       <GoogleAnalytics gaId="G-MTPLHYPLD4" />
     </html>
   );
