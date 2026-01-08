@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Link } from "@/lib/i18n";
-import { Radius, Book, Disc, PlayCircle, Download, X, UploadCloud, TrendingUp, Coins, Zap, Radio } from 'lucide-react';
+import { Wand2, Radius, Book, Disc, PlayCircle, Download, X, UploadCloud, TrendingUp, Coins, Zap, Radio } from 'lucide-react';
 import { usePWA } from '../context/PWAContext';
 
 interface MobileSidebarProps {
@@ -106,15 +106,15 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
         {/* Footer Actions (Upload & PWA) */}
         <div className="pt-6 mt-4 border-t border-zinc-900 space-y-3">
             {/* PWA Install Button */}
-            {isInstallable && (
+            {/* {isInstallable && (
                 <button 
                     onClick={installApp} 
                     className="w-full bg-zinc-900 text-zinc-300 text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition"
                 >
                     <Download size={14}/> Install App
                 </button>
-            )}
-
+            )} */}
+            
             {/* Upload Button */}
             <Link href="/upload" onClick={onClose}>
                 <button className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group">
@@ -122,7 +122,13 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                     <span className="text-sm">Upload & Earn</span>
                 </button>
             </Link>
+            {/*Create Butto */}
+
         </div>
+        <div className="pt-6 mt-4 border-t border-zinc-900 space-y-3">
+            <Link href="/create"><button className="w-full rounded-xl py-3 font-black text-sm flex items-center justify-center gap-2 text-white bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-blue-900/30 hover:from-cyan-400 hover:via-blue-400 hover:to-indigo-500 hover:shadow-blue-900/50 transition-all duration-200 active:scale-[0.99] group"><Wand2 size={18} className="opacity-95 group-hover:opacity-100 transition-opacity" /><span>Create Track</span></button></Link>
+        </div>
+
 
       </div>
     </>

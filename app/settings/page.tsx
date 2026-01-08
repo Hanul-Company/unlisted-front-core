@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import { useActiveAccount } from "thirdweb/react";
 import { useRouter } from "@/lib/i18n";
-import { Camera, Save, Loader2, ArrowLeft, Instagram, Twitter, Youtube, Music, Link as LinkIcon, Sparkles, BrainCircuit, Lock, CheckCircle2 } from 'lucide-react';
+import { CakeSlice, Camera, Save, Loader2, ArrowLeft, Instagram, Twitter, Youtube, Music, Link as LinkIcon, Sparkles, BrainCircuit, Lock, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Link } from "@/lib/i18n";
 import { analyzeUserTaste } from '@/app/actions/analyze-music';
@@ -218,7 +218,6 @@ export default function SettingsPage() {
             </div>
         </div>
 
-
         {/* =======================================================
             RIGHT COLUMN: AI Music Taste
            ======================================================= */}
@@ -229,10 +228,10 @@ export default function SettingsPage() {
 
                 <div className="relative z-10">
                     <h2 className="text-xl font-black mb-2 flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                        <BrainCircuit size={24} className="text-purple-400"/> AI Music DNA
+                        <CakeSlice size={24} className="text-purple-400"/> Your Flavor
                     </h2>
                     <p className="text-zinc-500 text-xs mb-6 leading-relaxed">
-                        Enter your favorites. AI will analyze your taste profile, extract keywords, and curate a personalized radio station for you.
+                        Tell me what you like. I will analyze your taste and make your own flavor to get you tasty musics.
                     </p>
 
                     {/* Input Fields */}
@@ -263,7 +262,7 @@ export default function SettingsPage() {
                     >
                         {analyzing ? <Loader2 className="animate-spin"/> : 
                          !canAnalyze ? <><Lock size={16}/> Locked until {nextAnalyzeDate?.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</> : 
-                         <><Sparkles size={18}/> Analyze My Taste</>
+                         <><Sparkles size={18}/> Analyze my flavor</>
                         }
                     </button>
                 </div>

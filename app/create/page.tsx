@@ -55,7 +55,7 @@ type SunoJob = {
 // --- Language Dictionary ---
 const DICT = {
   en: {
-    welcome: "Let's create with your taste.",
+    welcome: "Let's create masterpiece.",
     badge: "Beta v.0.5",
     engine: "Multi-Model Aggregator Engine",
     essential: "Essential Info",
@@ -73,7 +73,7 @@ const DICT = {
     vibe: "Extra Vibe / Requirements",
     vibe_ph: "e.g. Dreamy, Reverb heavy, Faster tempo...",
     btn_generate: "Generate Request",
-    queue_title: "Generation Queue",
+    queue_title: "Queue",
     status_pending: "Pending",
     status_processing: "Processing",
     status_done: "Completed",
@@ -501,10 +501,6 @@ export default function CreateDashboard() {
           <Link href="/market" className="text-zinc-500 hover:text-white text-sm font-bold transition inline-flex items-center">
             ← Back
           </Link>
-
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-            unlisted Studio
-          </h1>
         </div>
 
         <div className="flex items-center gap-4">
@@ -530,8 +526,8 @@ export default function CreateDashboard() {
               <Sparkles size={12} /> {t.badge} <span className="text-zinc-600">|</span> <Layers size={12} /> {t.engine}
             </div>
             <h2 className="text-3xl md:text-4xl font-black text-white leading-tight">
-              Welcome, {username}.<br />
-              <span className="text-zinc-500 md:text-2xl">{t.welcome}</span>
+              Welcome, {username}<br />
+              <span className="bg-clip-text bg-gradient-to-br from-cyan-700 via-blue-700 to-indigo-500 text-zinc-500 md:text-2xl">{t.welcome}</span>
             </h2>
           </div>
 
@@ -657,7 +653,7 @@ export default function CreateDashboard() {
                     className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-full text-xs font-bold text-zinc-400 hover:text-white hover:border-zinc-500 transition"
                 >
                     <RefreshCw size={12} className={loadingJobs ? "animate-spin" : ""}/> 
-                    {loadingJobs ? "Loading..." : "Refresh Queue"}
+                    {loadingJobs ? "Loading..." : "Refresh"}
                 </button>
                 <button className="text-xs text-zinc-500 hover:text-white transition flex items-center gap-1 ml-2">
                     <Clock size={12} /> {t.history}
