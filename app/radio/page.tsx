@@ -85,7 +85,7 @@ function RadioContent() {
          }
 
          // RPC 호출: get_personalized_radio
-         const { data, error } = await supabase.rpc('get_personalized_radio_v3', {
+         const { data, error } = await supabase.rpc('get_personalized_radio_v4', {
              p_user_id: userProfile.id,
              p_limit: 10
          });
