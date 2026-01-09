@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, TrendingUp, TrendingDown, Loader2, Trophy, Clock, Gift, Share2, Percent, Info, Coins, CheckCircle, AlertCircle } from 'lucide-react';
 import { formatEther } from 'viem';
 import toast from 'react-hot-toast';
+import { supabase } from '@/utils/supabase'; // ✅ [추가] Supabase Import
 
 import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useReadContract, useSendTransaction } from "thirdweb/react";
@@ -48,7 +49,6 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   
   const { data: allowanceVal, refetch: refetchAllowance } = useReadContract({ contract: tokenContract, method: "allowance", params: [address || "0x0000000000000000000000000000000000000000", UNLISTED_STOCK_ADDRESS] });
   
-  // ✅ [수정] 잔액 조회 시 refetch 추가 (Mint 후 UI 갱신을 위해)
   const { data: mldBalanceVal, refetch: refetchMldBalance } = useReadContract({ contract: tokenContract, method: "balanceOf", params: [address || "0x0000000000000000000000000000000000000000"] });
 
   // Parsing
@@ -102,12 +102,9 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
 
   // --- Handlers ---
 
-  // ✅ [New] Mint Handler (HeaderProfile 로직 이식)
   const handleMintTokens = () => {
     if (!address) return toast.error("Please connect your wallet.");
-    
     const toastId = toast.loading("Getting Free MLD...");
-    
     const transaction = prepareContractCall({
       contract: tokenContract,
       method: "mint",
@@ -117,7 +114,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
     sendTransaction(transaction, {
       onSuccess: () => {
         toast.success("1000 MLD Received! Now Approve.", { id: toastId });
-        refetchMldBalance(); // 잔액 갱신 -> 다음 단계(Approve)로 자동 전환됨
+        refetchMldBalance();
       },
       onError: (err) => {
         console.error("Mint Error:", err);
@@ -149,14 +146,32 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                 setProgress(100); setStatus('success'); 
                 toast.success("Shares Bought! Timer Extended!"); 
                 refetchShares(); refetchStock();
+                // * 구매는 지출이므로 수익 로그에 남기지 않습니다. (필요하다면 'expense'로 기록 가능)
             },
             onError: () => { setStatus('idle'); toast.error("Buy Failed."); }
         });
     } else {
+        // [SELL MODE]
         const transaction = prepareContractCall({ contract: stockContract, method: "sellShares", params: [tokenIdBigInt, amountBigInt] });
         sendTransaction(transaction, {
-            onSuccess: () => { 
+            onSuccess: async () => { 
                 setProgress(100); setStatus('success'); toast.success("Shares Sold!"); 
+                
+                // ✅ [추가] 판매 수익 로그 기록 (Investment Revenue)
+                try {
+                    await supabase.rpc('log_crypto_revenue', {
+                        p_beneficiary_wallet: address,
+                        p_payer_address: UNLISTED_STOCK_ADDRESS, // AMM Contract Address
+                        p_amount: estimatedPayout, // 판매로 받은 MLD 금액
+                        p_currency: 'MLD',
+                        p_activity_type: 'trade_fee', // 또는 'investment_return'
+                        p_track_id: track.id
+                    });
+                    console.log("Investment Log Saved");
+                } catch (e) {
+                    console.error("Failed to save log:", e);
+                }
+
                 refetchShares(); refetchStock();
                 setTimeout(() => { onClose(); setStatus('idle'); }, 1500);
             },
@@ -167,7 +182,6 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
 
   const handleShare = async () => {
       const shareText = `I just invested in "${track.title}" on MelodyLink! 🎵\n\nOwner Benefit: ${investorSharePercent}% Collection Yield\nJackpot Pool: ${jackpotBalance.toFixed(1)} MLD\n\nJoin the revolution! 🚀 #MelodyLink #MusicInvestment`;
-      
       if (navigator.share) {
           try {
               await navigator.share({ title: 'Melody Link Investment', text: shareText, url: window.location.href });
@@ -184,15 +198,37 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   };
 
   const handleClaimReward = () => {
+      if (pendingReward <= 0) return toast.error("No rewards to claim.");
+      
       setStatus('processing');
       const transaction = prepareContractCall({ contract: stockContract, method: "claimRewards", params: [tokenIdBigInt] });
+      
       sendTransaction(transaction, {
-          onSuccess: () => { setProgress(100); setStatus('success'); toast.success("Dividends Claimed!"); refetchRewards(); setTimeout(() => setStatus('idle'), 1500); },
+          onSuccess: async () => { 
+              setProgress(100); setStatus('success'); toast.success("Dividends Claimed!"); 
+              
+              // ✅ [추가] 배당금 수익 로그 기록 (Dividend Revenue)
+              try {
+                  await supabase.rpc('log_crypto_revenue', {
+                      p_beneficiary_wallet: address,
+                      p_payer_address: UNLISTED_STOCK_ADDRESS,
+                      p_amount: pendingReward,
+                      p_currency: 'MLD',
+                      p_activity_type: 'dividend',
+                      p_track_id: track.id
+                  });
+                  console.log("Dividend Log Saved");
+              } catch (e) {
+                  console.error("Failed to save log:", e);
+              }
+
+              refetchRewards(); 
+              setTimeout(() => setStatus('idle'), 1500); 
+          },
           onError: () => { setStatus('idle'); toast.error("Claim Failed"); }
       });
   };
 
-  // ✅ 조건 변수 (잔액 부족 여부)
   const isInsufficientBalance = mode === 'buy' && buyTotal > myMldBalance;
 
   if (!isOpen) return null;
@@ -287,7 +323,6 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                                 <p>Includes 10% Fee (Jackpot, Dividends, Artist). <br/>Buying extends Jackpot timer by 10 mins.</p>
                              </div>
                         )}
-                        {/* ✅ [New] 잔액 부족 시 경고 문구 */}
                         {isInsufficientBalance && (
                             <div className="flex items-center gap-2 text-red-400 bg-red-900/10 p-2 rounded border border-red-500/20 text-xs mt-2">
                                 <AlertCircle size={14}/> 
@@ -296,11 +331,10 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                         )}
                     </div>
 
-                    {/* ✅ Main Button Logic (Faucet -> Approve -> Buy) */}
+                    {/* ✅ Main Button Logic */}
                     {mode === 'buy' ? (
                         <>
                             {isInsufficientBalance ? (
-                                // 1. 잔액 부족 시: Faucet UI 노출
                                 <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="bg-purple-900/20 border border-purple-500/30 p-3 rounded-xl text-center">
                                         <p className="text-purple-300 font-bold text-sm mb-1 flex items-center justify-center gap-1">
@@ -317,7 +351,6 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                                     </button>
                                 </div>
                             ) : allowance < costInWei ? (
-                                // 2. 잔액 충분 & 승인 필요 시: Approve UI 노출
                                 <button 
                                     onClick={handleApprove} 
                                     className="w-full py-4 rounded-xl font-bold text-lg bg-blue-600 text-white hover:scale-[1.02] transition shadow-lg flex items-center justify-center gap-2"
@@ -325,7 +358,6 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                                     {isPending ? <Loader2 className="animate-spin"/> : <><CheckCircle size={18}/> Step 1. Approve Contract</>}
                                 </button>
                             ) : (
-                                // 3. 모든 조건 충족 시: Buy UI 노출
                                 <button 
                                     onClick={handleTrade} 
                                     disabled={timeLeftStr === "Round Ended"}
@@ -338,7 +370,6 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                             )}
                         </>
                     ) : (
-                        // Sell Mode
                         <button 
                             onClick={handleTrade}
                             className="w-full py-4 rounded-xl font-bold text-lg bg-red-600 text-white hover:scale-[1.02] transition shadow-lg shadow-red-500/20 flex items-center justify-center gap-2"
@@ -359,8 +390,12 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                         <div className="space-y-2">
                             <h4 className="font-black text-2xl text-white italic">SUCCESS!</h4>
                             <p className="text-sm text-zinc-400">
-                                You now own <span className="text-white font-bold">{amount} Shares</span> of<br/>
-                                <span className="text-yellow-400 font-bold">{track.title}</span>
+                                {mode === 'buy' ? (
+                                    <>You now own <span className="text-white font-bold">{amount} Shares</span></>
+                                ) : (
+                                    <>Successfully sold <span className="text-white font-bold">{amount} Shares</span></>
+                                )}
+                                <br/>of <span className="text-yellow-400 font-bold">{track.title}</span>
                             </p>
                         </div>
                         

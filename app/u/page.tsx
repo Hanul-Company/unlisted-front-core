@@ -7,7 +7,7 @@ import { prepareContractCall, getContract } from "thirdweb";
 import { client, chain } from "@/utils/thirdweb";
 import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants';
 import { parseEther } from 'viem';
-import { ListMusic, Loader2, User, UserPlus, UserCheck, Disc, Zap, Share2, Instagram, Twitter, Youtube, Music as MusicIcon, Copy, Play, Pause, Shuffle, SkipBack, SkipForward, Repeat, Repeat1, Volume2, VolumeX, Heart, ChevronDown } from 'lucide-react';
+import { ChevronUp, ListMusic, Loader2, User, UserPlus, UserCheck, Disc, Zap, Share2, Instagram, Twitter, Youtube, Music as MusicIcon, Copy, Play, Pause, Shuffle, SkipBack, SkipForward, Repeat, Repeat1, Volume2, VolumeX, Heart, ChevronDown } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
@@ -675,6 +675,14 @@ function ProfileContent() {
       {currentTrack && (
           <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-50 shadow-2xl">
               <div className="flex items-center gap-4 w-1/3">
+                    <button
+                        onClick={() => setMobilePlayerOpen(true)}
+                        className="ml-2 p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-full transition"
+                        title="Open Full Player"
+                        aria-label="Open Full Player"
+                    >
+                        <ChevronUp size={20} />
+                    </button>
                   <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative">
                       {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700" /></div>}
                   </div>

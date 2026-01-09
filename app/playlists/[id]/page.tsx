@@ -246,18 +246,25 @@ export default function PublicPlaylistPage() {
       }
 
       try {
-          if (rentalTarget.type === 'batch') {
-              const { error } = await supabase.rpc('batch_collect_playlist', {
-                  p_user_wallet: address,
-                  p_source_playlist_id: playlistId, 
-                  p_duration_months: months,
-                  p_total_price: price
+            if (rentalTarget.type === 'batch') {
+              // 🚨 [수정됨] 새로 만든 수익 공유 RPC 호출
+              const { data, error } = await supabase.rpc('collect_playlist_with_reward', {
+                  p_playlist_id: parseInt(playlistId), // string -> number 변환 필요
+                  p_wallet_address: address,
+                  p_amount: price
               });
-              if(error) throw error;
-              toast.success("Playlist Forked & Collected!", { id: toastId });
               
-              // ✅ [Updated] 포크 성공 시 완료 상태로 변경 (버튼 UI 갱신용)
-              setIsJustForked(true);
+              if (error) throw error;
+              
+              // RPC에서 'SUCCESS'를 반환하도록 짰으므로 확인 (선택사항)
+              if (data !== 'SUCCESS' && data !== null) {
+                 // 커스텀 에러 처리 필요시 작성
+              }
+
+              toast.success("Playlist Forked & Reward Sent!", { id: toastId });
+              
+              // ✅ [Updated] 포크 성공 시 완료 상태로 변경
+            setIsJustForked(true);
 
           } else {
               const { error: rentError } = await supabase.rpc('rent_track_via_wallet', {

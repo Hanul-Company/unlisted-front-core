@@ -1,80 +1,118 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/utils/supabase';
 import { 
-  Loader2, TrendingUp, DollarSign, Music, ListMusic, 
-  PieChart, Wallet, Calendar, ChevronRight, Activity, Zap, RefreshCw, Coins 
+  Loader2, TrendingUp, Music, ListMusic, 
+  Wallet, Calendar, Activity, Zap, RefreshCw, Coins, 
+  Smartphone, BarChart3, ArrowRightLeft, Info
 } from 'lucide-react';
 import HeaderProfile from '../components/HeaderProfile'; 
 import { Link } from "@/lib/i18n";
 import toast from 'react-hot-toast';
 
 // [Thirdweb]
-import { getContract, prepareContractCall } from "thirdweb";
+import { getContract, prepareContractCall, readContract } from "thirdweb";
 import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { client, chain } from "@/utils/thirdweb";
 import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants';
-import { parseEther } from 'viem';
+import { parseEther, formatEther } from 'viem';
 
 // Contract
 const tokenContract = getContract({ client, chain, address: MELODY_TOKEN_ADDRESS, abi: MELODY_TOKEN_ABI as any });
 
-// [Sub-Component] Stat Card
-const StatCard = ({ title, value, subValue, icon: Icon, color }: any) => (
-  <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-700 transition">
-    <div className={`absolute -top-2 -right-2 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110 ${color}`}>
-        <Icon size={80} />
-    </div>
-    <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-2 text-zinc-400 text-xs font-bold uppercase tracking-wider">
-            <Icon size={14} /> {title}
-        </div>
-        <div className="text-3xl font-black text-white mb-1 tracking-tight">{value}</div>
-        <div className="text-xs text-zinc-500 font-mono">{subValue}</div>
-    </div>
-  </div>
-);
+// --- [Components] ---
 
-// [Sub-Component] Revenue Stream Card (Dual Currency Support)
-const RevenueStreamCard = ({ title, pmldAmount, mldAmount, count, description, icon: Icon, colorClass }: any) => (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between hover:bg-zinc-800/50 transition cursor-pointer group relative overflow-hidden gap-4">
-        <div className="flex items-center gap-5">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorClass} bg-opacity-10 text-white shadow-inner flex-shrink-0`}>
-                <Icon size={28} className={colorClass.replace('bg-', 'text-')} />
+// 1. Dashboard Card (Updated: Total Sum as Hero)
+const DashboardCard = ({ title, mldValue, pmldValue, icon: Icon, colorClass, label }: any) => {
+  const totalValue = mldValue + pmldValue;
+
+  return (
+    <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-700 transition backdrop-blur-sm h-full flex flex-col justify-between">
+        {/* Background Icon Decoration */}
+        <div className={`absolute -top-6 -right-6 p-8 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110 ${colorClass}`}>
+            <Icon size={120} />
+        </div>
+
+        <div className="relative z-10">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-4 text-zinc-400 text-xs font-bold uppercase tracking-wider">
+                <div className={`p-1.5 rounded-md ${colorClass} bg-opacity-20`}>
+                    <Icon size={14} className={colorClass.replace('bg-', 'text-')}/>
+                </div>
+                {title}
+            </div>
+            
+            {/* Main Hero Number (Sum) */}
+            <div className="mb-4">
+                <div className="flex items-baseline gap-1">
+                    <span className="text-5xl font-black text-white tracking-tight">{totalValue.toLocaleString()}</span>
+                    <span className="text-lg font-medium text-zinc-600">Total</span>
+                </div>
+            </div>
+
+            {/* Breakdown Row (MLD vs pMLD) */}
+            <div className="flex items-center gap-4 border-t border-zinc-800/50 pt-3">
+                {/* MLD: 강조됨 (Main Feel) */}
+                <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-emerald-500/70 mb-0.5">Token (MLD)</span>
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-lg">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                        {mldValue.toLocaleString()}
+                    </div>
+                </div>
+
+                <div className="w-px h-8 bg-zinc-800"></div>
+
+                {/* pMLD: 덜 강조됨 (Sub Feel) */}
+                <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-zinc-600 mb-0.5">Points (pMLD)</span>
+                    <div className="flex items-center gap-1.5 text-zinc-400 font-medium text-lg">
+                        <div className="w-2 h-2 rounded-full bg-zinc-600"></div>
+                        {pmldValue.toLocaleString()}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {label && <div className="mt-4 pt-2 text-[10px] text-zinc-600 font-mono">{label}</div>}
+    </div>
+  );
+};
+
+// 2. Revenue Stream Item
+const RevenueStreamRow = ({ title, pmldAmount, mldAmount, count, icon: Icon, colorClass }: any) => (
+    <div className="flex items-center justify-between p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-xl hover:bg-zinc-800/50 transition group">
+        <div className="flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClass} bg-opacity-10 text-white`}>
+                <Icon size={20} className={colorClass.replace('bg-', 'text-')} />
             </div>
             <div>
-                <h3 className="font-bold text-base text-zinc-200 group-hover:text-white transition">{title}</h3>
-                <p className="text-xs text-zinc-500 mt-1">{description}</p>
-                <div className="text-[10px] text-zinc-600 mt-1 font-mono">{count} transactions</div>
+                <h4 className="font-bold text-zinc-200 text-sm">{title}</h4>
+                <div className="text-[10px] text-zinc-500">{count} transactions</div>
             </div>
         </div>
-        
-        {/* 수익금 표시 영역 (병기) */}
-        <div className="text-right flex flex-col items-end gap-1 w-full md:w-auto">
-            {pmldAmount > 0 && (
-                <div className="font-bold text-lg text-white flex items-center gap-2">
-                    {pmldAmount.toLocaleString()} <span className="text-xs font-normal text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">pMLD</span>
-                </div>
-            )}
-            {mldAmount > 0 && (
-                <div className="font-bold text-lg text-emerald-400 flex items-center gap-2">
-                    {mldAmount.toLocaleString()} <span className="text-xs font-normal text-emerald-500/50 bg-emerald-500/10 px-1.5 py-0.5 rounded">MLD</span>
-                </div>
-            )}
-            {pmldAmount === 0 && mldAmount === 0 && (
-                <span className="text-zinc-600 text-sm font-bold">-</span>
-            )}
+        <div className="text-right">
+            <div className="font-bold text-white text-sm">
+                {(mldAmount + pmldAmount).toLocaleString()} <span className="text-zinc-600 text-xs">Total</span>
+            </div>
+            <div className="flex justify-end gap-2 text-[10px] mt-0.5">
+                {mldAmount > 0 && <span className="text-emerald-500">{mldAmount.toLocaleString()} MLD</span>}
+                {pmldAmount > 0 && <span className="text-zinc-500">{pmldAmount.toLocaleString()} pMLD</span>}
+            </div>
         </div>
     </div>
 );
 
-// [Sub-Component] Swap Modal
+// 3. Swap Modal (With Fee Logic)
 const SwapModal = ({ isOpen, onClose, balance, onSwapSuccess }: any) => {
     const { mutate: sendTransaction } = useSendTransaction();
     const [amount, setAmount] = useState<number | ''>('');
     const [isSwapping, setIsSwapping] = useState(false);
     const account = useActiveAccount();
+
+    const FEE_PERCENT = 10;
+    const receiveAmount = amount ? Number(amount) * (1 - FEE_PERCENT / 100) : 0;
 
     const handleSwap = async () => {
         if (!account?.address) return toast.error("Wallet required.");
@@ -88,21 +126,21 @@ const SwapModal = ({ isOpen, onClose, balance, onSwapSuccess }: any) => {
             const { data: res, error } = await supabase.rpc('burn_pmld_for_conversion', { amount: val });
             if (error || res !== 'SUCCESS') throw new Error("Burn failed");
 
-            // 2. Blockchain Mint
+            // 2. Blockchain Mint (수수료 제외한 금액)
             const tx = prepareContractCall({
                 contract: tokenContract,
                 method: "mint",
-                params: [account.address, parseEther(val.toString())]
+                params: [account.address, parseEther(receiveAmount.toString())]
             });
 
             sendTransaction(tx, {
                 onSuccess: () => {
-                    toast.success(`Swapped ${val} pMLD to MLD!`);
+                    toast.success(`Swapped ${val} pMLD to ${receiveAmount} MLD!`);
                     onSwapSuccess();
                     onClose();
                 },
                 onError: () => {
-                    toast.error("Minting failed. Contact support."); // 실제론 롤백 로직 필요
+                    toast.error("Minting failed. Contact support.");
                 }
             });
         } catch (e) {
@@ -116,108 +154,181 @@ const SwapModal = ({ isOpen, onClose, balance, onSwapSuccess }: any) => {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-2xl w-full max-w-sm relative">
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><RefreshCw size={20}/> Swap to Token</h3>
-                <div className="bg-black rounded-xl p-4 border border-zinc-800 mb-4">
-                    <div className="flex justify-between text-xs text-zinc-500 mb-1">
-                        <span>From (Points)</span>
-                        <span>Max: {balance}</span>
+            <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-2xl w-full max-w-sm relative shadow-2xl">
+                <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-white">✕</button>
+                
+                <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                    <RefreshCw size={18} className="text-emerald-500"/> Convert Points
+                </h3>
+
+                {/* From */}
+                <div className="bg-black rounded-xl p-4 border border-zinc-800">
+                    <div className="flex justify-between text-xs text-zinc-500 mb-2">
+                        <span>Convert Amount</span>
+                        <span>Avail: {balance.toLocaleString()} pMLD</span>
                     </div>
-                    <input type="number" className="w-full bg-transparent text-2xl font-bold text-white outline-none" placeholder="0" value={amount} onChange={e => setAmount(Number(e.target.value))}/>
+                    <div className="flex items-center justify-between">
+                        <input 
+                            type="number" 
+                            className="w-full bg-transparent text-2xl font-bold text-white outline-none placeholder-zinc-700" 
+                            placeholder="0" 
+                            value={amount} 
+                            onChange={e => setAmount(Number(e.target.value))}
+                        />
+                        <span className="text-sm font-bold text-zinc-500">pMLD</span>
+                    </div>
                 </div>
-                <div className="flex justify-center -my-3 relative z-10"><div className="bg-zinc-800 p-1.5 rounded-full border border-zinc-600"><Zap size={14} className="text-yellow-400 fill-yellow-400"/></div></div>
-                <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700 mt-2 mb-6">
-                     <div className="text-xs text-zinc-500 mb-1">To (MLD Token)</div>
-                     <div className="text-2xl font-bold text-emerald-400">{amount || 0}</div>
+
+                {/* Arrow */}
+                <div className="flex justify-center -my-3 relative z-10">
+                    <div className="bg-zinc-800 p-2 rounded-full border border-zinc-600 shadow-lg">
+                        <ArrowRightLeft size={16} className="text-zinc-400 rotate-90"/>
+                    </div>
                 </div>
-                <div className="flex gap-3">
-                    <button onClick={onClose} className="flex-1 py-3 bg-zinc-800 rounded-xl font-bold text-zinc-400 hover:text-white">Cancel</button>
-                    <button onClick={handleSwap} disabled={isSwapping} className="flex-1 py-3 bg-white text-black rounded-xl font-bold hover:bg-zinc-200 flex justify-center items-center gap-2">
-                        {isSwapping ? <Loader2 className="animate-spin"/> : 'Confirm'}
-                    </button>
+
+                {/* To */}
+                <div className="bg-zinc-800/30 rounded-xl p-4 border border-zinc-700/50 mt-2 mb-4">
+                     <div className="flex justify-between text-xs text-zinc-500 mb-2">
+                        <span>You Receive (MLD)</span>
+                        <span className="text-yellow-500 flex items-center gap-1"><Info size={10}/> {FEE_PERCENT}% Fee Applied</span>
+                     </div>
+                     <div className="flex items-center justify-between">
+                        <div className="text-2xl font-bold text-emerald-400">{receiveAmount.toLocaleString()}</div>
+                        <span className="text-sm font-bold text-emerald-500/50">MLD</span>
+                     </div>
                 </div>
+
+                <button onClick={handleSwap} disabled={isSwapping || !amount} className="w-full py-3.5 bg-white text-black rounded-xl font-bold hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 transition">
+                    {isSwapping ? <Loader2 className="animate-spin" size={18}/> : 'Confirm Conversion'}
+                </button>
             </div>
         </div>
     );
 };
 
+// 4. Custom Bar Chart (Last 12 Months)
+const PerformanceChart = ({ monthlyData }: { monthlyData: any[] }) => {
+    const maxVal = Math.max(...monthlyData.map(d => d.total), 1); // Avoid div by 0
+
+    return (
+        <div className="w-full h-64 flex items-end justify-between gap-2 mt-4 select-none">
+            {monthlyData.map((data, i) => (
+                <div key={i} className="flex-1 h-full flex flex-col justify-end group relative">
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-zinc-800 border border-zinc-700 p-3 rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+                        <div className="text-xs font-bold text-white mb-2 border-b border-zinc-700 pb-1">{data.month}</div>
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Music</span><span className="text-blue-400">{data.music.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Playlist</span><span className="text-purple-400">{data.playlist.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Invest</span><span className="text-emerald-400">{data.invest.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Ads</span><span className="text-yellow-400">{data.ads.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-xs font-bold text-white pt-1 border-t border-zinc-700 mt-1"><span>Total</span><span>{data.total.toLocaleString()}</span></div>
+                        </div>
+                    </div>
+
+                    {/* Bars (Stacked) */}
+                    <div className="w-full rounded-t-sm overflow-hidden flex flex-col-reverse relative bg-zinc-800/30 hover:brightness-125 transition-all" style={{ height: `${(data.total / maxVal) * 100}%` }}>
+                        {/* 비율대로 쌓기 */}
+                        {data.total > 0 ? (
+                            <>
+                                <div style={{ height: `${(data.music / data.total) * 100}%` }} className="w-full bg-blue-500"></div>
+                                <div style={{ height: `${(data.playlist / data.total) * 100}%` }} className="w-full bg-purple-500"></div>
+                                <div style={{ height: `${(data.invest / data.total) * 100}%` }} className="w-full bg-emerald-500"></div>
+                                <div style={{ height: `${(data.ads / data.total) * 100}%` }} className="w-full bg-yellow-500"></div>
+                            </>
+                        ) : (
+                            <div className="w-full h-1 bg-zinc-800"></div> // 빈 달 표시
+                        )}
+                    </div>
+                    
+                    {/* Label */}
+                    <div className="text-[10px] text-zinc-600 text-center mt-2 font-mono group-hover:text-zinc-400">{data.label}</div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
+// --- [Main Page] ---
+
 export default function StudioPage() {
   const account = useActiveAccount();
   const address = account?.address;
 
-  // States
+  // Data States
   const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [walletMldBalance, setWalletMldBalance] = useState<number>(0); // 실제 지갑 잔액
   
-  // Analytics State
+  // Revenue Stats
   const [trackRevenue, setTrackRevenue] = useState({ pmld: 0, mld: 0, count: 0 });
   const [playlistRevenue, setPlaylistRevenue] = useState({ pmld: 0, mld: 0, count: 0 });
-  const [investRevenue, setInvestRevenue] = useState({ mld: 0, count: 0 }); // 투자는 MLD만 존재
+  const [investRevenue, setInvestRevenue] = useState({ mld: 0, count: 0 });
+  const [adRevenue, setAdRevenue] = useState({ pmld: 0, mld: 0, count: 0 }); // New: Ads/Offerwall
+  
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]); // 12 months data
 
-  // Swap Modal
+  const [loading, setLoading] = useState(true);
   const [showSwapModal, setShowSwapModal] = useState(false);
 
+  // Initial Fetch
   useEffect(() => {
-    if (address) fetchStudioData();
+    if (address) {
+        fetchStudioData();
+        fetchWalletBalance();
+    }
   }, [address]);
 
-  const fetchStudioData = async () => {
-    setLoading(true);
-    try {
-        // 1. 프로필 및 잔액 (pMLD)
-        const { data: prof } = await supabase.rpc('get_my_profile_with_balances');
-        if (prof && prof.length > 0) setProfile(prof[0]);
+  // 1. Fetch Real Wallet MLD Balance (Blockchain)
+  const fetchWalletBalance = async () => {
+      try {
+          const balance = await readContract({
+              contract: tokenContract,
+              method: "balanceOf",
+              params: [address as string]
+          });
+          setWalletMldBalance(Number(formatEther(balance as bigint)));
+      } catch (e) {
+          console.error("Wallet Fetch Error:", e);
+      }
+  };
 
-        // 2. 통합 로그 조회 (currency 필드 가정: 'pMLD' | 'MLD')
+  // 2. Fetch DB Data & Process
+  const fetchStudioData = async () => {
+    if (!address) return;
+    setLoading(true);
+    
+    try {
+        // A. Profile & Points
+        const { data: rawProfile, error: profError } = await supabase
+            .from('profiles')
+            .select(`*, p_mld_balances (balance)`)
+            .ilike('wallet_address', address)
+            .maybeSingle(); 
+
+        if (profError || !rawProfile) {
+            setLoading(false);
+            return;
+        }
+
+        const userProfile = {
+            ...rawProfile,
+            p_mld_balance: Array.isArray(rawProfile.p_mld_balances) 
+                ? rawProfile.p_mld_balances[0]?.balance || 0 
+                : rawProfile.p_mld_balances?.balance || 0
+        };
+        setProfile(userProfile);
+
+        // B. Logs
         const { data: logs } = await supabase
             .from('revenue_logs')
             .select(`*, tracks (title)`)
-            .eq('payee_address', address)
+            .eq('beneficiary_id', userProfile.id)
             .order('created_at', { ascending: false });
 
         if (logs) {
-            // --- A. 집계 로직 ---
-            const tracks = { pmld: 0, mld: 0, count: 0 };
-            const playlists = { pmld: 0, mld: 0, count: 0 };
-            const invest = { mld: 0, count: 0 };
-
-            logs.forEach(log => {
-                const amount = Number(log.amount);
-                const currency = log.currency || 'pMLD'; // Default to pMLD if null
-
-                if (log.activity_type === 'collect_fee') {
-                    // 음악 판매
-                    if (currency === 'MLD') tracks.mld += amount;
-                    else tracks.pmld += amount;
-                    tracks.count++;
-                } else if (log.activity_type === 'curator_reward') {
-                    // 플레이리스트 보상
-                    if (currency === 'MLD') playlists.mld += amount;
-                    else playlists.pmld += amount;
-                    playlists.count++;
-                } else if (['royalty', 'trade_fee'].includes(log.activity_type)) {
-                    // 투자 수익 (무조건 MLD)
-                    invest.mld += amount;
-                    invest.count++;
-                }
-            });
-
-            setTrackRevenue(tracks);
-            setPlaylistRevenue(playlists);
-            setInvestRevenue(invest);
-
-            // --- B. 로그 포매팅 ---
-            setRecentLogs(logs.slice(0, 15).map(log => ({
-                id: log.id,
-                title: log.tracks?.title || getTitleByType(log.activity_type),
-                type: formatType(log.activity_type),
-                amount: log.amount,
-                currency: log.currency || 'pMLD',
-                date: log.created_at,
-                icon: getIconByType(log.activity_type),
-                color: getColorByType(log.activity_type)
-            })));
+            processLogs(logs);
         }
 
     } catch (e) {
@@ -227,175 +338,260 @@ export default function StudioPage() {
     }
   };
 
-  // Helper Functions
-  const getTitleByType = (type: string) => {
-      if (type === 'curator_reward') return 'Playlist Reward';
-      if (type === 'royalty') return 'Trading Royalty';
-      return 'Revenue';
+  const processLogs = (logs: any[]) => {
+      const tracks = { pmld: 0, mld: 0, count: 0 };
+      const playlists = { pmld: 0, mld: 0, count: 0 };
+      const invest = { mld: 0, count: 0 };
+      const ads = { pmld: 0, mld: 0, count: 0 }; // New Category
+
+      // 12개월 차트용 초기 데이터 생성
+      const monthlyStats: {[key: string]: any} = {};
+      const today = new Date();
+      for (let i = 11; i >= 0; i--) {
+          const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          const key = `${d.getFullYear()}-${d.getMonth()}`; // 구분키
+          monthlyStats[key] = { 
+              label: d.toLocaleString('default', { month: 'short' }), // Jan, Feb...
+              month: d.toLocaleString('default', { month: 'long', year: 'numeric' }),
+              music: 0, playlist: 0, invest: 0, ads: 0, total: 0 
+          };
+      }
+
+      logs.forEach(log => {
+          const amount = Number(log.amount) || 0;
+          const rawType = (log.activity_type || '').toLowerCase().trim();
+          const rawCurrency = (log.currency || 'pMLD').trim().toUpperCase();
+          const isMLD = rawCurrency === 'MLD';
+          const logDate = new Date(log.created_at);
+          const monthKey = `${logDate.getFullYear()}-${logDate.getMonth()}`;
+
+          // --- 1. 누적 합계 계산 ---
+          if (['collect_fee', 'streaming', 'purchase', 'sale', 'track_sale', 'rental_fee'].includes(rawType)) {
+              if (isMLD) tracks.mld += amount; else tracks.pmld += amount;
+              tracks.count++;
+              if (monthlyStats[monthKey]) monthlyStats[monthKey].music += amount;
+          } 
+          else if (['curator_reward', 'reward', 'playlist_reward'].includes(rawType)) {
+              if (isMLD) playlists.mld += amount; else playlists.pmld += amount;
+              playlists.count++;
+              if (monthlyStats[monthKey]) monthlyStats[monthKey].playlist += amount;
+          } 
+          else if (['royalty', 'trade_fee', 'dividend', 'invest'].includes(rawType)) { 
+              invest.mld += amount;
+              invest.count++;
+              if (monthlyStats[monthKey]) monthlyStats[monthKey].invest += amount;
+          }
+          // New: Ads / Offerwall / Login Bonus
+          else if (['ad_revenue', 'offerwall', 'daily_checkin', 'watch_to_earn', 'engagement'].includes(rawType)) {
+              if (isMLD) ads.mld += amount; else ads.pmld += amount;
+              ads.count++;
+              if (monthlyStats[monthKey]) monthlyStats[monthKey].ads += amount;
+          }
+
+          // 차트 총합 업데이트
+          if (monthlyStats[monthKey]) monthlyStats[monthKey].total += amount;
+      });
+
+      setTrackRevenue(tracks);
+      setPlaylistRevenue(playlists);
+      setInvestRevenue(invest);
+      setAdRevenue(ads);
+      setChartData(Object.values(monthlyStats)); // 객체를 배열로 변환
+
+      // --- 2. 최근 로그 ---
+      setRecentLogs(logs.slice(0, 10).map(log => {
+        const type = (log.activity_type || '').toLowerCase();
+        let displayType = 'Revenue';
+        let icon = TrendingUp;
+        let color = 'text-zinc-400 bg-zinc-800';
+
+        if (type.includes('rental') || type.includes('stream') || type.includes('collect')) {
+            displayType = 'Music Sales'; icon = Music; color = 'text-blue-400 bg-blue-500/10';
+        } else if (type.includes('curator') || type.includes('playlist')) {
+            displayType = 'Curator Reward'; icon = ListMusic; color = 'text-purple-400 bg-purple-500/10';
+        } else if (type.includes('royalty') || type.includes('invest')) {
+            displayType = 'Investment'; icon = BarChart3; color = 'text-emerald-400 bg-emerald-500/10';
+        } else if (type.includes('ad') || type.includes('offer') || type.includes('checkin')) {
+            displayType = 'Engagement'; icon = Smartphone; color = 'text-yellow-400 bg-yellow-500/10';
+        }
+
+        return {
+            id: log.id,
+            title: log.tracks?.title || displayType,
+            type: displayType,
+            amount: log.amount,
+            currency: log.currency || 'pMLD',
+            date: log.created_at,
+            icon,
+            color
+        };
+      }));
   };
-  const formatType = (type: string) => {
-      if (type === 'collect_fee') return 'Music Sales';
-      if (type === 'curator_reward') return 'Curator Reward';
-      if (type === 'royalty') return 'Investment Income';
-      return type.replace('_', ' ');
-  };
-  const getIconByType = (type: string) => {
-      if (type === 'collect_fee') return Music;
-      if (type === 'curator_reward') return ListMusic;
-      return TrendingUp;
-  };
-  const getColorByType = (type: string) => {
-      if (type === 'collect_fee') return 'text-blue-400 bg-blue-500/10';
-      if (type === 'curator_reward') return 'text-purple-400 bg-purple-500/10';
-      return 'text-emerald-400 bg-emerald-500/10';
-  };
+
+  // Calculate Totals for Display
+  const totalLifetimeMLD = trackRevenue.mld + playlistRevenue.mld + investRevenue.mld + adRevenue.mld;
+  const totalLifetimePMLD = trackRevenue.pmld + playlistRevenue.pmld + adRevenue.pmld;
+  const currentAssetsMLD = walletMldBalance;
+  const currentAssetsPMLD = profile?.p_mld_balance || 0;
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin text-emerald-500" size={40}/></div>;
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-emerald-500/30">
       
-      {/* Navigation */}
+      {/* Header */}
       <div className="border-b border-zinc-900 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4">
                 <Link href="/market" className="text-zinc-500 hover:text-white transition font-bold text-sm">Exit</Link>
                 <div className="h-4 w-px bg-zinc-800"></div>
-                <h1 className="font-black text-lg tracking-tight">My<span className="text-emerald-500">Earnings</span></h1>
+                <h1 className="font-black text-lg tracking-tight">My<span className="text-emerald-500">Studio</span></h1>
             </div>
             <HeaderProfile/>
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-6 py-10 space-y-10">
+      <main className="max-w-7xl mx-auto px-6 py-10 space-y-8">
         
-        {/* 1. Overview Section with Swap */}
-        <section className="flex flex-col lg:flex-row gap-8 items-stretch">
-            <div className="flex-1 space-y-2">
-                <h2 className="text-4xl font-black text-white tracking-tight">Overview</h2>
-                <p className="text-zinc-400">
-                    Welcome, <span className="text-white font-bold">{profile?.username || 'Creator'}</span>.
-                </p>
-                <div className="pt-4 flex gap-4">
-                    <StatCard 
-                        title="My Points" 
-                        value={profile?.p_mld_balance?.toLocaleString()} 
-                        subValue="pMLD (Convertible)" 
-                        icon={Coins} 
-                        color="text-yellow-500" 
+        {/* 1. Dashboard Top (Overview) */}
+        <section>
+            <div className="flex flex-col md:flex-row gap-6 mb-6">
+                
+                {/* A. Lifetime Revenue */}
+                <div className="flex-1">
+                    <DashboardCard 
+                        title="Lifetime Revenue" 
+                        mldValue={totalLifetimeMLD} 
+                        pmldValue={totalLifetimePMLD}
+                        icon={TrendingUp} 
+                        colorClass="bg-emerald-500"
+                        label="Total earnings accumulated since joining."
                     />
-                    <div className="flex flex-col justify-end">
-                        {/* ✅ SWAP BUTTON: Only for pMLD */}
-                        <button 
-                            onClick={() => setShowSwapModal(true)}
-                            className="h-full px-6 py-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:border-emerald-500/50 transition group flex flex-col items-center justify-center gap-2"
-                        >
-                            <RefreshCw size={24} className="text-zinc-400 group-hover:text-emerald-400 group-hover:rotate-180 transition duration-500"/>
-                            <span className="text-xs font-bold text-zinc-300">Convert to MLD</span>
-                        </button>
-                    </div>
                 </div>
-            </div>
-            
-            {/* Total MLD Card */}
-            <div className="flex-shrink-0 bg-gradient-to-br from-emerald-900/20 to-zinc-900 border border-emerald-500/20 p-8 rounded-2xl flex flex-col justify-center min-w-[300px] shadow-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500 blur-[80px] opacity-10 group-hover:opacity-20 transition"></div>
-                <div className="relative z-10">
-                    <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase text-xs mb-2">
-                        <Wallet size={16}/> Wallet Earnings
+
+                {/* B. Current Holdings */}
+                <div className="flex-1">
+                    <DashboardCard 
+                        title="Current Assets" 
+                        mldValue={currentAssetsMLD} // Blockchain Value
+                        pmldValue={currentAssetsPMLD} // DB Value
+                        icon={Wallet} 
+                        colorClass="bg-blue-500"
+                        label="Available balance in wallet & platform."
+                    />
+                </div>
+
+                {/* C. Quick Action (Swap) */}
+                <div className="md:w-64 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between items-center text-center group hover:border-zinc-700 transition relative overflow-hidden shadow-lg">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-blue-500"></div>
+                    <div className="mt-2 w-full">
+                        <div className="w-14 h-14 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-zinc-700 group-hover:scale-110 group-hover:bg-zinc-700 transition shadow-inner">
+                            <RefreshCw size={24} className="text-emerald-400"/>
+                        </div>
+                        <h3 className="font-bold text-white text-lg">Convert Points</h3>
+                        <p className="text-xs text-zinc-500 mt-1 px-2">Swap your accumulated pMLD to MLD tokens.</p>
                     </div>
-                    <div className="text-5xl font-black text-white tracking-tight">
-                        {(trackRevenue.mld + playlistRevenue.mld + investRevenue.mld).toLocaleString()}
-                        <span className="text-lg font-medium text-emerald-500 ml-2">MLD</span>
-                    </div>
-                    <div className="mt-2 text-xs text-zinc-500">
-                        Total tokens earned from all streams
-                    </div>
+                    <button 
+                        onClick={() => setShowSwapModal(true)}
+                        className="w-full py-3 bg-white text-black text-sm font-bold rounded-xl mt-4 hover:bg-zinc-200 transition"
+                    >
+                        Convert Now
+                    </button>
                 </div>
             </div>
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* 2. Detailed Revenue Breakdown (Left Column) */}
-            <div className="lg:col-span-2 space-y-6">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold flex items-center gap-2"><Activity size={20} className="text-zinc-400"/> Revenue Streams</h3>
+            {/* 2. Main Content (Left: Chart + Streams) */}
+            <div className="lg:col-span-2 space-y-8">
+                
+                {/* Performance Chart */}
+                <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                            <BarChart3 size={20} className="text-zinc-400"/> Performance Trend
+                        </h3>
+                        <div className="flex gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Music</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Playlist</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Invest</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> Ads</div>
+                        </div>
+                    </div>
+                    <PerformanceChart monthlyData={chartData} />
                 </div>
 
+                {/* Revenue Streams Breakdown */}
                 <div className="space-y-4">
-                    {/* A. Music Sales (Dual Currency) */}
-                    <RevenueStreamCard 
-                        title="Music Sales" 
-                        pmldAmount={trackRevenue.pmld}
-                        mldAmount={trackRevenue.mld}
-                        count={trackRevenue.count}
-                        description="Revenue from track collections & rentals."
-                        icon={Music}
-                        colorClass="bg-blue-500"
-                    />
-
-                    {/* B. Playlist Rewards (Dual Currency) */}
-                    <RevenueStreamCard 
-                        title="Curator Rewards" 
-                        pmldAmount={playlistRevenue.pmld}
-                        mldAmount={playlistRevenue.mld}
-                        count={playlistRevenue.count}
-                        description="Rewards from playlist forks & usage."
-                        icon={ListMusic}
-                        colorClass="bg-purple-500"
-                    />
-
-                    {/* C. Investment Income (Only MLD) */}
-                    <RevenueStreamCard 
-                        title="Investment & Royalties" 
-                        pmldAmount={0} // No pMLD
-                        mldAmount={investRevenue.mld}
-                        count={investRevenue.count}
-                        description="Dividends from IP shares & trading fees."
-                        icon={TrendingUp}
-                        colorClass="bg-emerald-500"
-                    />
+                    <h3 className="font-bold text-lg text-white px-1">Revenue Sources</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <RevenueStreamRow 
+                            title="Music Sales & Rentals" 
+                            pmldAmount={trackRevenue.pmld}
+                            mldAmount={trackRevenue.mld}
+                            count={trackRevenue.count}
+                            icon={Music}
+                            colorClass="bg-blue-500"
+                        />
+                         <RevenueStreamRow 
+                            title="Curator Rewards" 
+                            pmldAmount={playlistRevenue.pmld}
+                            mldAmount={playlistRevenue.mld}
+                            count={playlistRevenue.count}
+                            icon={ListMusic}
+                            colorClass="bg-purple-500"
+                        />
+                         <RevenueStreamRow 
+                            title="Investment & Royalties" 
+                            pmldAmount={0}
+                            mldAmount={investRevenue.mld}
+                            count={investRevenue.count}
+                            icon={TrendingUp}
+                            colorClass="bg-emerald-500"
+                        />
+                         {/* Ads/Offerwall */}
+                         <RevenueStreamRow 
+                            title="Engagement & Ads" 
+                            pmldAmount={adRevenue.pmld}
+                            mldAmount={adRevenue.mld}
+                            count={adRevenue.count}
+                            icon={Smartphone}
+                            colorClass="bg-yellow-500"
+                        />
+                    </div>
                 </div>
 
-                {/* Monthly Chart (Visual) */}
-                <div className="mt-8 pt-8 border-t border-zinc-800">
-                     <h3 className="text-sm font-bold text-zinc-400 mb-4 uppercase tracking-wider">Performance Trend</h3>
-                     <div className="h-48 flex items-end justify-between gap-2 px-2 border-b border-zinc-800 pb-2">
-                        {[40, 65, 45, 80, 55, 90, 70, 85, 60, 75, 50, 95].map((h, i) => (
-                            <div key={i} className="w-full bg-zinc-800/50 rounded-t-sm relative group hover:bg-emerald-500/20 transition-colors" style={{ height: `${h}%` }}></div>
-                        ))}
-                     </div>
-                </div>
             </div>
 
-            {/* 3. Recent Activity (Right Column) */}
-            <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl overflow-hidden h-fit">
+            {/* 3. Sidebar (Right: History) */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden h-[600px] flex flex-col">
                 <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900">
-                    <h3 className="font-bold text-white flex items-center gap-2"><Calendar size={16}/> History</h3>
+                    <h3 className="font-bold text-white flex items-center gap-2"><Calendar size={18}/> Activity Log</h3>
                 </div>
-                <div className="divide-y divide-zinc-800 max-h-[600px] overflow-y-auto custom-scrollbar">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                     {recentLogs.length === 0 ? (
-                        <div className="p-10 text-center text-zinc-500 text-sm">No recent activity.</div>
+                        <div className="h-full flex flex-col items-center justify-center text-zinc-500 text-sm gap-2">
+                            <Activity size={30} className="opacity-20"/>
+                            <span>No recent activity.</span>
+                        </div>
                     ) : (
                         recentLogs.map((log) => (
-                            <div key={log.id} className="p-4 hover:bg-zinc-800/50 transition group">
-                                <div className="flex justify-between items-start mb-1">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${log.color.split(' ')[1]} ${log.color.split(' ')[0]}`}>
-                                            <log.icon size={14}/>
-                                        </div>
-                                        <div>
-                                            <div className="text-sm font-bold text-zinc-200 group-hover:text-white transition max-w-[150px] truncate">{log.title}</div>
-                                            <div className="text-[10px] text-zinc-500 uppercase tracking-wide font-bold">{log.type}</div>
-                                        </div>
+                            <div key={log.id} className="p-3 hover:bg-zinc-800 rounded-xl transition group flex items-center justify-between cursor-default">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${log.color}`}>
+                                        <log.icon size={14}/>
                                     </div>
-                                    <div className="text-right">
-                                        <div className={`text-sm font-bold ${log.currency === 'MLD' ? 'text-emerald-400' : 'text-white'}`}>
-                                            +{log.amount} <span className="text-[10px]">{log.currency}</span>
-                                        </div>
-                                        <div className="text-[10px] text-zinc-600">{new Date(log.date).toLocaleDateString()}</div>
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-bold text-zinc-300 group-hover:text-white truncate transition">{log.title}</div>
+                                        <div className="text-[10px] text-zinc-500 uppercase font-bold">{log.type}</div>
                                     </div>
+                                </div>
+                                <div className="text-right flex-shrink-0 pl-2">
+                                    <div className={`text-sm font-bold ${log.currency === 'MLD' ? 'text-emerald-400' : 'text-white'}`}>
+                                        +{log.amount} <span className="text-[10px]">{log.currency}</span>
+                                    </div>
+                                    <div className="text-[10px] text-zinc-600">{new Date(log.date).toLocaleDateString()}</div>
                                 </div>
                             </div>
                         ))
@@ -410,7 +606,7 @@ export default function StudioPage() {
         isOpen={showSwapModal} 
         onClose={() => setShowSwapModal(false)} 
         balance={profile?.p_mld_balance || 0}
-        onSwapSuccess={fetchStudioData}
+        onSwapSuccess={() => { fetchStudioData(); fetchWalletBalance(); }}
       />
     </div>
   );

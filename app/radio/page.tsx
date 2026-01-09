@@ -256,7 +256,7 @@ function RadioContent() {
   // 라디오는 '이전 곡'이 없으므로 prev는 생략합니다.
   useMediaSession({
     title: currentTrack?.title || "Loading...",
-    artist: currentTrack?.artist?.username || "unlisted Radio",
+    artist: currentTrack?.artist?.username || 'unlisted Artist',
     coverUrl: currentTrack?.cover_image_url || "/images/default_cover.jpg",
     isPlaying: isPlaying,
     
@@ -448,12 +448,11 @@ function RadioContent() {
         <div className="text-center space-y-4 mt-8">
           <div>
             <h2 className="text-2xl md:text-3xl font-black tracking-tight px-4 truncate">{currentTrack?.title}</h2>
-            <p className="text-zinc-400 text-sm mt-1">{currentTrack?.artist?.username}</p>
             <Link 
                 href={`/u?wallet=${currentTrack.artist?.wallet_address}`} 
                 className="text-sm mt-1 text-zinc-400 hover:text-white hover:underline transition"
                 >
-                {currentTrack.artist?.username}
+                {currentTrack.artist?.username|| 'unlisted Artist'}
             </Link>
           </div>
 
@@ -503,7 +502,7 @@ function RadioContent() {
       {/* Modals */}
       <RentalModal isOpen={showRentalModal} onClose={() => setShowRentalModal(false)} onConfirm={handleRentalConfirm} isLoading={false} />
       <PlaylistSelectionModal isOpen={showPlaylistModal} onClose={() => setShowPlaylistModal(false)} playlists={myPlaylists} onSelect={processCollect} />
-      {currentTrack && <TradeModal isOpen={showTradeModal} onClose={() => setShowTradeModal(false)} track={{ id: currentTrack.id, title: currentTrack.title, token_id: currentTrack.token_id || currentTrack.id, artist_name: currentTrack.artist?.username }} />}
+      {currentTrack && <TradeModal isOpen={showTradeModal} onClose={() => setShowTradeModal(false)} track={{ id: currentTrack.id, title: currentTrack.title, token_id: currentTrack.token_id || currentTrack.id, artist_name: currentTrack.artist?.username || 'unlisted Artist' }} />}
     </div>
   );
 }
