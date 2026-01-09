@@ -18,6 +18,7 @@ import HorizontalScroll from '../components/HorizontalScroll';
 import InvestmentCard from '../components/InvestmentCard';
 import { formatEther, parseEther } from 'viem';
 import { useMediaSession } from '@/hooks/useMediaSession';
+import MarketCarousel from '../components/MarketCarousel';
 
 // [Thirdweb Imports]
 import { getContract, prepareContractCall } from "thirdweb";
@@ -473,7 +474,7 @@ export default function MarketPage() {
              <div>
                  <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3>
                 <Link href="/studio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition"><Coins size={18}/> <span className="text-sm font-medium">Earnings</span></div></Link>
-                <Link href="/earn"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition"><Zap size={18} className="text-yellow-500"/> <span className="text-sm font-medium text-yellow-500">Free Faucet</span></div></Link>
+                {/* <Link href="/earn"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition"><Zap size={18} className="text-yellow-500"/> <span className="text-sm font-medium text-yellow-500">Free Faucet</span></div></Link> */}
              </div>
             <div className="pt-6 mt-auto border-t border-zinc-800">
                 <Link href="/upload"><button className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group"><UploadCloud size={18} className="group-hover:text-cyan-400 transition-colors"/> <span className="text-sm">Upload & Earn</span></button></Link>
@@ -497,6 +498,11 @@ export default function MarketPage() {
             <div className="flex justify-center pt-40"><Loader2 className="animate-spin text-cyan-500" size={32}/></div>
         ) : (
             <div className="pb-10 pt-4">
+                {/* ✅ [New] Market Carousel (얇고 긴 배너) */}
+                <div className="px-6">
+                    <MarketCarousel />
+                </div>
+
                 {/* 0. Playlists for you (수정됨: 패딩 이슈 해결) */}
                 <section className="mb-2">
                     <div className="px-6 mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white flex items-center gap-2">Playlists from unlisted</h2></div>

@@ -93,12 +93,12 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                             <span className="text-sm font-medium">Earnings</span>
                         </div>
                     </Link>
-                    <Link href="/earn" onClick={onClose}>
+                    {/* <Link href="/earn" onClick={onClose}>
                         <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
                             <Zap size={18} className="text-yellow-500"/>
                             <span className="text-sm font-medium text-yellow-500">Free Faucet</span>
                         </div>
-                    </Link>
+                    </Link> */}
                 </div>
             </div>
         </div>

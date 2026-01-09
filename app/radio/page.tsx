@@ -85,7 +85,7 @@ function RadioContent() {
          }
 
          // RPC 호출: get_personalized_radio
-         const { data, error } = await supabase.rpc('get_personalized_radio', {
+         const { data, error } = await supabase.rpc('get_personalized_radio_v3', {
              p_user_id: userProfile.id,
              p_limit: 10
          });
@@ -95,7 +95,7 @@ function RadioContent() {
          
          if (tracks.length === 0) {
              toast("Not enough data for AI yet. Playing random mix!", { icon: '🎲' });
-             const { data: random } = await supabase.rpc('get_random_tracks_v3', { limit_count: 5 });
+             const { data: random } = await supabase.rpc('get_random_tracks_v4', { limit_count: 5 });
              tracks = random || [];
          }
 
