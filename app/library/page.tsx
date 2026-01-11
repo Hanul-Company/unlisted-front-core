@@ -85,7 +85,7 @@ export default function LibraryPage() {
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('all'); 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.5);
+  const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
   // Modals
@@ -922,7 +922,7 @@ export default function LibraryPage() {
         )}
 
         {currentTrack && mobilePlayerOpen && (
-            <MobilePlayer
+        <MobilePlayer
                 track={currentTrack}
                 isPlaying={isPlaying}
                 onPlayPause={() => setIsPlaying(!isPlaying)}
@@ -936,9 +936,20 @@ export default function LibraryPage() {
                 currentTime={currentTime}
                 duration={duration}
                 onSeek={(val) => { if(audioRef.current) audioRef.current.currentTime = val; }}
-                isLiked={true} 
-                isRented={true} 
-                onToggleLike={() => {}} 
+                
+                // ✅ [수정] Liked = Rented 개념 통일
+                // LibraryPage에서는 tracks 데이터에 expires_at이 이미 들어있으므로, expires_at이 있으면 Rented 상태로 봅니다.
+                isLiked={!!currentTrack.expires_at} 
+                isRented={!!currentTrack.expires_at}
+                
+                // ✅ [추가] Owner 여부 판단
+                // LibraryPage에서는 'uploader_address'가 트랙 정보에 포함되어 있어야 정확합니다.
+                // 만약 없다면, 'my_songs' 플레이리스트일 때만 true로 하거나, address 비교 로직 추가 필요.
+                isOwner={address && currentTrack.uploader_address ? (address.toLowerCase() === currentTrack.uploader_address.toLowerCase()) : (selectedPlaylist === 'my_songs')}
+                
+                // ✅ [수정] Like 토글 대신 연장 모달 띄우기 (이미 라이브러리에 있으므로 무조건 연장)
+                onToggleLike={() => openExtendModal(currentTrack)} 
+                
                 onInvest={currentTrack.is_minted ? () => handleInvest(currentTrack) : undefined}
             />
         )}
@@ -980,7 +991,24 @@ export default function LibraryPage() {
                         <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
                         <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`}  className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist?.username}</Link>
                     </div>
-                    <button className="ml-2 text-pink-500 hover:scale-110 transition"><Heart size={20} fill="currentColor" /></button>
+                    {/* ✅ [수정] Like 버튼 로직 변경 */}
+                    <button
+                        // 클릭 시 무조건 연장 모달 오픈 (라이브러리에 있는 곡은 이미 Liked 상태이므로)
+                        onClick={() => openExtendModal(currentTrack)}
+                        className={`ml-2 hover:scale-110 transition ${
+                            // expires_at이 있으면(렌탈 중이면) Pink, 아니면 회색
+                            currentTrack.expires_at
+                                ? "text-pink-500"
+                                : "text-zinc-500 hover:text-white"
+                        }`}
+                        aria-label="Extend Rental" // Label도 변경
+                    >
+                        <Heart
+                            size={20}
+                            // expires_at이 있으면 채워진 하트
+                            fill={currentTrack.expires_at ? "currentColor" : "none"}
+                        />
+                    </button>
                 </div>
 
                 <div className="flex flex-col items-center gap-2 w-1/3">
@@ -1124,13 +1152,16 @@ export default function LibraryPage() {
         </div>
       )}
 
-        {showRentalModal && (
-            <RentalModal
+        {showRentalModal && trackToExtend &&(
+        <RentalModal
                 isOpen={showRentalModal}
-                onClose={() => setShowRentalModal(false)}
+                onClose={() => { setShowRentalModal(false); setTrackToExtend(null); }}
                 onConfirm={handleExtendConfirm}
                 isLoading={false}
-                isExtension={true} // 👈 여기만 추가!
+                isExtension={true}
+                // ✅ [추가] 만료일 정보 전달 (YYYY-MM-DD 포맷)
+                currentExpiryDate={trackToExtend.expires_at ? new Date(trackToExtend.expires_at).toLocaleDateString() : null}
+                targetTitle={trackToExtend.title} // 제목도 전달하면 모달에 뜸
             />
         )}
         

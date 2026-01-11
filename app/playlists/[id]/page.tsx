@@ -83,7 +83,7 @@ export default function PublicPlaylistPage() {
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('all');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.5);
+  const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
   // Modal State

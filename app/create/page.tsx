@@ -173,7 +173,7 @@ export default function CreateDashboard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.9);
+  const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
   // Mobile & Minimized Player UI state

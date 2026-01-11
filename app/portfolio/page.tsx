@@ -45,7 +45,7 @@ export default function PortfolioPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.5);
+  const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [mobilePlayerOpen, setMobilePlayerOpen] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
