@@ -8,6 +8,8 @@ import { PWAProvider } from './context/PWAContext';
 import PWAPrompt from './components/PWAPrompt';
 import IOSInstallPrompt from './components/IOSInstallPrompt';
 import { GoogleAnalytics } from "@next/third-parties/google";
+import { PlayerProvider } from './context/PlayerContext';
+import GlobalPlayer from './components/GlobalPlayer';
 import Script from 'next/script';
 
 // ✅ [추가] 전역 온보딩 모달 임포트
@@ -45,6 +47,7 @@ export default function RootLayout({
       </head>
       <body className={`${outfit.variable} ${jakarta.variable} font-sans bg-black text-white antialiased selection:bg-cyan-500/30`}>
         <Providers>
+          <PlayerProvider>
           <AuthProvider>
             <PWAProvider>
               
@@ -77,6 +80,8 @@ export default function RootLayout({
               />
             </PWAProvider>
           </AuthProvider>
+          <GlobalPlayer />
+          </PlayerProvider>
         </Providers>
       </body>
       

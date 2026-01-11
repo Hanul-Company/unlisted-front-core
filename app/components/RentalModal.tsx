@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Infinity as InfinityIcon, CheckCircle, Loader2, Music, Layers, ArrowUpCircle, CalendarDays } from 'lucide-react';
+import { X, Clock, Infinity as InfinityIcon, CheckCircle, Loader2, Music, Layers, ArrowUpCircle, CalendarDays, Coins } from 'lucide-react';
 
 interface RentalModalProps {
   isOpen: boolean;
@@ -9,14 +9,11 @@ interface RentalModalProps {
   onConfirm: (months: number, price: number) => Promise<void>;
   isLoading?: boolean;
   
-  // 메타데이터
   targetTitle?: string; 
   trackCount?: number;  
   basePrice?: number;   
-  
-  // 연장 모드 관련
   isExtension?: boolean; 
-  currentExpiryDate?: string | null; // ✅ [NEW] 현재 만료일 (YYYY-MM-DD)
+  currentExpiryDate?: string | null;
 }
 
 export default function RentalModal({ 
@@ -25,7 +22,7 @@ export default function RentalModal({
     trackCount = 1,
     basePrice = 10,
     isExtension = false,
-    currentExpiryDate = null // ✅ 기본값 null
+    currentExpiryDate = null
 }: RentalModalProps) {
     
   const [selectedPlan, setSelectedPlan] = useState<number>(6);
@@ -33,7 +30,7 @@ export default function RentalModal({
   const [progress, setProgress] = useState(0);
   const [loadingMsg, setLoadingMsg] = useState("Initializing...");
 
-  // ... (Progress Effect & useEffect 동일 유지) ...
+  // Progress Simulation
   useEffect(() => {
     if (status === 'processing') {
       setProgress(0);
@@ -45,6 +42,7 @@ export default function RentalModal({
 
   useEffect(() => { if(!isOpen) { setStatus('idle'); } }, [isOpen]);
 
+  // ✅ 가격 계산 (트랙 수 반영)
   const getPrice = (multiplier: number) => { return basePrice * multiplier * trackCount; };
 
   const plans = [
@@ -61,11 +59,22 @@ export default function RentalModal({
       const plan = plans.find((p) => p.months === selectedPlan);
       if (!plan) return;
       const finalPrice = getPrice(plan.multiplier);
+      
       setStatus('processing'); 
       try {
+          // 상위 컴포넌트의 processCollect 함수 실행
           await onConfirm(plan.months, finalPrice);
-          setProgress(100); setLoadingMsg(successTitle); setStatus('success');
-      } catch (e) { setStatus('idle'); }
+          setProgress(100); 
+          setLoadingMsg(successTitle); 
+          setStatus('success');
+          
+          // 성공 후 잠시 뒤 닫기 (선택사항)
+          setTimeout(() => {
+             onClose();
+          }, 2000);
+      } catch (e) { 
+          setStatus('idle'); // 에러 나면 다시 선택 화면으로 복귀
+      }
   };
 
   if (!isOpen) return null;
@@ -87,7 +96,6 @@ export default function RentalModal({
                   {trackCount > 1 ? `Collecting ${trackCount} tracks` : `${actionVerb} access for "${targetTitle}"`}
               </p>
               
-              {/* ✅ [NEW] 만료일 표시 */}
               {isExtension && currentExpiryDate && (
                   <div className="flex items-center gap-1.5 mt-3 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-zinc-700 w-fit">
                       <CalendarDays size={12} className="text-zinc-400"/>
@@ -128,6 +136,15 @@ export default function RentalModal({
                     );
                 })}
                 </div>
+                
+                {/* 결제 안내 문구 추가 */}
+                <div className="flex items-start gap-2 bg-zinc-800/50 p-3 rounded-xl mb-4 border border-zinc-700/50">
+                    <Coins size={14} className="text-yellow-500 mt-0.5 shrink-0"/>
+                    <p className="text-[10px] text-zinc-400 leading-tight">
+                        <span className="text-white font-bold">Auto Payment:</span> pMLD points are used first. If insufficient, MLD tokens will be charged from your wallet.
+                    </p>
+                </div>
+
                 <button onClick={handleConfirm} disabled={externalLoading} className="w-full bg-white text-black font-bold py-4 rounded-xl hover:scale-[1.02] transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
                     {externalLoading ? <Loader2 className="animate-spin" /> : <>Confirm <CheckCircle size={18} /></>}
                 </button>
@@ -141,7 +158,7 @@ export default function RentalModal({
                 )}
                 <div className="space-y-2 w-full"> <h4 className="font-bold text-xl text-white animate-pulse">{status === 'success' ? successTitle : 'Processing Payment...'}</h4> <p className="text-xs text-zinc-400 font-mono">{loadingMsg}</p> </div>
                 <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden relative"> <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}/> </div>
-                <p className="text-[10px] text-zinc-600">Securing your listening rights on-chain.</p>
+                <p className="text-[10px] text-zinc-500 mt-2">Checking balance & Securing assets on-chain.</p>
             </div>
         )}
       </div>

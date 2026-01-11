@@ -118,6 +118,7 @@ function UploadContent() {
         const pTags = searchParams.get('tags');
         const pJobId = searchParams.get('jobId');
         const pRefInfo = searchParams.get('refInfo');
+        const pLyrics = searchParams.get('lyrics'); // ✅ [추가] lyrics 파라미터 가져오기
 
         if (pAudioUrl && pTitle && !hasImported.current) {
             hasImported.current = true; // 🚩 실행 플래그 세우기 (중복 방지)
@@ -142,6 +143,7 @@ function UploadContent() {
                 if (pGenres) setGenres(pGenres.split(',').slice(0, 3)); 
                 if (pMoods) setSelectedMoods(pMoods.split(',').slice(0, 3));
                 if (pTags) setSelectedTags(pTags.split(',').slice(0, 10));
+                if (pLyrics) setLyrics(pLyrics); // ✅ [추가] 가사 설정
 
                 // C. Audio File
                 const audioRes = await fetch(pAudioUrl);
@@ -342,12 +344,12 @@ function UploadContent() {
       await supabase.from('track_contributors').insert(contributorsData);
 
       toast.dismiss();
-      toast.success('Upload complete!');
+      toast.success('Publish complete!');
       router.push('/market');
 
     } catch (error: any) {
       toast.dismiss();
-      toast.error(`Upload failed: ${error.message}`);
+      toast.error(`Publish failed: ${error.message}`);
     } finally {
       setUploading(false);
     }

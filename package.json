@@ -22,6 +22,7 @@
     "@supabase/supabase-js": "^2.86.0",
     "@tanstack/react-query": "^5.90.11",
     "@walletconnect/ethereum-provider": "^2.23.0",
+    "emoji-picker-react": "^4.16.1",
     "encoding": "^0.1.13",
     "framer-motion": "^12.23.25",
     "html2canvas": "^1.4.1",

@@ -111,7 +111,7 @@ const SwapModal = ({ isOpen, onClose, balance, onSwapSuccess }: any) => {
     const [isSwapping, setIsSwapping] = useState(false);
     const account = useActiveAccount();
 
-    const FEE_PERCENT = 10;
+    const FEE_PERCENT = 0;
     const receiveAmount = amount ? Number(amount) * (1 - FEE_PERCENT / 100) : 0;
 
     const handleSwap = async () => {

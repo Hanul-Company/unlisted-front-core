@@ -50,6 +50,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/users"><div className="p-3 hover:bg-zinc-800 rounded-lg cursor-pointer">Users</div></Link>
           <Link href="/admin/tracks"><div className="p-3 hover:bg-zinc-800 rounded-lg cursor-pointer">Tracks</div></Link>
           <Link href="/admin/banner"><div className="p-3 hover:bg-zinc-800 rounded-lg cursor-pointer">Banners</div></Link>
+          <Link href="/admin/scenarios"><div className="p-3 hover:bg-zinc-800 rounded-lg cursor-pointer">Scenarios</div></Link>
+          <Link href="/admin/tutorial"><div className="p-3 hover:bg-zinc-800 rounded-lg cursor-pointer">Tutorial</div></Link>
         </nav>
       </aside>
       <main className="flex-1 p-10 overflow-y-auto">

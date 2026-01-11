@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useRef, useEffect, useMemo } from 'react';
-import { CheckCircle, ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Repeat1, Shuffle, Heart, Zap, ListMusic, Lock } from 'lucide-react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
+import { Mic2, CheckCircle, ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Repeat1, Shuffle, Heart, Zap, ListMusic, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareButton from './ui/ShareButton';
@@ -42,6 +42,9 @@ export default function MobilePlayer({
 
   const PREVIEW_LIMIT = 60;
   const toastShownRef = useRef(false);
+  // ✅ [NEW] 가사 보기 상태
+  const [showLyrics, setShowLyrics] = useState(false);
+  const lyricsRef = useRef<HTMLDivElement>(null);
 
   // 프리뷰 제한 로직 (Owner거나 Rented면 제한 없음)
   useEffect(() => {
@@ -81,7 +84,22 @@ export default function MobilePlayer({
       }
   };
 
-  return (
+    const sanitizeLyrics = (lyrics?: string | null) => {
+    if (!lyrics) return "";
+
+    return (
+        lyrics
+        // 1) [ ... ] 통째로 제거 (줄 중간/여러개도 제거)
+        .replace(/\[[^\]]*?\]/g, "")
+        // 2) 공백/탭 정리 (선택)
+        .replace(/[ \t]+\n/g, "\n")
+        // 3) 너무 많은 빈 줄 줄이기 (선택)
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+    );
+    };
+
+return (
     <AnimatePresence>
         <motion.div 
             initial={{ y: "100%" }}
@@ -90,38 +108,83 @@ export default function MobilePlayer({
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col"
         >
+            {/* Background Blur */}
+            <div className="absolute inset-0 z-0 opacity-30 pointer-events-none">
+                <img src={track.cover_image_url || ''} className="w-full h-full object-cover blur-3xl scale-150" />
+                <div className="absolute inset-0 bg-zinc-950/80" />
+            </div>
+
             {/* Header */}
-            <header className="flex justify-between items-center p-6 z-50 h-20 shrink-0">
+            <header className="flex justify-between items-center p-6 z-50 h-20 shrink-0 relative">
                 <button onClick={onClose} className="w-10 h-10 bg-black/20 backdrop-blur-md border border-white/5 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition">
                     <ChevronDown size={24}/>
                 </button>
-                <div className="bg-cyan-500/10 px-3 py-1 rounded-full text-[10px] font-bold text-cyan-500 border border-cyan-500/20 flex items-center gap-1">
-                     <ListMusic size={10}/> NOW PLAYING
+                
+                {/* Center Badges */}
+                <div className="flex items-center gap-2">
+                    <div className="bg-cyan-500/10 px-3 py-1 rounded-full text-[10px] font-bold text-cyan-500 border border-cyan-500/20 flex items-center gap-1">
+                        <ListMusic size={10}/> NOW PLAYING
+                    </div>
+                    
+                    {/* ✅ [수정] Lyrics Text Button */}
+                    <button 
+                        onClick={() => setShowLyrics(!showLyrics)}
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold transition border flex items-center gap-1 ${
+                            showLyrics 
+                            ? 'bg-white text-black border-white' 
+                            : 'bg-black/20 text-zinc-400 border-white/5 hover:text-white hover:border-white/20'
+                        }`}
+                    >
+                        Lyrics
+                    </button>
                 </div>
+
                 <div className="w-10 h-10 flex items-center justify-center">
                     <ShareButton assetId={track.id.toString()} trackData={{ title: track.title, artist: track.artist?.username, coverUrl: track.cover_image_url || "" }} className="bg-black/20 backdrop-blur-md border border-white/5"/>
                 </div>
             </header>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 w-full h-full pb-10">
+            <div className="flex-1 flex flex-col items-center justify-center px-6 w-full h-full pb-10 relative z-10">
                 <div className="flex flex-col items-center w-full max-w-sm">
                     
-                    {/* Album Art */}
+                    {/* ✅ Album Art OR Lyrics Container */}
                     <div className="relative group w-full aspect-square mb-8">
-                        <div className={`w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-zinc-800 relative z-10 transition-transform duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-80'}`}>
-                            {track.cover_image_url ? ( <img src={track.cover_image_url} className="w-full h-full object-cover"/> ) : ( <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-700">No Image</div> )}
-                            
-                            {/* Preview Badge: Rented도 아니고 Owner도 아닐 때만 표시 */}
-                            {!isRented && !isOwner && (
-                                <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-white border border-white/10 flex items-center gap-1.5 shadow-lg">
-                                    <Lock size={10} className="text-zinc-400"/> Preview
+                        
+                        {/* 1. Lyrics View */}
+                        {showLyrics ? (
+                            <div className="w-full h-full bg-zinc-900/80 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden relative z-20 animate-in fade-in zoom-in duration-300">
+                                {/* ✅ [핵심] absolute inset-0 + overflow-y-auto 로 스크롤 영역 확보 
+                                    pb-20: 하단 프로그레스 바에 가려지지 않게 여백 추가
+                                */}
+                                <div className="absolute inset-0 overflow-y-auto p-6 pb-20 text-center custom-scrollbar">
+                                    {track.lyrics ? (
+                                        <p className="text-lg md:text-xl font-medium leading-relaxed text-zinc-200 whitespace-pre-wrap">
+                                            {sanitizeLyrics(track.lyrics)}
+                                        </p>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-zinc-500 gap-3 opacity-70">
+                                            <Mic2 size={32} strokeWidth={1.5} />
+                                            <p className="text-sm font-medium">No lyrics available for this track.</p>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        ) : (
+                            /* 2. Album Art View */
+                            <div className={`w-full h-full rounded-3xl overflow-hidden shadow-2xl border border-zinc-800 relative z-10 transition-transform duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-80'}`}>
+                                {track.cover_image_url ? ( <img src={track.cover_image_url} className="w-full h-full object-cover"/> ) : ( <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-700">No Image</div> )}
+                                
+                                {!isRented && !isOwner && (
+                                    <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-white border border-white/10 flex items-center gap-1.5 shadow-lg">
+                                        <Lock size={10} className="text-zinc-400"/> Preview
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                        {/* Progress Bar */}
-                        <div className="absolute -bottom-10 left-0 right-0 z-20">
+                        {/* Progress Bar (Visible in both views) */}
+                        <div className="absolute -bottom-10 left-0 right-0 z-30">
                             <div className="flex justify-between text-[10px] text-zinc-500 font-mono mb-2 px-1">
                                 <span>{formatTime(currentTime)}</span>
                                 <span className={!isRented && !isOwner ? "text-purple-400" : ""}>
@@ -130,7 +193,6 @@ export default function MobilePlayer({
                             </div>
                             
                             <div className="h-1.5 bg-zinc-800/50 rounded-full overflow-hidden backdrop-blur-sm relative group/seek">
-                                 {/* Preview Range Indicator */}
                                  {!isRented && !isOwner && (
                                     <div className="absolute top-0 left-0 h-full bg-purple-500/20 z-0" style={{ width: `${previewWidthPercent}%` }} />
                                  )}
@@ -150,9 +212,8 @@ export default function MobilePlayer({
                         </Link>
                     </div>
 
-                    {/* Controls & Actions */}
+                    {/* Controls */}
                     <div className="w-full">
-                        {/* Playback Buttons */}
                         <div className="flex items-center justify-between px-2 mb-8">
                             <button onClick={onToggleShuffle} className={`p-2 transition ${isShuffle ? 'text-green-500' : 'text-zinc-600'}`}><Shuffle size={20}/></button>
                             <button onClick={onPrev} className="w-12 h-12 rounded-full bg-zinc-900/50 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition backdrop-blur-md"><SkipBack size={24}/></button>
@@ -165,54 +226,24 @@ export default function MobilePlayer({
                             </button>
                         </div>
 
-                        {/* ✅ [수정 완료] Owner가 아니면 -> Like, Invest 모두 표시 */}
+                        {/* Buttons */}
                         <div className="flex justify-center items-center gap-4">
-                                
-                                {/* Like (Collect) Button - Owner가 아닐 때만 표시 */}
                                 {!isOwner && (
-                                    <button 
-                                        onClick={onToggleLike}
-                                        className={`flex items-center gap-2 px-6 py-3 rounded-full border transition backdrop-blur-md ${
-                                            isLiked 
-                                            ? 'bg-pink-500/10 border-pink-500/50 text-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.3)]' 
-                                            : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-white'
-                                        }`}
-                                    >
+                                    <button onClick={onToggleLike} className={`flex items-center gap-2 px-6 py-3 rounded-full border transition backdrop-blur-md ${isLiked ? 'bg-pink-500/10 border-pink-500/50 text-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-white'}`}>
                                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                                         <span className="text-sm font-bold">{isLiked ? 'Liked' : 'Like'}</span>
                                     </button>
                                 )}
-
-                                {/* Invest Button - Owner여도 표시됨! (단, is_minted여야 함) */}
                                 {onInvest && (
-                                    <button 
-                                        onClick={onInvest}
-                                        className="flex items-center gap-2 text-black bg-white hover:bg-zinc-200 px-6 py-3 rounded-full font-bold tracking-wide text-sm transition shadow-lg"
-                                    >
-                                        <Zap size={16} fill="black" />
-                                        <span>Invest</span>
+                                    <button onClick={onInvest} className="flex items-center gap-2 text-black bg-white hover:bg-zinc-200 px-6 py-3 rounded-full font-bold tracking-wide text-sm transition shadow-lg">
+                                        <Zap size={16} fill="black" /> <span>Invest</span>
                                     </button>
                                 )}
-                            </div>
-                        {/* Owner Message */}
-                        {isOwner && (
-                            <p className="text-center text-[10px] text-cyan-600 mt-4 font-bold flex items-center justify-center gap-1">
-                                <CheckCircle size={12}/> You are the contributor of this track
-                            </p>
-                        )}
-                        {/* Preview Message */}
-                        {!isRented && !isOwner && (
-                            <p className="text-center text-[10px] text-zinc-600 mt-4 animate-pulse">
-                                Preview Mode • Like to listen full track
-                            </p>
-                        )}
+                        </div>
 
-                        {/* Owner Message */}
-                        {isOwner && (
-                            <p className="text-center text-[10px] text-cyan-600 mt-4 font-bold">
-                                You are the creator of this track
-                            </p>
-                        )}
+                        {/* Messages */}
+                        {isOwner && ( <p className="text-center text-[10px] text-cyan-600 mt-4 font-bold flex items-center justify-center gap-1"><CheckCircle size={12}/> You are the creator of this track</p> )}
+                        {!isRented && !isOwner && ( <p className="text-center text-[10px] text-zinc-600 mt-4 animate-pulse">Preview Mode • Like to listen full track</p> )}
                     </div>
                 </div>
             </div>

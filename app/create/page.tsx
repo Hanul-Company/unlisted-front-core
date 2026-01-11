@@ -7,6 +7,7 @@ import { useActiveAccount } from "thirdweb/react";
 import HeaderProfile from '../components/HeaderProfile';
 import MobilePlayer from '../components/MobilePlayer'; 
 import { Link } from "../../lib/i18n";
+import { useAudioCheck } from '@/hooks/useAudioCheck';
 
 import {
   Loader2, Mic2, Disc, UploadCloud, Play, Pause, Trash2,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from "@/lib/i18n";
+import { SunoTrackItem } from '../components/SunoTrackItem'; // 별도 파일로 뺐다면
 
 // --- Types ---
 type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
@@ -27,6 +29,7 @@ type SunoTrackResult = {
   audio_cdn_url: string;
   cover_cdn_url: string;
   created_at: string;
+  lyrics_from_api?: string; // ✅ [추가] 타입 정의에 lyrics_from_api 추가
 };
 
 type SunoJob = {
@@ -411,7 +414,8 @@ export default function CreateDashboard() {
       moods: (job.moods || []).join(','),
       tags: (job.tags || []).join(','),
       jobId: job.id.toString(),
-      refInfo: `${job.ref_track} by ${job.ref_artist}`
+      refInfo: `${job.ref_track} by ${job.ref_artist}`,
+      lyrics: track.lyrics_from_api || job.lyrics || '' // ✅ [수정] lyrics 파라미터 추가 (API 가사 우선, 없으면 작업 시 생성된 가사)
     }).toString();
     router.push(`/upload?${query}`);
   };
@@ -752,43 +756,19 @@ export default function CreateDashboard() {
                     {job.status === 'done' && job.result_data?.tracks ? (
                       <div className="grid grid-cols-1 gap-3">
                         {job.result_data.tracks.map((track, idx) => (
-                          <div
-                            key={idx}
-                            className={`relative flex items-center gap-4 p-3 rounded-xl border transition ${
-                              currentTrack?.audio_url === track.audio_cdn_url && isPlaying
-                                ? 'bg-zinc-800 border-green-500/50'
-                                : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
-                            }`}
-                          >
-                            {/* Cover & Play (Footer Player로 재생) */}
-                            <div
-                              className="w-14 h-14 rounded-lg overflow-hidden relative shrink-0 group cursor-pointer shadow-lg"
-                              onClick={() => playFromFooter(buildPlayerTrack(job, track, idx))}
-                            >
-                              <img src={track.cover_cdn_url} className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition backdrop-blur-[1px]">
-                                {currentTrack?.audio_url === track.audio_cdn_url && isPlaying
-                                  ? <Pause fill="white" size={20} />
-                                  : <Play fill="white" size={20} />}
-                              </div>
-                            </div>
-
-                            {/* Meta */}
-                            <div className="flex-1 min-w-0">
-                              <h5 className="font-bold text-sm text-white truncate">
-                                {job.target_title} <span className="text-zinc-600 text-xs font-normal">v{idx + 1}</span>
-                              </h5>
-                              <p className="text-[11px] text-zinc-500">AI Generated • {((job.result_data?.tracks?.length || 0) * 1.5).toFixed(0)}MB</p>
-                            </div>
-
-                            {/* Action */}
-                            <button
-                              onClick={() => handleGoToUpload(job, track, idx)}
-                              className="px-4 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-zinc-200 transition shadow-md flex items-center gap-2"
-                            >
-                              <UploadCloud size={14} /> {t.select}
-                            </button>
-                          </div>
+                          // ✅ 기존의 긴 div 덩어리를 이걸로 교체!
+                          <SunoTrackItem
+                            key={`${job.id}-${idx}`}
+                            job={job}
+                            track={track}
+                            idx={idx}
+                            currentTrack={currentTrack}
+                            isPlaying={isPlaying}
+                            playFromFooter={playFromFooter}
+                            buildPlayerTrack={buildPlayerTrack}
+                            handleGoToUpload={handleGoToUpload}
+                            t={t}
+                          />
                         ))}
                       </div>
                     ) : (
