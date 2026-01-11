@@ -163,6 +163,23 @@ function RadioContent() {
 
   useEffect(() => { if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume; }, [volume, isMuted]);
 
+  useMediaSession({
+  title: currentTrack?.title || "Radio Mix",
+  artist: currentTrack?.artist?.username || "AI DJ",
+  coverUrl: currentTrack?.cover_image_url || "",
+  isPlaying: isPlaying,
+  audioRef: audioRef,
+  play: () => setIsPlaying(true),
+  pause: () => setIsPlaying(false),
+  next: handleSkip, // 스킵 함수 연결
+  seekTo: (time: number) => { // 👈 여기에 ': number'를 추가하세요!
+      if (audioRef.current) {
+          audioRef.current.currentTime = time;
+          setCurrentTime(time); // 로컬 상태 업데이트 (선택 사항)
+      }
+  }
+});
+
   // --- Collection Handlers ---
   const handleInvest = () => { if (!address) return toast.error("Connect Wallet"); setShowTradeModal(true); };
   const openCollectModal = () => { if (!address) return toast.error("Connect Wallet"); setShowRentalModal(true); };
@@ -248,23 +265,6 @@ function RadioContent() {
       </div>
     );
   }
-
-  useMediaSession({
-    title: currentTrack?.title || "Radio Mix",
-    artist: currentTrack?.artist?.username || "AI DJ",
-    coverUrl: currentTrack?.cover_image_url || "",
-    isPlaying: isPlaying,
-    audioRef: audioRef,
-    play: () => setIsPlaying(true),
-    pause: () => setIsPlaying(false),
-    next: handleSkip, // 스킵 함수 연결
-    seekTo: (time: number) => { // 👈 여기에 ': number'를 추가하세요!
-        if (audioRef.current) {
-            audioRef.current.currentTime = time;
-            setCurrentTime(time); // 로컬 상태 업데이트 (선택 사항)
-        }
-    }
-  });
 
   // ==================================================================================
   // RENDER: PLAYER SCREEN (Local Player)

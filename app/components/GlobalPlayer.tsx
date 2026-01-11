@@ -66,6 +66,24 @@ export default function GlobalPlayer() {
       // 트랙이 바뀔 때마다 혹시 갱신되었을 수 있으니 체크 (선택사항)
   }, [address, currentTrack]);
 
+     // ✅ [2] 미디어 세션 연결 (잠금화면 제어)
+  useMediaSession({
+    title: currentTrack?.title || "Unknown Title",
+    artist: currentTrack?.artist?.username || "Unlisted Artist",
+    coverUrl: currentTrack?.cover_image_url || "/images/default_cover.jpg",
+    isPlaying: isPlaying,
+    audioRef: audioRef,
+    play: togglePlay,     // 재생 함수
+    pause: togglePlay,    // 일시정지 함수 (togglePlay가 상태에 따라 알아서 처리)
+    next: next,       // 다음 곡
+    prev: prev,       // 이전 곡
+    seekTo: (time) => {   // 탐색(Seek)
+      if (audioRef.current) {
+        audioRef.current.currentTime = time;
+      }
+    }
+  });
+
   // 2. Helper Logic
   if (!currentTrack) return null;
 
@@ -162,24 +180,6 @@ export default function GlobalPlayer() {
         toast.error(`Failed: ${e?.message || e}`, { id: toastId });
     }
     };
-
-    // ✅ [2] 미디어 세션 연결 (잠금화면 제어)
-  useMediaSession({
-    title: currentTrack?.title || "Unknown Title",
-    artist: currentTrack?.artist?.username || "Unlisted Artist",
-    coverUrl: currentTrack?.cover_image_url || "/images/default_cover.jpg",
-    isPlaying: isPlaying,
-    audioRef: audioRef,
-    play: togglePlay,     // 재생 함수
-    pause: togglePlay,    // 일시정지 함수 (togglePlay가 상태에 따라 알아서 처리)
-    next: next,       // 다음 곡
-    prev: prev,       // 이전 곡
-    seekTo: (time) => {   // 탐색(Seek)
-      if (audioRef.current) {
-        audioRef.current.currentTime = time;
-      }
-    }
-  });
 
   const handleInvest = () => setTrackToInvest(currentTrack);
 
