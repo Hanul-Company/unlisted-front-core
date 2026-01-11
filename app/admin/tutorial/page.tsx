@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Trash2, Plus, Save, Loader2, ArrowUp, ArrowDown, Edit2, Globe } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, ArrowUp, ArrowDown, Edit2, UploadCloud, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // 언어 목록 정의
@@ -16,6 +16,8 @@ const LANGS = [
 export default function AdminTutorialPage() {
   const [steps, setSteps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false); // 업로드 상태
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Form State ---
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function AdminTutorialPage() {
     jp: { title: '', desc: '' },
   });
   
-  const [activeTab, setActiveTab] = useState('kr'); // 현재 입력 중인 언어 탭
+  const [activeTab, setActiveTab] = useState('kr');
 
   // 1. 목록 불러오기
   const fetchSteps = async () => {
@@ -46,9 +48,38 @@ export default function AdminTutorialPage() {
 
   useEffect(() => { fetchSteps(); }, []);
 
-  // 2. 저장 (생성/수정)
+  // 2. 이미지 업로드 핸들러
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `tutorial/${Date.now()}.${fileExt}`; // tutorial 폴더에 저장
+
+      // 'images' 버킷에 업로드 (버킷 이름 확인 필요)
+      const { error: uploadError } = await supabase.storage
+        .from('images') 
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Public URL 가져오기
+      const { data } = supabase.storage.from('images').getPublicUrl(fileName);
+      setImageUrl(data.publicUrl);
+      toast.success("Image uploaded!");
+    } catch (error: any) {
+      toast.error("Upload failed: " + error.message);
+    } finally {
+      setUploading(false);
+      // 같은 파일 재선택 가능하게 초기화
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // 3. 저장 (생성/수정)
   const handleSave = async () => {
-    // DB 컬럼에 맞게 데이터 변환
     const payload = {
       image_url: imageUrl,
       title_kr: content.kr.title, desc_kr: content.kr.desc,
@@ -68,7 +99,7 @@ export default function AdminTutorialPage() {
     }
   };
 
-  // 3. 수정 모드 진입
+  // 4. 수정 모드
   const handleEdit = (item: any) => {
     setEditingId(item.id);
     setImageUrl(item.image_url || '');
@@ -81,7 +112,7 @@ export default function AdminTutorialPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 4. 삭제 및 순서 변경
+  // 5. 삭제 및 이동
   const handleDelete = async (id: string) => {
     if(!confirm("Delete?")) return;
     await supabase.from('tutorial_steps').delete().eq('id', id);
@@ -93,16 +124,15 @@ export default function AdminTutorialPage() {
     const newSteps = [...steps];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     
-    // Swap sort_order
+    // Swap DB order
     const tempOrder = newSteps[index].sort_order;
     newSteps[index].sort_order = newSteps[targetIndex].sort_order;
     newSteps[targetIndex].sort_order = tempOrder;
 
-    // Swap in array
+    // Swap Array
     [newSteps[index], newSteps[targetIndex]] = [newSteps[targetIndex], newSteps[index]];
     setSteps(newSteps);
 
-    // Update DB
     await supabase.from('tutorial_steps').upsert([
         { id: newSteps[index].id, sort_order: newSteps[index].sort_order },
         { id: newSteps[targetIndex].id, sort_order: newSteps[targetIndex].sort_order }
@@ -133,20 +163,54 @@ export default function AdminTutorialPage() {
       <h1 className="text-3xl font-black mb-8 flex items-center gap-2">📘 Tutorial Manager</h1>
 
       {/* Editor */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mb-8 max-w-3xl">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mb-8 max-w-3xl shadow-xl">
         <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
             {editingId ? <Edit2 size={18} className="text-yellow-500"/> : <Plus size={18} className="text-green-500"/>}
             {editingId ? "Edit Step" : "Add New Step"}
         </h2>
 
-        {/* Image URL */}
+        {/* ✅ Image Upload Section */}
         <div className="mb-6">
-            <label className="text-xs text-zinc-500 font-bold block mb-1">Image URL</label>
-            <input 
-                type="text" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-white outline-none"
-                placeholder="https://..."
-            />
+            <label className="text-xs text-zinc-500 font-bold block mb-1">Image (Upload or URL)</label>
+            <div className="flex gap-2">
+                <input 
+                    type="text" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+                    className="flex-1 bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-white outline-none"
+                    placeholder="https://..."
+                />
+                
+                {/* Hidden File Input */}
+                <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImageUpload} 
+                    accept="image/*" 
+                    className="hidden" 
+                />
+                
+                {/* Trigger Button */}
+                <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition border border-zinc-700"
+                >
+                    {uploading ? <Loader2 className="animate-spin" size={16}/> : <UploadCloud size={16}/>}
+                    Upload
+                </button>
+            </div>
+            
+            {/* Image Preview */}
+            {imageUrl && (
+                <div className="mt-3 relative w-full h-48 bg-black rounded-xl overflow-hidden border border-zinc-800 group">
+                    <img src={imageUrl} alt="Preview" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"/>
+                    <button 
+                        onClick={() => setImageUrl('')}
+                        className="absolute top-2 right-2 bg-black/50 hover:bg-red-500 p-1 rounded-full text-white transition backdrop-blur-sm"
+                    >
+                        <X size={14}/>
+                    </button>
+                </div>
+            )}
         </div>
 
         {/* Language Tabs */}
@@ -196,16 +260,17 @@ export default function AdminTutorialPage() {
       {/* List */}
       <div className="space-y-4 max-w-3xl pb-20">
         {loading ? <div className="text-center py-10"><Loader2 className="animate-spin inline"/></div> : steps.map((step, idx) => (
-            <div key={step.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex gap-4 items-center group">
+            <div key={step.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex gap-4 items-center group hover:bg-zinc-900/80 transition">
                 {/* Image Preview */}
-                <div className="w-20 h-20 bg-black rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                <div className="w-24 h-24 bg-black rounded-lg overflow-hidden shrink-0 border border-zinc-800 relative">
                     {step.image_url ? <img src={step.image_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-zinc-700 text-xs">No Img</div>}
+                    <div className="absolute top-1 left-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-bold text-white border border-white/10">Step {idx + 1}</div>
                 </div>
 
                 {/* Info (Show KR default) */}
                 <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-white text-lg truncate">{step.title_kr || step.title_en || "No Title"}</h3>
-                    <p className="text-zinc-500 text-sm truncate">{step.desc_kr || step.desc_en || "No Desc"}</p>
+                    <p className="text-zinc-500 text-sm line-clamp-2">{step.desc_kr || step.desc_en || "No Desc"}</p>
                     <div className="flex gap-2 mt-2">
                         {LANGS.map(l => (
                             <span key={l.code} className={`text-[10px] px-1.5 py-0.5 rounded border ${step[`title_${l.code}`] ? 'bg-green-900/30 border-green-500/30 text-green-400' : 'bg-zinc-800 border-zinc-700 text-zinc-600'}`}>
