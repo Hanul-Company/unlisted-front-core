@@ -14,6 +14,8 @@ import { useRouter } from 'next/navigation';
 
 // ✅ 전역 플레이어를 가져오긴 하지만, '끄기' 용도로만 사용합니다.
 import { usePlayer } from '../context/PlayerContext';
+import { useMediaSession } from '@/hooks/useMediaSession';
+
 
 function RadioContent() {
   const account = useActiveAccount();
@@ -246,6 +248,23 @@ function RadioContent() {
       </div>
     );
   }
+
+  useMediaSession({
+    title: currentTrack?.title || "Radio Mix",
+    artist: currentTrack?.artist?.username || "AI DJ",
+    coverUrl: currentTrack?.cover_image_url || "",
+    isPlaying: isPlaying,
+    audioRef: audioRef,
+    play: () => setIsPlaying(true),
+    pause: () => setIsPlaying(false),
+    next: handleSkip, // 스킵 함수 연결
+    seekTo: (time: number) => { // 👈 여기에 ': number'를 추가하세요!
+        if (audioRef.current) {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time); // 로컬 상태 업데이트 (선택 사항)
+        }
+    }
+  });
 
   // ==================================================================================
   // RENDER: PLAYER SCREEN (Local Player)
