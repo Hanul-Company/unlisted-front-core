@@ -116,33 +116,85 @@ export default function LibraryPage() {
     setLoading(true);
     setTracks([]);
     setSearchQuery("");
+    
+    // ✅ 공통적으로 가져와야 할 아티스트 정보 쿼리 (Inner Join)
+    // tracks 테이블과 연결된 artist(profiles 테이블) 정보를 같이 가져옵니다.
+    const trackSelectQuery = `
+      *,
+      artist:profiles (
+        username,
+        wallet_address,
+        avatar_url
+      )
+    `;
+
     try {
       if (playlistId === 'liked') {
         if (!profileId) return;
-        const { data } = await supabase.from('collections').select('expires_at, tracks(*)').eq('profile_id', profileId).order('created_at', { ascending: false });
+        // ✅ tracks(*) -> tracks(${trackSelectQuery}) 로 변경
+        const { data } = await supabase
+          .from('collections')
+          .select(`expires_at, tracks(${trackSelectQuery})`) 
+          .eq('profile_id', profileId)
+          .order('created_at', { ascending: false });
+          
         if (data) setTracks(data.map((d: any) => ({ ...d.tracks, expires_at: d.expires_at })).filter(t => t && t.id)); 
+
       } else if (playlistId === 'my_songs') {
         if (!address) return;
-        const { data } = await supabase.from('track_contributors').select('tracks(*)').eq('wallet_address', address).order('created_at', { ascending: false });
+        // ✅ 여기도 동일하게 변경
+        const { data } = await supabase
+          .from('track_contributors')
+          .select(`tracks(${trackSelectQuery})`)
+          .eq('wallet_address', address)
+          .order('created_at', { ascending: false });
+
         if (data) {
           const myTracks = data.map((d: any) => d.tracks).filter(Boolean);
-          const uniqueTracks = Array.from(new Map(myTracks.map(item => [item.id, item])).values());
+          // 중복 제거
+          const uniqueTracks = Array.from(new Map(myTracks.map((item: any) => [item.id, item])).values());
           setTracks(uniqueTracks);
         }
+
       } else {
+        // 커스텀 플레이리스트
         if (!profileId) return;
-        const { data } = await supabase.from('playlist_items').select('tracks(*)').eq('playlist_id', playlistId).order('added_at', { ascending: false });
+        
+        // 1. 플레이리스트 아이템 가져오기 (아티스트 정보 포함)
+        const { data } = await supabase
+          .from('playlist_items')
+          .select(`tracks(${trackSelectQuery})`)
+          .eq('playlist_id', playlistId)
+          .order('added_at', { ascending: false });
+          
         const rawTracks = data?.map((d: any) => d.tracks).filter(Boolean) || [];
+
+        // 2. 렌탈 정보(만료일) 병합하기
         if (rawTracks.length > 0) {
             const trackIds = rawTracks.map((t: any) => t.id);
-            const { data: rentalData } = await supabase.from('collections').select('track_id, expires_at').eq('profile_id', profileId).in('track_id', trackIds);
+            const { data: rentalData } = await supabase
+              .from('collections')
+              .select('track_id, expires_at')
+              .eq('profile_id', profileId)
+              .in('track_id', trackIds);
+              
             const rentalMap = new Map();
             rentalData?.forEach((r: any) => { rentalMap.set(r.track_id, r.expires_at); });
-            const mergedTracks = rawTracks.map((t: any) => ({ ...t, expires_at: rentalMap.get(t.id) || null }));
+            
+            const mergedTracks = rawTracks.map((t: any) => ({ 
+              ...t, 
+              expires_at: rentalMap.get(t.id) || null 
+            }));
             setTracks(mergedTracks);
-        } else { setTracks([]); }
+        } else { 
+            setTracks([]); 
+        }
       }
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { 
+        console.error(e); 
+    } finally { 
+        setLoading(false); 
+    }
   };
 
   const handleRenamePlaylist = async () => {
@@ -252,14 +304,12 @@ export default function LibraryPage() {
     } catch (e: any) { console.error(e); toast.error("Failed to add songs.", { id: toastId }); } finally { setIsAddingSongs(false); }
   };
 
-  const filteredTracks = tracks.filter(t => t && t.title && t.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // ✅ [NEW] Play Handler (큐 교체)
+  const filteredTracks = tracks.filter(t => t && t.title && t.title.toLowerCase().includes(searchQuery.toLowerCase()));
   const handlePlay = (track: Track) => {
-      // 현재 리스트(filteredTracks)를 큐로 설정하고 재생
+      // track 데이터 안에 artist 객체가 이제 포함되어 있으므로 안전합니다.
       playTrack(track, filteredTracks);
   };
-
   return (
     <div className="flex h-screen bg-black text-white font-sans overflow-hidden">
       

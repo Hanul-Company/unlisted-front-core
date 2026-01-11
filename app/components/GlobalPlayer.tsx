@@ -10,9 +10,11 @@ import { MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI } from '../constants';
 import { parseEther } from 'viem';
 import toast from 'react-hot-toast';
 import { Link } from "@/lib/i18n";
-import { ChevronUp, Disc, Heart, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, Zap } from 'lucide-react';
+import { 
+  ChevronUp, Disc, Heart, Pause, Play, Repeat, Repeat1, Shuffle, 
+  SkipBack, SkipForward, Volume2, VolumeX, Zap, Minimize2, Maximize2, X 
+} from 'lucide-react';
 
-// 컴포넌트 임포트 (경로는 프로젝트 구조에 맞게)
 import MobilePlayer from './MobilePlayer';
 import RentalModal from './RentalModal';
 import TradeModal from './TradeModal';
@@ -36,10 +38,13 @@ export default function GlobalPlayer() {
   const [showRentalModal, setShowRentalModal] = useState(false);
   const [trackToInvest, setTrackToInvest] = useState<Track | null>(null);
 
+  // ✅ [NEW] 플레이어 최소화 상태 (기본값: false - 펼쳐짐)
+  const [isMinimized, setIsMinimized] = useState(false);
+
   // Data States (Global Check)
   const [rentedTracksMap, setRentedTracksMap] = useState<Map<number, string>>(new Map());
 
-  // 1. 유저 렌탈 정보 동기화 (전역)
+  // 1. 유저 렌탈 정보 동기화
   const fetchUserData = async () => {
       if (!address) { setRentedTracksMap(new Map()); return; }
       
@@ -61,125 +66,54 @@ export default function GlobalPlayer() {
       }
   };
 
-  useEffect(() => {
-      fetchUserData();
-      // 트랙이 바뀔 때마다 혹시 갱신되었을 수 있으니 체크 (선택사항)
-  }, [address, currentTrack]);
+  useEffect(() => { fetchUserData(); }, [address, currentTrack]);
 
-     // ✅ [2] 미디어 세션 연결 (잠금화면 제어)
+  // ✅ 2. 미디어 세션 연결 (조건부 훅 호출 문제 해결을 위해 상단 배치)
   useMediaSession({
-    title: currentTrack?.title || "Unknown Title",
-    artist: currentTrack?.artist?.username || "Unlisted Artist",
+    title: currentTrack?.title || "Unlisted",
+    artist: currentTrack?.artist?.username || "Artist",
     coverUrl: currentTrack?.cover_image_url || "/images/default_cover.jpg",
     isPlaying: isPlaying,
     audioRef: audioRef,
-    play: togglePlay,     // 재생 함수
-    pause: togglePlay,    // 일시정지 함수 (togglePlay가 상태에 따라 알아서 처리)
-    next: next,       // 다음 곡
-    prev: prev,       // 이전 곡
-    seekTo: (time) => {   // 탐색(Seek)
-      if (audioRef.current) {
-        audioRef.current.currentTime = time;
-      }
-    }
+    play: togglePlay,
+    pause: togglePlay,
+    next: next,
+    prev: prev,
+    seekTo: (time) => { if (audioRef.current) audioRef.current.currentTime = time; }
   });
 
-  // 2. Helper Logic
   if (!currentTrack) return null;
 
-  // Library Page와 동일한 로직 적용
+  // Helper Logic
   const isRented = rentedTracksMap.has(currentTrack.id);
-  // Owner 체크: uploader_address 비교
   const isOwner = address && currentTrack.uploader_address && (address.toLowerCase() === currentTrack.uploader_address.toLowerCase());
   const expiryDate = rentedTracksMap.get(currentTrack.id);
 
-  // 3. Handlers
+  // Handlers
   const handleOpenExtend = () => setShowRentalModal(true);
   
-    const handleExtendConfirm = async (months: number, price: number) => {
+  const handleExtendConfirm = async (months: number, price: number) => {
+    // ... (기존 결제 로직 유지 - 생략 없이 그대로 사용하세요)
+    // (이전 코드의 handleExtendConfirm 복붙)
     if (!currentTrack || !address) return;
-
     const toastId = toast.loading("Processing...");
-
     try {
-        // ✅ 1) pMLD 우선 시도 (온체인 결제 없이 DB에서 포인트 차감 + 컬렉션 처리)
-        const { data: pmldRes, error: pmldErr } = await supabase.rpc(
-        'add_to_collection_using_p_mld_by_wallet',
-        {
-            p_wallet_address: address,
-            p_track_id: currentTrack.id,
-            p_duration_months: months,
-        }
-        );
-
-        if (pmldErr) {
-        console.error("pMLD RPC error:", pmldErr);
-        // pMLD RPC 자체 오류면 바로 실패 처리(원하면 MLD fallback으로 바꿔도 됨)
-        throw new Error(pmldErr.message);
-        }
-
-        if (pmldRes === 'OK') {
-        toast.success(
-            `${months === 999 ? 'Collected' : 'Collected'} with pMLD`,
-            { id: toastId }
-        );
-        setShowRentalModal(false);
-        await fetchUserData();
-        return;
-        }
-
-        // ✅ 2) pMLD 부족이면 MLD로 fallback
-        if (pmldRes !== 'INSUFFICIENT_PMLD') {
-        // 그 외 리턴코드: NO_WALLET / NO_TRACK_ID 등
-        throw new Error(String(pmldRes || "PMLD_FAILED"));
-        }
-
-        // ✅ 3) MLD 결제: 먼저 온체인 transfer
+        const { data: pmldRes } = await supabase.rpc('add_to_collection_using_p_mld_by_wallet', { p_wallet_address: address, p_track_id: currentTrack.id, p_duration_months: months });
+        if (pmldRes === 'OK') { toast.success(`Collected with pMLD`, { id: toastId }); setShowRentalModal(false); await fetchUserData(); return; }
+        if (pmldRes !== 'INSUFFICIENT_PMLD') throw new Error(String(pmldRes));
+        
         if (price > 0) {
-        const recipient =
-            currentTrack.uploader_address || "0x0000000000000000000000000000000000000000";
-
-        const transaction = prepareContractCall({
-            contract: melodyTokenContract,
-            method: "transfer",
-            params: [recipient, parseEther(price.toString())],
-        });
-
-        await sendTransaction(transaction);
+            const transaction = prepareContractCall({ contract: melodyTokenContract, method: "transfer", params: [currentTrack.uploader_address || "0x0000000000000000000000000000000000000000", parseEther(price.toString())] });
+            await sendTransaction(transaction);
         }
-
-        // ✅ 4) 그 다음 DB 반영 (MLD)
-        const { data: mldRes, error: mldErr } = await supabase.rpc(
-        'add_to_collection_using_mld_by_wallet',
-        {
-            p_wallet_address: address,
-            p_track_id: currentTrack.id,
-            p_duration_months: months,
-            p_amount_mld: price,
-        }
-        );
-
-        if (mldErr) {
-        console.error("MLD RPC error:", mldErr);
-        throw new Error(mldErr.message);
-        }
-
-        if (mldRes !== 'OK') {
-        throw new Error(String(mldRes || "MLD_FAILED"));
-        }
-
-        toast.success(
-        `${months === 999 ? 'Collected' : 'Collected'} with MLD`,
-        { id: toastId }
-        );
-
+        const { data: mldRes } = await supabase.rpc('add_to_collection_using_mld_by_wallet', { p_wallet_address: address, p_track_id: currentTrack.id, p_duration_months: months, p_amount_mld: price });
+        if (mldRes !== 'OK') throw new Error(String(mldRes));
+        
+        toast.success(`Collected with MLD`, { id: toastId });
         setShowRentalModal(false);
         await fetchUserData();
-    } catch (e: any) {
-        console.error(e);
-        toast.error(`Failed: ${e?.message || e}`, { id: toastId });
-    }
-    };
+    } catch (e: any) { console.error(e); toast.error(`Failed: ${e?.message || e}`, { id: toastId }); }
+  };
 
   const handleInvest = () => setTrackToInvest(currentTrack);
 
@@ -190,24 +124,71 @@ export default function GlobalPlayer() {
       return `${min}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
+  // ✅ 최소화(Minimized) 상태 UI (둥근 플로팅 버튼 형태)
+  if (isMinimized) {
+    return (
+      <>
+        {/* Minimized Pill (Desktop & Mobile) */}
+        <div className="fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-5 zoom-in duration-300">
+           <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-md border border-zinc-700 rounded-full p-1.5 pr-4 shadow-2xl hover:scale-105 transition-all group">
+              
+              {/* Cover Art (Spinning when playing) */}
+              <div 
+                onClick={() => setIsMinimized(false)}
+                className="w-10 h-10 rounded-full overflow-hidden border border-zinc-600 cursor-pointer relative"
+              >
+                 <img src={currentTrack.cover_image_url || "/images/default_cover.jpg"} className={`w-full h-full object-cover ${isPlaying ? 'animate-spin-slow' : ''}`}/>
+                 <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                    <Maximize2 size={16} className="text-white"/>
+                 </div>
+              </div>
+
+              {/* Minimal Info */}
+              <div className="flex flex-col cursor-pointer" onClick={() => setIsMinimized(false)}>
+                  <span className="text-xs font-bold text-white max-w-[100px] truncate">{currentTrack.title}</span>
+                  <span className="text-[10px] text-zinc-400 truncate max-w-[80px]">{currentTrack.artist?.username}</span>
+              </div>
+
+              {/* Mini Controls */}
+              <div className="h-4 w-px bg-zinc-700 mx-2"/>
+              <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-green-400 transition">
+                  {isPlaying ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}
+              </button>
+              
+              {/* Close (Stop) Button - Optional */}
+              <button onClick={(e) => { e.stopPropagation(); setIsMinimized(false); setMobilePlayerOpen(true); }} className="ml-2 text-zinc-500 hover:text-white md:hidden">
+                  <ChevronUp size={16}/>
+              </button>
+           </div>
+        </div>
+
+        {/* Modals (still accessible) */}
+        {showRentalModal && <RentalModal isOpen={showRentalModal} onClose={() => setShowRentalModal(false)} onConfirm={handleExtendConfirm} isExtension={isRented} currentExpiryDate={expiryDate} targetTitle={currentTrack.title} />}
+        {trackToInvest && <TradeModal isOpen={!!trackToInvest} onClose={() => setTrackToInvest(null)} track={{ ...trackToInvest, token_id: trackToInvest.token_id ?? null }} />}
+      </>
+    );
+  }
+
   return (
     <>
       {/* =======================
-          1. Desktop Footer Player (Library 디자인)
+          1. Desktop Footer Player (Normal)
          ======================= */}
-      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-[9999] shadow-2xl">
+      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-[9999] shadow-2xl transition-transform duration-300">
           {/* Left */}
           <div className="flex items-center gap-4 w-1/3">
              <button onClick={() => setMobilePlayerOpen(true)} className="ml-2 p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-full transition"><ChevronUp size={20}/></button>
-             <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative">
+             <div className="w-14 h-14 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800 shadow-lg relative group">
                  {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><Disc size={24} className="text-zinc-700"/></div>}
+                 {/* Click cover to minimize */}
+                 <div onClick={() => setIsMinimized(true)} className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition">
+                    <Minimize2 size={20} className="text-white"/>
+                 </div>
              </div>
              <div className="overflow-hidden">
                  <div className="text-sm font-bold truncate text-white">{currentTrack.title}</div>
                  <Link href={`/u?wallet=${currentTrack.artist?.wallet_address}`} className="text-xs text-zinc-400 truncate hover:underline cursor-pointer">{currentTrack.artist?.username}</Link>
              </div>
-             
-             {/* Like Button (Owner 아닐때만) */}
              {!isOwner && (
                  <button onClick={handleOpenExtend} className={`ml-2 hover:scale-110 transition ${isRented ? "text-pink-500" : "text-zinc-500 hover:text-white"}`}>
                      <Heart size={20} fill={isRented ? "currentColor" : "none"}/>
@@ -249,14 +230,26 @@ export default function GlobalPlayer() {
               <div className="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden cursor-pointer" onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setVolume((e.clientX - rect.left) / rect.width); }}>
                   <div className="h-full bg-zinc-500 rounded-full" style={{ width: `${isMuted ? 0 : volume * 100}%` }}/>
               </div>
+
+              {/* ✅ [NEW] Desktop Minimize Button */}
+              <button 
+                onClick={() => setIsMinimized(true)} 
+                className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-full transition ml-2"
+                title="Minimize Player"
+              >
+                  <Minimize2 size={20}/>
+              </button>
           </div>
       </div>
 
       {/* =======================
-          2. Mobile Mini Player
+          2. Mobile Mini Player (Normal)
          ======================= */}
       {!mobilePlayerOpen && (
-          <div className="md:hidden fixed bottom-20 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-[90]" onClick={() => setMobilePlayerOpen(true)}>
+          <div 
+            className="md:hidden fixed bottom-20 left-4 right-4 bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-xl p-3 flex items-center justify-between shadow-2xl z-[90]" 
+            onClick={() => setMobilePlayerOpen(true)}
+          >
              <div className="flex items-center gap-3 overflow-hidden">
                  <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
                      {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <Disc className="text-zinc-500 m-auto"/>}
@@ -266,9 +259,21 @@ export default function GlobalPlayer() {
                      <div className="text-xs text-zinc-500 truncate">{currentTrack.artist?.username}</div>
                  </div>
              </div>
-             <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
-                 {isPlaying ? <Pause size={16} fill="black"/> : <Play size={16} fill="black" className="ml-0.5"/>}
-             </button>
+             
+             {/* Mobile Controls */}
+             <div className="flex items-center gap-3">
+                 <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
+                     {isPlaying ? <Pause size={16} fill="black"/> : <Play size={16} fill="black" className="ml-0.5"/>}
+                 </button>
+                 
+                 {/* ✅ [NEW] Mobile Minimize Button (X like button) */}
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); setIsMinimized(true); }}
+                    className="p-2 text-zinc-500 hover:text-white"
+                 >
+                    <Minimize2 size={20}/>
+                 </button>
+             </div>
           </div>
       )}
 
@@ -283,6 +288,7 @@ export default function GlobalPlayer() {
               onNext={next}
               onPrev={prev}
               onClose={() => setMobilePlayerOpen(false)}
+              // ... props
               repeatMode={repeatMode}
               onToggleRepeat={toggleRepeat}
               isShuffle={isShuffle}
@@ -290,41 +296,17 @@ export default function GlobalPlayer() {
               currentTime={currentTime}
               duration={duration}
               onSeek={seek}
-              
-              // Context + Local State 값 전달
               isLiked={isRented}
               isRented={isRented}
               isOwner={!!isOwner}
-              
               onToggleLike={handleOpenExtend}
               onInvest={currentTrack.is_minted ? handleInvest : undefined}
           />
       )}
 
-      {/* =======================
-          4. Global Modals
-         ======================= */}
-      {showRentalModal && (
-          <RentalModal 
-              isOpen={showRentalModal}
-              onClose={() => setShowRentalModal(false)}
-              onConfirm={handleExtendConfirm}
-              isExtension={isRented}
-              currentExpiryDate={expiryDate} // 만료일 표시
-              targetTitle={currentTrack.title}
-          />
-      )}
-      
-      {trackToInvest && (
-          <TradeModal 
-              isOpen={!!trackToInvest}
-              onClose={() => setTrackToInvest(null)}
-              track={{
-                  ...trackToInvest,
-                  token_id: trackToInvest.token_id ?? null
-              }}
-          />
-      )}
+      {/* Global Modals */}
+      {showRentalModal && <RentalModal isOpen={showRentalModal} onClose={() => setShowRentalModal(false)} onConfirm={handleExtendConfirm} isExtension={isRented} currentExpiryDate={expiryDate} targetTitle={currentTrack.title} />}
+      {trackToInvest && <TradeModal isOpen={!!trackToInvest} onClose={() => setTrackToInvest(null)} track={{ ...trackToInvest, token_id: trackToInvest.token_id ?? null }} />}
     </>
   );
 }

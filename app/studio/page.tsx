@@ -445,7 +445,7 @@ export default function StudioPage() {
             <div className="flex items-center gap-4">
                 <Link href="/market" className="text-zinc-500 hover:text-white transition font-bold text-sm">Exit</Link>
                 <div className="h-4 w-px bg-zinc-800"></div>
-                <h1 className="font-black text-lg tracking-tight">My<span className="text-emerald-500">Studio</span></h1>
+                <h1 className="font-black text-lg tracking-tight">My<span className="text-emerald-500">Earnings</span></h1>
             </div>
             <HeaderProfile/>
         </div>
@@ -508,17 +508,23 @@ export default function StudioPage() {
                 
                 {/* Performance Chart */}
                 <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-                    <div className="flex items-center justify-between mb-2">
+                    {/* ✅ [수정된 부분] Header Layout */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                        
+                        {/* Title */}
                         <h3 className="font-bold text-lg text-white flex items-center gap-2">
                             <BarChart3 size={20} className="text-zinc-400"/> Performance Trend
                         </h3>
-                        <div className="flex gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Music</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Playlist</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Invest</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> Ads</div>
+
+                        {/* Legend (범례) */}
+                        <div className="flex flex-wrap gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Music</div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Playlist</div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Invest</div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> Ads</div>
                         </div>
                     </div>
+                    
                     <PerformanceChart monthlyData={chartData} />
                 </div>
 

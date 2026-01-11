@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Infinity as InfinityIcon, CheckCircle, Loader2, Music, Layers, ArrowUpCircle, CalendarDays, Coins } from 'lucide-react';
+import { X, Clock, Infinity as InfinityIcon, CheckCircle, Loader2, Music, Layers, ArrowUpCircle, CalendarDays, Coins, ShieldCheck } from 'lucide-react';
 
 interface RentalModalProps {
   isOpen: boolean;
@@ -11,7 +11,7 @@ interface RentalModalProps {
   
   targetTitle?: string; 
   trackCount?: number;  
-  basePrice?: number;   
+  basePrice?: number;   // 기본 10으로 설정됨
   isExtension?: boolean; 
   currentExpiryDate?: string | null;
 }
@@ -20,15 +20,19 @@ export default function RentalModal({
     isOpen, onClose, onConfirm, isLoading: externalLoading,
     targetTitle = "this track", 
     trackCount = 1,
-    basePrice = 10,
+    basePrice = 10, // ✅ 기준 가격 10 (이걸 기준으로 0.1배, 0.5배... 계산)
     isExtension = false,
     currentExpiryDate = null
 }: RentalModalProps) {
     
+  // 기본 선택값: 6개월
   const [selectedPlan, setSelectedPlan] = useState<number>(6);
   const [status, setStatus] = useState<'idle' | 'processing' | 'success'>('idle');
   const [progress, setProgress] = useState(0);
   const [loadingMsg, setLoadingMsg] = useState("Initializing...");
+
+  // ✅ Lifetime 체크: 만료일이 "Lifetime"이거나 "Forever"인 경우
+  const isLifetimeOwned = currentExpiryDate === 'Lifetime' || currentExpiryDate === 'Forever';
 
   // Progress Simulation
   useEffect(() => {
@@ -42,38 +46,43 @@ export default function RentalModal({
 
   useEffect(() => { if(!isOpen) { setStatus('idle'); } }, [isOpen]);
 
-  // ✅ 가격 계산 (트랙 수 반영)
-  const getPrice = (multiplier: number) => { return basePrice * multiplier * trackCount; };
+  // ✅ 가격 계산 함수 (트랙 수 반영)
+  const getPrice = (multiplier: number) => { 
+      // 예: 1개월 -> 10 * 0.1 * 1 = 1 MLD
+      // 예: 6개월 -> 10 * 0.5 * 1 = 5 MLD
+      return basePrice * multiplier * trackCount; 
+  };
 
+  // ✅ [수정됨] 요청하신 가격 정책 적용
+  // basePrice = 10 기준
   const plans = [
-    { months: 1, multiplier: 0.1, label: '1 Month', icon: Clock },
-    { months: 6, multiplier: 0.5, label: '6 Months', icon: Clock, recommended: true },
-    { months: 12, multiplier: 1.0, label: '1 Year', icon: Clock },
-    { months: 999, multiplier: 1.5, label: 'Forever', icon: InfinityIcon },
+    { months: 1, multiplier: 0.1, label: '1 Month', icon: Clock },     // 1 MLD
+    { months: 6, multiplier: 0.5, label: '6 Months', icon: Clock, recommended: true }, // 5 MLD
+    { months: 12, multiplier: 1.0, label: '1 Year', icon: Clock },     // 10 MLD
+    { months: 999, multiplier: 1.5, label: 'Forever', icon: InfinityIcon }, // 15 MLD
   ];
 
   const actionVerb = isExtension ? "Extend" : "Rent";
   const successTitle = isExtension ? "Extended Successfully! 🎉" : (trackCount > 1 ? "Playlist Collected! 🎉" : "Rental Active! 🎉");
 
   const handleConfirm = async () => {
+      // 이미 평생 소장 중이면 동작 안 함
+      if (isLifetimeOwned) return;
+
       const plan = plans.find((p) => p.months === selectedPlan);
       if (!plan) return;
+      
       const finalPrice = getPrice(plan.multiplier);
       
       setStatus('processing'); 
       try {
-          // 상위 컴포넌트의 processCollect 함수 실행
           await onConfirm(plan.months, finalPrice);
           setProgress(100); 
           setLoadingMsg(successTitle); 
           setStatus('success');
-          
-          // 성공 후 잠시 뒤 닫기 (선택사항)
-          setTimeout(() => {
-             onClose();
-          }, 2000);
+          setTimeout(() => { onClose(); }, 2000);
       } catch (e) { 
-          setStatus('idle'); // 에러 나면 다시 선택 화면으로 복귀
+          setStatus('idle'); 
       }
   };
 
@@ -96,11 +105,16 @@ export default function RentalModal({
                   {trackCount > 1 ? `Collecting ${trackCount} tracks` : `${actionVerb} access for "${targetTitle}"`}
               </p>
               
+              {/* 만료일 표시 */}
               {isExtension && currentExpiryDate && (
-                  <div className="flex items-center gap-1.5 mt-3 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-zinc-700 w-fit">
-                      <CalendarDays size={12} className="text-zinc-400"/>
-                      <span className="text-[10px] text-zinc-300">
-                          Current Expiry: <span className="text-white font-bold">{currentExpiryDate}</span>
+                  <div className={`flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-lg border w-fit ${
+                      isLifetimeOwned 
+                      ? 'bg-emerald-900/20 border-emerald-500/30 text-emerald-400' 
+                      : 'bg-zinc-800/80 border-zinc-700 text-zinc-300'
+                  }`}>
+                      {isLifetimeOwned ? <ShieldCheck size={12}/> : <CalendarDays size={12}/>}
+                      <span className="text-[10px]">
+                          Current: <span className="font-bold">{isLifetimeOwned ? "Lifetime Owned" : currentExpiryDate}</span>
                       </span>
                   </div>
               )}
@@ -111,43 +125,85 @@ export default function RentalModal({
         {/* Body */}
         {status === 'idle' ? (
             <>
+                {/* ✅ 이미 소장 중일 때 안내 메시지 */}
+                {isLifetimeOwned && (
+                    <div className="mb-4 text-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700">
+                        <p className="text-zinc-400 text-sm">
+                            You already own this track forever.<br/>
+                            No further payment is needed.
+                        </p>
+                    </div>
+                )}
+
                 <div className="space-y-3 mb-6">
                 {plans.map((plan) => {
                     const price = getPrice(plan.multiplier);
+                    // 1 MLD = 1 pMLD 이므로 둘 다 price로 표시
                     const displayLabel = (isExtension && plan.months !== 999) ? `+ ${plan.label}` : plan.label;
 
                     return (
-                        <button key={plan.months} onClick={() => setSelectedPlan(plan.months)} className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${selectedPlan === plan.months ? 'bg-purple-600/10 border-purple-500 text-white shadow-[0_0_15px_rgba(147,51,234,0.3)]' : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'}`}>
+                        <button 
+                            key={plan.months} 
+                            // ✅ Lifetime일 경우 disabled 처리
+                            disabled={isLifetimeOwned || externalLoading}
+                            onClick={() => setSelectedPlan(plan.months)} 
+                            className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all relative overflow-hidden group
+                                ${isLifetimeOwned 
+                                    ? 'bg-zinc-900 border-zinc-800 opacity-40 cursor-not-allowed grayscale' 
+                                    : (selectedPlan === plan.months ? 'bg-purple-600/10 border-purple-500 text-white shadow-[0_0_15px_rgba(147,51,234,0.3)]' : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800')
+                                }
+                            `}
+                        >
                             <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedPlan === plan.months ? 'bg-purple-500 text-white' : 'bg-zinc-800'}`}>
-                                    <plan.icon size={16} />
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedPlan === plan.months && !isLifetimeOwned ? 'bg-purple-500 text-white' : 'bg-zinc-800'}`}>
+                                    {isLifetimeOwned && plan.months === 999 ? <CheckCircle size={16}/> : <plan.icon size={16} />}
                                 </div>
                                 <div className="text-left">
                                     <div className="font-bold text-sm">{displayLabel}</div>
-                                    {plan.recommended && <span className="text-[10px] text-green-400 font-mono">BEST VALUE</span>}
+                                    {plan.recommended && !isLifetimeOwned && <span className="text-[10px] text-green-400 font-mono">BEST VALUE</span>}
                                 </div>
                             </div>
+                            
                             <div className="text-right">
-                                <div className={`font-bold font-mono ${selectedPlan === plan.months ? 'text-purple-400' : 'text-zinc-500'}`}>
-                                    {price.toFixed(1)} <span className="text-[10px]">MLD</span>
-                                </div>
+                                {isLifetimeOwned ? (
+                                    <span className="text-xs font-bold text-zinc-500">Owned</span>
+                                ) : (
+                                    <>
+                                        <div className={`font-bold font-mono ${selectedPlan === plan.months ? 'text-purple-400' : 'text-zinc-500'}`}>
+                                            {price.toLocaleString()} <span className="text-[10px]">pMLD</span>
+                                        </div>
+                                        <div className="text-[10px] text-zinc-600">or {price.toLocaleString()} MLD</div>
+                                    </>
+                                )}
                             </div>
                         </button>
                     );
                 })}
                 </div>
                 
-                {/* 결제 안내 문구 추가 */}
-                <div className="flex items-start gap-2 bg-zinc-800/50 p-3 rounded-xl mb-4 border border-zinc-700/50">
-                    <Coins size={14} className="text-yellow-500 mt-0.5 shrink-0"/>
-                    <p className="text-[10px] text-zinc-400 leading-tight">
-                        <span className="text-white font-bold">Auto Payment:</span> pMLD points are used first. If insufficient, MLD tokens will be charged from your wallet.
-                    </p>
-                </div>
+                {/* 결제 안내 문구 */}
+                {!isLifetimeOwned && (
+                    <div className="flex items-start gap-2 bg-zinc-800/50 p-3 rounded-xl mb-4 border border-zinc-700/50">
+                        <Coins size={14} className="text-yellow-500 mt-0.5 shrink-0"/>
+                        <p className="text-[10px] text-zinc-400 leading-tight">
+                            <span className="text-white font-bold">Auto Payment:</span> pMLD points are used first. If insufficient, MLD tokens will be charged.
+                        </p>
+                    </div>
+                )}
 
-                <button onClick={handleConfirm} disabled={externalLoading} className="w-full bg-white text-black font-bold py-4 rounded-xl hover:scale-[1.02] transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
-                    {externalLoading ? <Loader2 className="animate-spin" /> : <>Confirm <CheckCircle size={18} /></>}
-                </button>
+                {/* Confirm Button */}
+                {!isLifetimeOwned && (
+                    <button onClick={handleConfirm} disabled={externalLoading} className="w-full bg-white text-black font-bold py-4 rounded-xl hover:scale-[1.02] transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                        {externalLoading ? <Loader2 className="animate-spin" /> : <>Confirm <CheckCircle size={18} /></>}
+                    </button>
+                )}
+                
+                {/* Close Button only (if owned) */}
+                {isLifetimeOwned && (
+                    <button onClick={onClose} className="w-full bg-zinc-800 text-white font-bold py-4 rounded-xl hover:bg-zinc-700 transition">
+                        Close
+                    </button>
+                )}
             </>
         ) : (
             <div className="py-4 flex flex-col items-center justify-center text-center space-y-6 min-h-[300px]">
