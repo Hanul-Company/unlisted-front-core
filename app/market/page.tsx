@@ -388,57 +388,195 @@ export default function MarketPage() {
                 </section>
 
                 {/* 6. Search Section */}
-                <section className="p-6 min-h-[600px] flex flex-col items-center pt-20"> 
-                    <div className="flex flex-col items-center gap-8 w-full max-w-4xl"> <div className="text-center space-y-2"> <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 tracking-tight pb-2 leading-tight"> What are you looking for? </h2> <p className="text-zinc-500">Discover tracks, artists, and playlists.</p> </div> <div className="relative w-full max-w-2xl group"> <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition duration-500"/> <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-white transition" size={22}/> <input type="text" placeholder="e.g., Cozy bedroom pop for late night" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-5 pl-16 pr-6 text-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800/50 transition relative z-10 shadow-2xl" value={searchQuery} onChange={(e) => handleSearch(e.target.value)} /> {isSearching && <Loader2 className="absolute right-6 top-1/2 -translate-y-1/2 text-cyan-500 animate-spin z-20" size={22} />} </div> </div> 
-                    <div className="mt-16 w-full max-w-6xl space-y-12"> 
-                        {searchQuery && !isSearching && searchTracks.length === 0 && searchCreators.length === 0 && searchPlaylists.length === 0 && ( <div className="text-center py-10 animate-in fade-in zoom-in duration-300"> <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4"> <Search size={24} className="text-zinc-600"/> </div> <p className="text-zinc-500">No results found for "<span className="text-white font-bold">{searchQuery}</span>"</p> </div> )} 
-                        {!searchQuery && ( <div className="hidden"></div> )} 
-                        
-                        {searchTracks.length > 0 && ( 
-                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500"> 
-                                <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Tracks</h3> 
-                                <div className="space-y-2"> 
-                                    {searchTracks.map((track) => { 
-                                        const isOwner = address && track.uploader_address && address.toLowerCase() === track.uploader_address.toLowerCase(); 
-                                        const isProcessingThis = processingTrackId === track.id && (isPending); 
-                                        const errorString = track.mint_error ? String(track.mint_error).trim() : ''; 
-                                        const isDuplicateError = errorString.includes('duplicate_melody_hash') || !!track.duplicate_of_track_id; 
+                <section className="p-6 min-h-[600px] flex flex-col items-center pt-20">
+                    {/* 1. 검색 헤더 및 입력창 영역 */}
+                    <div className="flex flex-col items-center gap-8 w-full max-w-4xl">
+                        <div className="text-center space-y-2">
+                            <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 tracking-tight pb-2 leading-tight">
+                                What are you looking for?
+                            </h2>
+                            <p className="text-zinc-500">Discover tracks, artists, and playlists.</p>
+                        </div>
+
+                        <div className="relative w-full max-w-2xl group">
+                            {/* Glow Effect */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition duration-500" />
+                            
+                            {/* Search Icon */}
+                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-white transition" size={22} />
+                            
+                            {/* Input Field */}
+                            <input
+                                type="text"
+                                placeholder="e.g., Cozy bedroom pop for late night"
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-5 pl-16 pr-6 text-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800/50 transition relative z-10 shadow-2xl"
+                                value={searchQuery}
+                                onChange={(e) => handleSearch(e.target.value)}
+                            />
+                            
+                            {/* Loading Spinner */}
+                            {isSearching && (
+                                <Loader2 className="absolute right-6 top-1/2 -translate-y-1/2 text-cyan-500 animate-spin z-20" size={22} />
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 2. 검색 결과 영역 */}
+                    <div className="mt-16 w-full max-w-6xl space-y-12">
+                        {/* Case: 검색어는 있지만 결과가 없을 때 */}
+                        {searchQuery && !isSearching && searchTracks.length === 0 && searchCreators.length === 0 && searchPlaylists.length === 0 && (
+                            <div className="text-center py-10 animate-in fade-in zoom-in duration-300">
+                                <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Search size={24} className="text-zinc-600" />
+                                </div>
+                                <p className="text-zinc-500">
+                                    No results found for "<span className="text-white font-bold">{searchQuery}</span>"
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Tracks Section */}
+                        {searchTracks.length > 0 && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Tracks</h3>
+                                <div className="space-y-2">
+                                    {searchTracks.map((track) => {
+                                        // Logic Variables
+                                        const isOwner = address && track.uploader_address && address.toLowerCase() === track.uploader_address.toLowerCase();
+                                        const isProcessingThis = processingTrackId === track.id && isPending;
+                                        const errorString = track.mint_error ? String(track.mint_error).trim() : '';
+                                        const isDuplicateError = errorString.includes('duplicate_melody_hash') || !!track.duplicate_of_track_id;
                                         
-                                        // Global State Check
+                                        // Global State Check (Now Playing)
                                         const isThisTrackPlaying = currentTrack?.id === track.id && isPlaying;
 
-                                        if (!isOwner && isDuplicateError) return null; 
-                                        
-                                        return ( 
-                                            <div key={track.id} className={`group flex items-center justify-between p-3 rounded-xl transition-all border cursor-pointer ${isThisTrackPlaying ? 'bg-zinc-900 border-cyan-500/50' : 'bg-transparent border-transparent hover:bg-zinc-900 hover:border-zinc-800'}`} onClick={() => handlePlay(track, searchTracks)}> 
-                                                <div className="flex items-center gap-4"> 
-                                                    <div className="w-12 h-12 rounded-lg bg-zinc-900 flex items-center justify-center overflow-hidden border border-zinc-800 relative"> 
-                                                        {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover"/> : <MusicIcon size={20} className="text-zinc-700"/>} 
-                                                        {isThisTrackPlaying && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"/></div>} 
-                                                    </div> 
-                                                    <div> 
-                                                        <div className="font-bold text-base text-white">{track.title}</div> 
-                                                        <Link href={`/u?wallet=${track.artist?.wallet_address}`} className="text-xs text-zinc-500">{track.artist?.username || 'Unlisted Artist'}</Link> 
-                                                    </div> 
-                                                </div> 
-                                                <div className="flex items-center gap-3"> 
-                                                    {(() => { 
-                                                        if (isDuplicateError && isOwner) return <button className="text-red-500 text-xs border border-red-500/30 px-3 py-1 rounded bg-red-500/10">Rejected</button>; 
-                                                        if (track.is_minted) return <button onClick={(e) => { e.stopPropagation(); handleInvest(track); }} className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-white hover:text-black transition">Invest</button>; 
-                                                        if (isOwner) return <button onClick={(e) => { e.stopPropagation(); handleRegister(track); }} className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition" disabled={isProcessingThis}>{isProcessingThis ? <Loader2 className="animate-spin" size={12}/> : 'Register'}</button>; 
-                                                        return null; 
-                                                    })()} 
-                                                </div> 
-                                            </div> 
-                                        ); 
-                                    })} 
-                                </div> 
-                            </div> 
+                                        // Hide duplicates if not owner
+                                        if (!isOwner && isDuplicateError) return null;
+
+                                        return (
+                                            <div
+                                                key={track.id}
+                                                className={`group flex items-center justify-between p-3 rounded-xl transition-all border cursor-pointer ${
+                                                    isThisTrackPlaying 
+                                                        ? 'bg-zinc-900 border-cyan-500/50' 
+                                                        : 'bg-transparent border-transparent hover:bg-zinc-900 hover:border-zinc-800'
+                                                }`}
+                                                onClick={() => handlePlay(track, searchTracks)}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    {/* Cover Image & Playing Indicator */}
+                                                    <div className="w-12 h-12 rounded-lg bg-zinc-900 flex items-center justify-center overflow-hidden border border-zinc-800 relative">
+                                                        {track.cover_image_url ? (
+                                                            <img src={track.cover_image_url} className="w-full h-full object-cover" alt={track.title} />
+                                                        ) : (
+                                                            <MusicIcon size={20} className="text-zinc-700" />
+                                                        )}
+                                                        {isThisTrackPlaying && (
+                                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {/* Track Info */}
+                                                    <div>
+                                                        <div className="font-bold text-base text-white">{track.title}</div>
+                                                        <Link href={`/u?wallet=${track.artist?.wallet_address}`} className="text-xs text-zinc-500 hover:text-zinc-300 transition">
+                                                            {track.artist?.username || 'Unlisted Artist'}
+                                                        </Link>
+                                                    </div>
+                                                </div>
+
+                                                {/* Action Buttons */}
+                                                <div className="flex items-center gap-3">
+                                                    {(() => {
+                                                        if (isDuplicateError && isOwner) {
+                                                            return <button className="text-red-500 text-xs border border-red-500/30 px-3 py-1 rounded bg-red-500/10">Rejected</button>;
+                                                        }
+                                                        if (track.is_minted) {
+                                                            return (
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleInvest(track); }} 
+                                                                    className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-white hover:text-black transition"
+                                                                >
+                                                                    Invest
+                                                                </button>
+                                                            );
+                                                        }
+                                                        if (isOwner) {
+                                                            return (
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleRegister(track); }} 
+                                                                    className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition" 
+                                                                    disabled={isProcessingThis}
+                                                                >
+                                                                    {isProcessingThis ? <Loader2 className="animate-spin" size={12} /> : 'Register'}
+                                                                </button>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         )}
-                        {/* Creators & Playlists Sections (유지) */}
-                        {searchCreators.length > 0 && ( <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100"> <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Creators</h3> <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4"> {searchCreators.map(c => ( <Link href={`/u?wallet=${c.wallet_address}`} key={c.wallet_address}> <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex flex-col items-center gap-3 hover:bg-zinc-800 transition cursor-pointer group hover:border-zinc-600"> <div className="w-20 h-20 rounded-full bg-zinc-800 overflow-hidden shadow-lg"> {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover group-hover:scale-110 transition"/> : <User className="w-full h-full p-5 text-zinc-600"/>} </div> <div className="text-center"> <div className="font-bold text-sm text-white truncate w-24 group-hover:text-cyan-400 transition">{c.username}</div> </div> </div> </Link> ))} </div> </div> )}
-                        {searchPlaylists.length > 0 && ( <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200"> <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Playlists</h3> <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4"> {searchPlaylists.map(pl => ( <Link href={`/playlists/${pl.id}`} key={pl.id}> <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl hover:bg-zinc-800 transition cursor-pointer group hover:border-zinc-600"> <div className="aspect-square bg-zinc-800 rounded-lg overflow-hidden mb-3 relative"> {pl.cover_image_url ? <img src={pl.cover_image_url} className="w-full h-full object-cover group-hover:scale-105 transition"/> : <div className="w-full h-full flex items-center justify-center"><ListMusic className="text-zinc-600"/></div>} </div> <div className="font-bold text-sm text-white truncate group-hover:text-cyan-400 transition">{pl.name}</div> <div className="text-[10px] text-zinc-500">Forks: {pl.fork_count || 0}</div> </div> </Link> ))} </div> </div> )}
-                    </div> 
+
+                        {/* Creators Section */}
+                        {searchCreators.length > 0 && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
+                                <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Creators</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {searchCreators.map((c) => (
+                                        <Link href={`/u?wallet=${c.wallet_address}`} key={c.wallet_address}>
+                                            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex flex-col items-center gap-3 hover:bg-zinc-800 transition cursor-pointer group hover:border-zinc-600">
+                                                <div className="w-20 h-20 rounded-full bg-zinc-800 overflow-hidden shadow-lg">
+                                                    {c.avatar_url ? (
+                                                        <img src={c.avatar_url} className="w-full h-full object-cover group-hover:scale-110 transition" alt={c.username} />
+                                                    ) : (
+                                                        <User className="w-full h-full p-5 text-zinc-600" />
+                                                    )}
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="font-bold text-sm text-white truncate w-24 group-hover:text-cyan-400 transition">
+                                                        {c.username}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Playlists Section */}
+                        {searchPlaylists.length > 0 && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
+                                <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Playlists</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {searchPlaylists.map((pl) => (
+                                        <Link href={`/playlists/${pl.id}`} key={pl.id}>
+                                            <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl hover:bg-zinc-800 transition cursor-pointer group hover:border-zinc-600">
+                                                <div className="aspect-square bg-zinc-800 rounded-lg overflow-hidden mb-3 relative">
+                                                    {pl.cover_image_url ? (
+                                                        <img src={pl.cover_image_url} className="w-full h-full object-cover group-hover:scale-105 transition" alt={pl.name} />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ListMusic className="text-zinc-600" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="font-bold text-sm text-white truncate group-hover:text-cyan-400 transition">{pl.name}</div>
+                                                <div className="text-[10px] text-zinc-500">Forks: {pl.fork_count || 0}</div>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </section>
             </div>
         )}

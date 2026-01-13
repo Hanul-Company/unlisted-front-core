@@ -241,7 +241,7 @@ export default function HeaderProfile() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <button onClick={handleMintTokens} disabled={isPending} className="flex items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-purple-300 text-[10px] font-bold py-2 rounded-lg border border-zinc-700 transition"> {isPending ? <Loader2 size={12} className="animate-spin"/> : <><Coins size={12}/> Get MLD</>} </button>
-                  <button onClick={handleApprove} disabled={isPending} className="flex items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-blue-300 text-[10px] font-bold py-2 rounded-lg border border-zinc-700 transition"> {isPending ? <Loader2 size={12} className="animate-spin"/> : <><CheckCircle size={12}/> Approve</>} </button>
+                  <button onClick={handleApprove} disabled={isPending} className="flex items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-blue-300 text-[10px] font-bold py-2 rounded-lg border border-zinc-700 transition"> {isPending ? <Loader2 size={12} className="animate-spin"/> : <><CheckCircle size={12}/> Initiate</>} </button>
                 </div>
                 {profile && !profile.wallet_address && ( <button onClick={handleLinkWallet} className="mt-2 w-full text-xs bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-1 transition"><LinkIcon size={12}/> Link Account</button> )}
               </div>

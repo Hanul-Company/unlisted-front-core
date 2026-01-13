@@ -140,7 +140,7 @@ return (
                 </div>
 
                 <div className="w-10 h-10 flex items-center justify-center">
-                    <ShareButton assetId={track.id.toString()} trackData={{ title: track.title, artist: track.artist?.username, coverUrl: track.cover_image_url || "" }} className="bg-black/20 backdrop-blur-md border border-white/5"/>
+                    <ShareButton assetId={track.id.toString()} trackData={{ title: track.title, artist: track.artist?.username, coverUrl: track.cover_image_url || "" }} className="bg-black/5 backdrop-blur-md border border-white/15"/>
                 </div>
             </header>
 

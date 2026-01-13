@@ -320,7 +320,7 @@ export default function LibraryPage() {
       <div className="hidden md:flex w-64 bg-zinc-950 border-r border-zinc-800 flex-col p-4">
         <Link href="/market" className="text-zinc-500 hover:text-white text-sm mb-6 flex items-center gap-2">← Back to Market</Link>
         <div className="flex items-center justify-between mb-4 px-2">
-          <h2 className="text-xs font-bold text-zinc-500 uppercase">My Library</h2>
+          <h2 className="text-xs font-bold text-zinc-500 uppercase">My Playlists</h2>
           <button onClick={() => setIsCreating(true)} className="text-zinc-400 hover:text-white"><Plus size={18} /></button>
         </div>
         {isCreating && (

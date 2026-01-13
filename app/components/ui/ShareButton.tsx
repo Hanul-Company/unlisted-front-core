@@ -183,13 +183,16 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
     }
   };
 
+const baseClass = className || 'bg-zinc-800 hover:bg-zinc-700';
+
   return (
     <div className="flex gap-2">
       {trackData && (
         <button 
             onClick={(e) => { e.stopPropagation(); handleStoryShare(); }}
             disabled={isGenerating}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${className.includes('bg-') ? className : 'bg-zinc-800 text-pink-500 hover:bg-zinc-700'}`}
+            // 👇 수정됨: baseClass + text-pink-500 (인스타 색상 고정)
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${baseClass} text-pink-500`}
         >
             {isGenerating ? <Loader2 size={18} className="animate-spin text-zinc-400"/> : <Instagram size={18} />}
         </button>
@@ -197,7 +200,8 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
 
       <button 
         onClick={(e) => { e.stopPropagation(); handleNativeShare(); }}
-        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${className.includes('bg-') ? className : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'}`}
+        // 👇 수정됨: baseClass + text-white (공유 아이콘 밝게 고정)
+        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${baseClass} text-white`}
       >
         <Share2 size={18} />
       </button>

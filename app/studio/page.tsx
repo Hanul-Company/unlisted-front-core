@@ -272,11 +272,17 @@ export default function StudioPage() {
   const [loading, setLoading] = useState(true);
   const [showSwapModal, setShowSwapModal] = useState(false);
 
-  // Initial Fetch
   useEffect(() => {
     if (address) {
+        // 1. 지갑이 연결된 경우: 데이터 가져오기
         fetchStudioData();
         fetchWalletBalance();
+    } else {
+        const timer = setTimeout(() => {
+            setLoading(false);
+        }, 500);
+        
+        return () => clearTimeout(timer);
     }
   }, [address]);
 

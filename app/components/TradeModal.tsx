@@ -1,17 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, Loader2, Trophy, Clock, Gift, Share2, Percent, Info, Coins, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Loader2, Trophy, Gift, Share2, Percent, Info, Coins, CheckCircle, AlertCircle } from 'lucide-react';
 import { formatEther } from 'viem';
 import toast from 'react-hot-toast';
-import { supabase } from '@/utils/supabase'; // ✅ [추가] Supabase Import
 
+// ✅ [Supabase Client]
+import { supabase } from '@/utils/supabase';
+
+// ✅ [Thirdweb Imports]
 import { getContract, prepareContractCall } from "thirdweb";
 import { useActiveAccount, useReadContract, useSendTransaction } from "thirdweb/react";
 import { client, chain } from "@/utils/thirdweb";
 import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI, MELODY_TOKEN_ADDRESS, MELODY_TOKEN_ABI, MELODY_IP_ADDRESS, MELODY_IP_ABI } from '../constants';
 
-// Contract Instances
+// --- Contract Instances ---
 const stockContract = getContract({ client, chain, address: UNLISTED_STOCK_ADDRESS, abi: UNLISTED_STOCK_ABI as any });
 const tokenContract = getContract({ client, chain, address: MELODY_TOKEN_ADDRESS, abi: MELODY_TOKEN_ABI as any });
 const ipContract = getContract({ client, chain, address: MELODY_IP_ADDRESS, abi: MELODY_IP_ABI as any });
@@ -19,7 +22,14 @@ const ipContract = getContract({ client, chain, address: MELODY_IP_ADDRESS, abi:
 interface TradeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  track: { id: number; title: string; token_id: number | null; artist_name: string;   artist?: { username: string | null;wallet_address: string | null; avatar_url: string | null;} | null;};}
+  track: { 
+    id: number; 
+    title: string; 
+    token_id: number | null; 
+    artist_name: string; 
+    artist?: { username: string | null; wallet_address: string | null; avatar_url: string | null; } | null; 
+  };
+}
 
 export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) {
   const account = useActiveAccount();
@@ -38,7 +48,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   const tokenIdBigInt = BigInt(track.token_id || track.id);
   const amountBigInt = BigInt(Number(amount || 0));
 
-  // --- Reads ---
+  // --- Blockchain Reads ---
   const { data: stockInfo, refetch: refetchStock } = useReadContract({ contract: stockContract, method: "stocks", params: [tokenIdBigInt] });
   const { data: mySharesVal, refetch: refetchShares } = useReadContract({ contract: stockContract, method: "sharesBalance", params: [tokenIdBigInt, address || "0x0000000000000000000000000000000000000000"] });
   const { data: pendingRewardVal, refetch: refetchRewards } = useReadContract({ contract: stockContract, method: "getPendingReward", params: [tokenIdBigInt, address || "0x0000000000000000000000000000000000000000"] });
@@ -48,13 +58,15 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   const { data: sellPriceVal } = useReadContract({ contract: stockContract, method: "getSellPrice", params: [tokenIdBigInt, amountBigInt] });
   
   const { data: allowanceVal, refetch: refetchAllowance } = useReadContract({ contract: tokenContract, method: "allowance", params: [address || "0x0000000000000000000000000000000000000000", UNLISTED_STOCK_ADDRESS] });
-  
   const { data: mldBalanceVal, refetch: refetchMldBalance } = useReadContract({ contract: tokenContract, method: "balanceOf", params: [address || "0x0000000000000000000000000000000000000000"] });
 
-  // Parsing
+  // --- Data Parsing ---
   const totalShares = stockInfo ? Number(stockInfo[0]) : 0;
   const jackpotBalance = stockInfo ? Number(formatEther(stockInfo[2])) : 0;
   const expiryTime = stockInfo ? Number(stockInfo[3]) : 0;
+  const lastBuyer = stockInfo ? stockInfo[4] : "0x0000000000000000000000000000000000000000";
+  const isJackpotClaimed = stockInfo ? stockInfo[5] : false;
+
   const myShares = mySharesVal ? Number(mySharesVal) : 0;
   const pendingReward = pendingRewardVal ? Number(formatEther(pendingRewardVal)) : 0;
   const investorSharePercent = investorShareVal ? Number(investorShareVal) / 100 : 0;
@@ -63,11 +75,16 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   const estimatedCost = buyPriceVal ? Number(formatEther(buyPriceVal)) : 0;
   const estimatedPayout = sellPriceVal ? Number(formatEther(sellPriceVal)) : 0;
   
-  // Fees calculation
-  const buyTotal = estimatedCost * 1.1; 
+  // Logic Helpers
+  const buyTotal = estimatedCost * 1.1; // +10% slippage/fees buffer logic
   const allowance = allowanceVal || BigInt(0);
   const myMldBalance = mldBalanceVal ? Number(formatEther(mldBalanceVal)) : 0;
   const costInWei = buyPriceVal ? (buyPriceVal * BigInt(110)) / BigInt(100) : BigInt(0);
+  
+  // Winner Check
+  const isRoundEnded = expiryTime > 0 && Date.now() / 1000 > expiryTime;
+  const isWinner = address && lastBuyer && address.toLowerCase() === lastBuyer.toLowerCase();
+  const canClaimJackpot = isRoundEnded && isWinner && !isJackpotClaimed;
 
   // --- Timer ---
   useEffect(() => {
@@ -88,7 +105,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
     return () => clearInterval(timer);
   }, [expiryTime]);
 
-  // --- Progress Logic ---
+  // --- Progress Animation ---
   useEffect(() => {
     if (status === 'processing') {
       setProgress(0);
@@ -100,7 +117,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
 
   useEffect(() => { if (!isOpen) { setStatus('idle'); } }, [isOpen]);
 
-  // --- Handlers ---
+  // --- Action Handlers ---
 
   const handleMintTokens = () => {
     if (!address) return toast.error("Please connect your wallet.");
@@ -146,7 +163,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                 setProgress(100); setStatus('success'); 
                 toast.success("Shares Bought! Timer Extended!"); 
                 refetchShares(); refetchStock();
-                // * 구매는 지출이므로 수익 로그에 남기지 않습니다. (필요하다면 'expense'로 기록 가능)
+                // * 구매는 지출이므로 로그 기록 X
             },
             onError: () => { setStatus('idle'); toast.error("Buy Failed."); }
         });
@@ -157,20 +174,18 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
             onSuccess: async () => { 
                 setProgress(100); setStatus('success'); toast.success("Shares Sold!"); 
                 
-                // ✅ [추가] 판매 수익 로그 기록 (Investment Revenue)
+                // ✅ [LOG] 판매 수익 (Investment Return)
                 try {
                     await supabase.rpc('log_crypto_revenue', {
                         p_beneficiary_wallet: address,
-                        p_payer_address: UNLISTED_STOCK_ADDRESS, // AMM Contract Address
-                        p_amount: estimatedPayout, // 판매로 받은 MLD 금액
+                        p_payer_address: UNLISTED_STOCK_ADDRESS,
+                        p_amount: estimatedPayout,
                         p_currency: 'MLD',
-                        p_activity_type: 'trade_fee', // 또는 'investment_return'
+                        p_activity_type: 'investment_return',
                         p_track_id: track.id
                     });
-                    console.log("Investment Log Saved");
-                } catch (e) {
-                    console.error("Failed to save log:", e);
-                }
+                    console.log("DB Log: Investment Return Saved");
+                } catch (e) { console.error("Log Error:", e); }
 
                 refetchShares(); refetchStock();
                 setTimeout(() => { onClose(); setStatus('idle'); }, 1500);
@@ -180,22 +195,37 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
     }
   };
 
-  const handleShare = async () => {
-      const shareText = `I just invested in "${track.title}" on MelodyLink! 🎵\n\nOwner Benefit: ${investorSharePercent}% Collection Yield\nJackpot Pool: ${jackpotBalance.toFixed(1)} MLD\n\nJoin the revolution! 🚀 #MelodyLink #MusicInvestment`;
-      if (navigator.share) {
-          try {
-              await navigator.share({ title: 'Melody Link Investment', text: shareText, url: window.location.href });
-              toast.success("Thanks for sharing!");
-          } catch (error: any) {
-              if (error.name === 'AbortError') return;
-              navigator.clipboard.writeText(shareText);
-              toast.success("Copied to clipboard instead!");
-          }
-      } else {
-          navigator.clipboard.writeText(shareText);
-          toast.success("Copied to clipboard! Post it on Twitter/TikTok!");
-      }
-  };
+  const handleClaimJackpot = () => {
+      if (!canClaimJackpot) return;
+      setStatus('processing');
+      const transaction = prepareContractCall({ contract: stockContract, method: "claimJackpot", params: [tokenIdBigInt] });
+      
+      sendTransaction(transaction, {
+          onSuccess: async () => {
+              setProgress(100); setStatus('success'); toast.success("🏆 JACKPOT CLAIMED!");
+              
+              // 잭팟 승자 상금 (전체의 50%)
+              const winnerPrize = jackpotBalance / 2;
+
+              // ✅ [LOG] 잭팟 당첨 (Jackpot Win)
+              try {
+                  await supabase.rpc('log_crypto_revenue', {
+                      p_beneficiary_wallet: address,
+                      p_payer_address: UNLISTED_STOCK_ADDRESS,
+                      p_amount: winnerPrize,
+                      p_currency: 'MLD',
+                      p_activity_type: 'jackpot_win',
+                      p_track_id: track.id
+                  });
+                  console.log("DB Log: Jackpot Win Saved");
+              } catch (e) { console.error("Log Error:", e); }
+
+              refetchStock();
+              setTimeout(() => setStatus('idle'), 2000);
+          },
+          onError: () => { setStatus('idle'); toast.error("Claim Failed"); }
+      });
+  }
 
   const handleClaimReward = () => {
       if (pendingReward <= 0) return toast.error("No rewards to claim.");
@@ -207,7 +237,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
           onSuccess: async () => { 
               setProgress(100); setStatus('success'); toast.success("Dividends Claimed!"); 
               
-              // ✅ [추가] 배당금 수익 로그 기록 (Dividend Revenue)
+              // ✅ [LOG] 배당금 수익 (Dividend)
               try {
                   await supabase.rpc('log_crypto_revenue', {
                       p_beneficiary_wallet: address,
@@ -217,16 +247,20 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                       p_activity_type: 'dividend',
                       p_track_id: track.id
                   });
-                  console.log("Dividend Log Saved");
-              } catch (e) {
-                  console.error("Failed to save log:", e);
-              }
+                  console.log("DB Log: Dividend Saved");
+              } catch (e) { console.error("Log Error:", e); }
 
               refetchRewards(); 
               setTimeout(() => setStatus('idle'), 1500); 
           },
           onError: () => { setStatus('idle'); toast.error("Claim Failed"); }
       });
+  };
+
+  const handleShare = async () => {
+      const shareText = `I just invested in "${track.title}" on MelodyLink! 🚀`;
+      navigator.clipboard.writeText(shareText);
+      toast.success("Copied to clipboard!");
   };
 
   const isInsufficientBalance = mode === 'buy' && buyTotal > myMldBalance;
@@ -242,11 +276,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
             <div>
                 <h3 className="font-bold text-lg text-white flex items-center gap-2">
                     {track.title}
-                    {investorSharePercent >= 30 && (
-                        <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/30 flex items-center gap-1 animate-pulse">
-                            <TrendingUp size={10}/> Hot Yield {investorSharePercent}%
-                        </span>
-                    )}
+                    {canClaimJackpot && <span className="text-yellow-500 text-[10px] border border-yellow-500 px-1 rounded animate-pulse">WINNER</span>}
                 </h3>
                 <p className="text-xs text-zinc-500">{track.artist?.username}</p>
             </div>
@@ -256,7 +286,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
         {status === 'idle' ? (
             <>
                 {/* 🏆 Jackpot & Timer */}
-                <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 p-4 border-b border-zinc-800 relative overflow-hidden">
+                <div className={`p-4 border-b border-zinc-800 relative overflow-hidden ${canClaimJackpot ? 'bg-yellow-500/20' : 'bg-gradient-to-r from-yellow-900/20 to-orange-900/20'}`}>
                     <div className="absolute top-0 right-0 p-2 opacity-10"><Trophy size={60} className="text-yellow-500"/></div>
                     <div className="flex justify-between items-end mb-2 relative z-10">
                         <div>
@@ -272,7 +302,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                     </div>
                 </div>
 
-                {/* 🎁 My Stats */}
+                {/* 🎁 My Stats & Rewards */}
                 <div className="px-5 py-3 bg-zinc-900/50 flex justify-between items-center border-b border-zinc-800">
                     <div className="flex flex-col">
                          <span className="text-[10px] text-zinc-500 flex items-center gap-1"><Percent size={10}/> MY OWNERSHIP</span>
@@ -289,7 +319,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                     )}
                 </div>
 
-                {/* Trade Actions */}
+                {/* Mode Toggles */}
                 <div className="flex p-2 gap-2 bg-zinc-900">
                     <button onClick={() => setMode('buy')} className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition ${mode === 'buy' ? 'bg-green-500 text-black shadow-lg shadow-green-500/20' : 'bg-zinc-800 text-zinc-500 hover:text-white'}`}><TrendingUp size={16}/> Buy</button>
                     <button onClick={() => setMode('sell')} className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition ${mode === 'sell' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-zinc-800 text-zinc-500 hover:text-white'}`}><TrendingDown size={16}/> Sell</button>
@@ -334,7 +364,14 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                     {/* ✅ Main Button Logic */}
                     {mode === 'buy' ? (
                         <>
-                            {isInsufficientBalance ? (
+                            {canClaimJackpot ? (
+                                <button 
+                                    onClick={handleClaimJackpot}
+                                    className="w-full py-4 rounded-xl font-black text-lg bg-yellow-400 text-black hover:scale-[1.02] transition shadow-lg shadow-yellow-400/20 flex items-center justify-center gap-2 animate-pulse"
+                                >
+                                    <Trophy size={20}/> CLAIM JACKPOT PRIZE
+                                </button>
+                            ) : isInsufficientBalance ? (
                                 <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="bg-purple-900/20 border border-purple-500/30 p-3 rounded-xl text-center">
                                         <p className="text-purple-300 font-bold text-sm mb-1 flex items-center justify-center gap-1">
@@ -393,9 +430,8 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                                 {mode === 'buy' ? (
                                     <>You now own <span className="text-white font-bold">{amount} Shares</span></>
                                 ) : (
-                                    <>Successfully sold <span className="text-white font-bold">{amount} Shares</span></>
+                                    <>Successfully processed transaction!</>
                                 )}
-                                <br/>of <span className="text-yellow-400 font-bold">{track.title}</span>
                             </p>
                         </div>
                         
