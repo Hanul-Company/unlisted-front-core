@@ -403,8 +403,10 @@ export default function MarketPage() {
                             <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition duration-500" />
                             
                             {/* Search Icon */}
-                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-white transition" size={22} />
-                            
+                            <Search
+                            className="absolute z-20 left-6 top-1/2 -translate-y-1/2 text-white/80 group-focus-within:text-white transition"
+                            size={22}
+                            />                       
                             {/* Input Field */}
                             <input
                                 type="text"

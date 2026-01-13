@@ -8,8 +8,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  
+  /* ✅ 수정: layout.tsx에서 만든 --font-noto 변수를 Tailwind의 font-sans에 연결 */
+  --font-sans: var(--font-noto); 
+  
+  /* 만약 Geist Mono를 안 쓴다면 지우거나 유지하셔도 됩니다 */
+  --font-mono: var(--font-geist-mono); 
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,7 +26,11 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* ✅ 수정: Arial 대신 Noto Sans 변수를 기본 폰트로 적용 */
+  font-family: var(--font-noto), sans-serif;
+  /* 폰트가 더 선명하게 보이도록 안티앨리어싱 추가 (선택사항) */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer utilities {

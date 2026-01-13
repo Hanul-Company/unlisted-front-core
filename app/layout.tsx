@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
+// 1. Noto Sans KR 임포트 (기존 폰트 제거)
+import { Noto_Sans_KR } from 'next/font/google';
 import { Providers } from './providers';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
@@ -12,11 +13,15 @@ import { PlayerProvider } from './context/PlayerContext';
 import GlobalPlayer from './components/GlobalPlayer';
 import Script from 'next/script';
 
-// ✅ [추가] 전역 온보딩 모달 임포트
 import OnboardingModal from './components/OnboardingModal';
 
-const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit', display: 'swap' });
-const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' });
+// 2. 폰트 설정 (다양한 굵기 포함)
+const notoSansKr = Noto_Sans_KR({
+  subsets: ['latin'], // 한글은 Next.js가 자동으로 처리합니다.
+  weight: ['100', '300', '400', '500', '700', '900'], 
+  variable: '--font-noto',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'unlisted | The music never existed',
@@ -45,14 +50,13 @@ export default function RootLayout({
         />
         <meta name="naver-site-verification" content="e531c98d05b623e1d90c75c34c3eec91c7d95122" />
       </head>
-      <body className={`${outfit.variable} ${jakarta.variable} font-sans bg-black text-white antialiased selection:bg-cyan-500/30`}>
+      {/* 3. body 클래스 수정: notoSansKr.className 적용 및 기존 font 변수 교체 */}
+      <body className={`${notoSansKr.className} bg-black text-white antialiased selection:bg-cyan-500/30`}>
         <Providers>
           <PlayerProvider>
           <AuthProvider>
             <PWAProvider>
               
-              {/* ✅ [추가] 전역 온보딩 모달 배치 */}
-              {/* 스스로 지갑 연결 여부와 DB를 체크하여 렌더링되므로 Props가 필요 없습니다. */}
               <OnboardingModal />
 
               {children}
@@ -72,7 +76,8 @@ export default function RootLayout({
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '99px',
                     fontSize: '13px',
-                    fontFamily: 'var(--font-jakarta)',
+                    // 4. 토스트 폰트도 변경된 변수로 적용 (혹은 inherit)
+                    fontFamily: 'var(--font-noto), sans-serif', 
                     padding: '12px 20px',
                   },
                   success: { iconTheme: { primary: '#06b6d4', secondary: '#000' } },

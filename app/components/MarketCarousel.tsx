@@ -7,7 +7,7 @@ import { Link } from "@/lib/i18n";
 
 import { Lora, Noto_Sans_KR } from 'next/font/google';
 
-const oswald = Lora({ subsets: ['latin'], weight: ['400'] }); 
+const oswald = Noto_Sans_KR({ subsets: ['latin'], weight: ['400'] }); 
 const notoSans = Noto_Sans_KR({ subsets: ['latin'], weight: ['400', '700', '900'] });
 
 export default function MarketCarousel() {
