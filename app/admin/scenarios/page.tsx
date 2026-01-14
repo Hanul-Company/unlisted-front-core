@@ -155,7 +155,7 @@ export default function AdminScenariosPage() {
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mb-8 max-w-3xl shadow-xl relative" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-lg flex items-center gap-2">
-                {editingId ? <Edit2 size={18} className="text-yellow-500"/> : <Plus size={18} className="text-green-500"/>}
+                {editingId ? <Edit2 size={18} className="text-yellow-500"/> : <Plus size={18} className="text-blue-500"/>}
                 {editingId ? "Edit Scenario" : "Create New Scenario"}
             </h2>
             {editingId && (
@@ -203,7 +203,7 @@ export default function AdminScenariosPage() {
                     type="text" 
                     value={newTitle} 
                     onChange={(e) => setNewTitle(e.target.value)}
-                    className="w-full bg-black border border-zinc-700 rounded-lg p-3.5 focus:border-green-500 outline-none font-bold"
+                    className="w-full bg-black border border-zinc-700 rounded-lg p-3.5 focus:border-blue-500 outline-none font-bold"
                     placeholder="e.g. Midnight Coding"
                 />
             </div>
@@ -234,7 +234,7 @@ export default function AdminScenariosPage() {
                         setTagSearch(e.target.value);
                         setIsTagDropdownOpen(true);
                     }}
-                    className="w-full bg-black border border-zinc-700 rounded-lg p-3 pl-10 focus:border-green-500 outline-none text-sm"
+                    className="w-full bg-black border border-zinc-700 rounded-lg p-3 pl-10 focus:border-blue-500 outline-none text-sm"
                     placeholder="Type to search tags (e.g. coding, jazz...)"
                 />
                 

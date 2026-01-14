@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef} from 'react';
 import { 
   PlayCircle, Book, Wand2, AlertTriangle, Radio, Play, TrendingUp, Loader2, UploadCloud, 
   Music as MusicIcon, Trash2, Coins, User, Disc, Zap, ArrowRight, Search, Menu, ListMusic, Heart 
@@ -18,6 +18,7 @@ import TokenBalance from '../components/TokenBalance';
 import HorizontalScroll from '../components/HorizontalScroll'; 
 import InvestmentCard from '../components/InvestmentCard';
 import MarketCarousel from '../components/MarketCarousel';
+import { useRouter } from 'next/navigation';
 
 // [Thirdweb Imports]
 import { getContract, prepareContractCall } from "thirdweb";
@@ -36,7 +37,6 @@ type FeaturedPlaylist = { id: number; name: string; cover_image: string | null; 
 type Profile = { wallet_address: string; username: string; avatar_url: string | null; };
 type Playlist = { id: number; name: string; cover_image_url?: string; fork_count: number; created_at: string; owner_wallet?: string; owner_name?: string; };
 
-// ... (DuplicateCheckModal 컴포넌트 유지 - 코드 생략, 기존과 동일) ...
 function DuplicateCheckModal({ isOpen, onClose, originalTrack, onPlay }: any) {
     if (!isOpen || !originalTrack) return null;
     return (
@@ -71,6 +71,7 @@ function DuplicateCheckModal({ isOpen, onClose, originalTrack, onPlay }: any) {
 export default function MarketPage() {
   const account = useActiveAccount();
   const address = account?.address;
+  const router = useRouter();
   const { mutate: sendTransaction, isPending } = useSendTransaction();
 
   // ✅ [NEW] Global Player Hook
@@ -191,7 +192,16 @@ export default function MarketPage() {
 
   // --- Handlers ---
   const handleCollectClick = async (track: Track) => {
-    if (!address) return toast.error("Please connect wallet first.");
+    if (!address) { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Join unlisted now { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;}
     setPendingRentalTrack(track); setIsRentalModalOpen(true);
   };
 
@@ -296,32 +306,93 @@ export default function MarketPage() {
       } catch (e) { toast.error("Failed to load info", { id: toastId }); }
   };
 
-  const handleInvest = (track: Track) => { if (!address) return toast.error("Connect wallet."); setSelectedTrack(track); };
+  const handleInvest = (track: Track) => { 
+    if (!address) { 
+        const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+        if (headerBtn) {
+            headerBtn.click(); 
+        } else {
+            toast.error("Please Join unlisted first.");
+        }
+        return;
+    }
+    setSelectedTrack(track);
+  };
 
   // ✅ [NEW] Play Helper
   const handlePlay = (track: Track, queueList: Track[]) => {
       playTrack(track, queueList);
   };
 
+  const handleRestricted = (path: string) => {
+    // 1. 비로그인 상태 체크
+    if (!address) {
+        const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+        if (headerBtn) {
+            headerBtn.click(); // 헤더의 로그인 버튼 강제 클릭
+            // toast("Join unlisted now", { icon: '👆' });
+        } else {
+            toast.error("Please Join unlisted first.");
+        }
+        return; // 페이지 이동 중단
+    }
+    // 2. 로그인 상태면 정상 이동
+    router.push(path);
+  };
+
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden font-sans">
-      
       {/* ⚠️ Local <audio> tag removed (Global used) */}
-      
       <MobileSidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
       {/* Sidebar (유지) */}
-      <aside className="w-64 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col p-6 h-screen sticky top-0">
-         <div className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 cursor-pointer">unlisted</div>
-         <Link href="/radio"> <button className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white font-bold py-4 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-[1.02] transition shadow-lg shadow-blue-900/20 group"> <Radio size={20} className="group-hover:animate-pulse" fill="currentColor"/> Start Stream </button> </Link>
-         <nav className="space-y-6 flex-1">
-             <div> <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Discover</h3> <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800 text-white cursor-pointer hover:bg-zinc-700 transition"><Disc size={18}/> <span className="text-sm font-medium">Explore</span></div> <Link href="/investing"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition"><TrendingUp size={18}/> <span className="text-sm font-medium">Invest</span></div></Link> </div>
-             <div> <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">My Studio</h3> <Link href="/library"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition"><PlayCircle size={18}/> <span className="text-sm font-medium">Playlists</span></div></Link> <Link href="/portfolio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition"><Book size={18}/> <span className="text-sm font-medium">Portfolio</span></div></Link> </div>
-             <div> <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3> <Link href="/studio"><div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition"><Coins size={18}/> <span className="text-sm font-medium">Earnings</span></div></Link> </div>
-            <div className="pt-6 mt-auto border-t border-zinc-800"> <Link href="/upload"><button className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group"><UploadCloud size={18} className="group-hover:text-cyan-400 transition-colors"/> <span className="text-sm">Upload & Earn</span></button></Link> </div>
-            <div className="pt-4 border-t border-zinc-800"> <Link href="/create"><button className="w-full rounded-xl py-3 font-black text-sm flex items-center justify-center gap-2 text-white bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-blue-900/30 hover:from-cyan-400 hover:via-blue-400 hover:to-indigo-500 hover:shadow-blue-900/50 transition-all duration-200 active:scale-[0.99] group"><Wand2 size={18} className="opacity-95 group-hover:opacity-100 transition-opacity" /><span>Create Track</span></button></Link> </div>
-         </nav>
-      </aside>
+    <aside className="w-64 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col p-6 h-screen sticky top-0">
+        <div className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-8 cursor-pointer">unlisted</div>
+        {/* 1. Start Stream (제외 대상: Link 유지) */}
+        <Link href="/radio"> 
+            <button className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white font-bold py-4 rounded-xl mb-8 flex items-center justify-center gap-2 hover:scale-[1.02] transition shadow-lg shadow-blue-900/20 group"> 
+                <Radio size={20} className="group-hover:animate-pulse" fill="currentColor"/> Start Stream 
+            </button> 
+        </Link>
+        <nav className="space-y-6 flex-1">
+            <div> 
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Discover</h3> 
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800 text-white cursor-pointer hover:bg-zinc-700 transition">
+                    <Disc size={18}/> <span className="text-sm font-medium">Explore</span>
+                </div> 
+                <Link href="/investing">
+                    <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                        <TrendingUp size={18}/> <span className="text-sm font-medium">Invest</span>
+                    </div>
+                </Link> 
+            </div>
+            <div> 
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">My Studio</h3> 
+                <div onClick={() => handleRestricted('/library')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                    <PlayCircle size={18}/> <span className="text-sm font-medium">Playlists</span>
+                </div>
+                <div onClick={() => handleRestricted('/portfolio')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                    <Book size={18}/> <span className="text-sm font-medium">Portfolio</span>
+                </div> 
+            </div>
+            <div> 
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3> 
+                <div onClick={() => handleRestricted('/studio')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                    <Coins size={18}/> <span className="text-sm font-medium">Earnings</span>
+                </div> 
+            </div>
+            <div className="pt-6 mt-auto border-t border-zinc-800"> 
+                <button onClick={() => handleRestricted('/upload')} className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group">
+                    <UploadCloud size={18} className="group-hover:text-cyan-400 transition-colors"/> <span className="text-sm">Upload & Earn</span>
+                </button> 
+            </div>
+            <div className="pt-4 border-t border-zinc-800"> 
+                <button onClick={() => handleRestricted('/create')} className="w-full rounded-xl py-3 font-black text-sm flex items-center justify-center gap-2 text-white bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-blue-900/30 hover:from-cyan-400 hover:via-blue-400 hover:to-indigo-500 hover:shadow-blue-900/50 transition-all duration-200 active:scale-[0.99] group">
+                    <Wand2 size={18} className="opacity-95 group-hover:opacity-100 transition-opacity" /><span>Create Track</span>
+                </button> 
+            </div>
+        </nav>
+    </aside>
 
       <main ref={mainRef} className="flex-1 flex flex-col overflow-y-auto pb-24 scroll-smooth relative">
         <header className="flex justify-between items-center p-6 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800">
@@ -378,7 +449,7 @@ export default function MarketPage() {
 
                 {/* 5. Top Investments */}
                 <section className="py-6 border-b border-zinc-800/50"> 
-                    <div className="px-6 mb-4 flex justify-between items-end"> <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="text-green-400" size={20}/> Top Investment</h2> <Link href="/investing" className="text-xs text-zinc-500 hover:text-white flex items-center gap-1">View Chart <ArrowRight size={12}/></Link> </div> 
+                    <div className="px-6 mb-4 flex justify-between items-end"> <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="text-blue-400" size={20}/> Top Investment</h2> <Link href="/investing" className="text-xs text-zinc-500 hover:text-white flex items-center gap-1">View Chart <ArrowRight size={12}/></Link> </div> 
                     <HorizontalScroll className="gap-4 px-6 pb-4 snap-x pt-2 scrollbar-hide"> 
                         {investTracks.map((t) => ( 
                             <InvestmentCard key={t.id} track={t} onPlay={(track) => handlePlay(track, investTracks)} onInvest={(track) => handleInvest(track)} /> 
@@ -388,11 +459,13 @@ export default function MarketPage() {
                 </section>
 
                 {/* 6. Search Section */}
-                <section className="p-6 min-h-[600px] flex flex-col items-center pt-20">
+                {/* ✅ [수정] searchQuery 유무에 따라 높이 조절 (300px <-> 600px) + 부드러운 전환 효과 추가 */}
+                <section className={`p-6 flex flex-col items-center pt-20 transition-all duration-500 ease-in-out ${searchQuery ? 'min-h-[600px]' : 'min-h-[300px]'}`}>
+                    
                     {/* 1. 검색 헤더 및 입력창 영역 */}
                     <div className="flex flex-col items-center gap-8 w-full max-w-4xl">
                         <div className="text-center space-y-2">
-                            <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 tracking-tight pb-2 leading-tight">
+                            <h2 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 tracking-tight pb-2 leading-tight">
                                 What are you looking for?
                             </h2>
                             <p className="text-zinc-500">Discover tracks, artists, and playlists.</p>
@@ -411,9 +484,22 @@ export default function MarketPage() {
                             <input
                                 type="text"
                                 placeholder="e.g., Cozy bedroom pop for late night"
-                                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-5 pl-16 pr-6 text-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800/50 transition relative z-10 shadow-2xl"
+                                className="w-full bg-zinc-600 border border-zinc-800 rounded-3xl py-3 pl-16 pr-6 text-md text-white placeholder:text-zinc-400 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800/50 transition relative z-10 shadow-2xl"
                                 value={searchQuery}
                                 onChange={(e) => handleSearch(e.target.value)}
+                                // 엔터 키 누르면 포커스 해제 -> 키보드 내려감
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.currentTarget.blur();
+                                    }
+                                }}
+                                // ✅ 2. [추가] 포커스 시 화면 중앙으로 스크롤 (키보드 가림 방지)
+                                onFocus={(e) => {
+                                    const target = e.target;
+                                    setTimeout(() => {
+                                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }, 300); // 키보드 올라오는 시간(약 0.3초) 기다린 후 스크롤
+                                }}
                             />
                             
                             {/* Loading Spinner */}
@@ -424,7 +510,8 @@ export default function MarketPage() {
                     </div>
 
                     {/* 2. 검색 결과 영역 */}
-                    <div className="mt-16 w-full max-w-6xl space-y-12">
+                    {/* ✅ [수정] 검색 결과가 있을 때만 보이도록 하여 불필요한 여백 제거 */}
+                    <div className={`w-full max-w-6xl space-y-12 transition-all duration-500 ${searchQuery ? 'mt-16 opacity-100' : 'mt-0 h-0 opacity-0 overflow-hidden'}`}>
                         {/* Case: 검색어는 있지만 결과가 없을 때 */}
                         {searchQuery && !isSearching && searchTracks.length === 0 && searchCreators.length === 0 && searchPlaylists.length === 0 && (
                             <div className="text-center py-10 animate-in fade-in zoom-in duration-300">
@@ -475,7 +562,7 @@ export default function MarketPage() {
                                                         )}
                                                         {isThisTrackPlaying && (
                                                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping" />
+                                                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
                                                             </div>
                                                         )}
                                                     </div>

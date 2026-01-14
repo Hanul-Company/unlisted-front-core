@@ -330,7 +330,7 @@ export default function LibraryPage() {
           {playlists.map((p) => (
             <div key={p.id} className={`flex items-center justify-between p-2 rounded cursor-pointer text-sm ${selectedPlaylist === p.id ? 'bg-zinc-800 text-white font-bold' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'}`} onClick={() => setSelectedPlaylist(p.id)}>
               <div className="flex items-center gap-3 overflow-hidden">
-                {p.id === 'liked' ? <Heart size={16} className="text-indigo-500 fill-indigo-500" /> : p.id === 'my_songs' ? <DatabaseZap size={16} className="text-green-500" /> : <ListMusic size={16} />}
+                {p.id === 'liked' ? <Heart size={16} className="text-indigo-500 fill-indigo-500" /> : p.id === 'my_songs' ? <DatabaseZap size={16} className="text-blue-500" /> : <ListMusic size={16} />}
                 <span className="truncate">{p.name}</span>
               </div>
               {p.is_custom && <button onClick={(e) => { e.stopPropagation(); handleDeletePlaylist(p.id); }} className="text-zinc-500 hover:text-red-500"><Trash2 size={14} /></button>}
@@ -364,12 +364,12 @@ export default function LibraryPage() {
             <div className="flex items-end justify-between mb-4 px-1">
                 <div>
                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">PLAYLIST</span>
-                     <h1 className="text-2xl font-black text-white leading-tight">
+                     <h1 className="text-2xl font-black text-white leading-normal">
                          {playlists.find(p => p.id === selectedPlaylist)?.name || "Library"}
                      </h1>
                 </div>
                 {filteredTracks.length > 0 && (
-                    <button onClick={() => handlePlay(filteredTracks[0])} className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/20 text-black active:scale-95 transition"><Play fill="black" className="ml-1"/></button>
+                    <button onClick={() => handlePlay(filteredTracks[0])} className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/20 text-black active:scale-95 transition"><Play fill="black" className="ml-1"/></button>
                 )}
             </div>
             
@@ -386,7 +386,7 @@ export default function LibraryPage() {
                     {tracks.length > 0 && tracks[0].cover_image_url ? (
                         <img src={tracks[0].cover_image_url} className="w-full h-full object-cover" />
                     ) : (
-                        selectedPlaylist === 'liked' ? <Heart size={48} className="text-indigo-500 fill-indigo-500" /> : selectedPlaylist === 'my_songs' ? <Mic2 size={48} className="text-green-500" /> : <Music size={48} className="text-zinc-600" />
+                        selectedPlaylist === 'liked' ? <Heart size={48} className="text-indigo-500 fill-indigo-500" /> : selectedPlaylist === 'my_songs' ? <Mic2 size={48} className="text-blue-500" /> : <Music size={48} className="text-zinc-600" />
                     )}
                 </div>
                 
@@ -395,11 +395,11 @@ export default function LibraryPage() {
                     {isRenaming ? (
                         <div className="flex items-center gap-2 mt-2">
                             <input autoFocus className="text-4xl font-black bg-transparent border-b border-white text-white focus:outline-none w-full max-w-xl" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleRenamePlaylist()} />
-                            <button onClick={handleRenamePlaylist} className="p-2 bg-green-500 rounded-full text-black hover:scale-110 transition"><Check size={20} /></button>
+                            <button onClick={handleRenamePlaylist} className="p-2 bg-blue-500 rounded-full text-black hover:scale-110 transition"><Check size={20} /></button>
                             <button onClick={() => setIsRenaming(false)} className="p-2 bg-zinc-800 rounded-full text-white hover:bg-zinc-700 transition"><X size={20} /></button>
                         </div>
                     ) : (
-                        <h1 className="text-5xl font-black tracking-tight truncate max-w-3xl flex items-center gap-4 group pb-1">
+                        <h1 className="text-5xl font-black tracking-tight truncate max-w-3xl flex items-center gap-4 group pb-3">
                             {playlists.find(p => p.id === selectedPlaylist)?.name}
                             {selectedPlaylist !== 'liked' && selectedPlaylist !== 'my_songs' && (
                                 <button onClick={() => { setRenameValue(playlists.find(p => p.id === selectedPlaylist)?.name || ""); setIsRenaming(true); }} className="opacity-0 group-hover:opacity-100 transition text-zinc-500 hover:text-white"><Pencil size={24} /></button>
@@ -411,7 +411,7 @@ export default function LibraryPage() {
             </div>
             
             <div className="flex items-center gap-3 mb-2">
-                 <button onClick={() => { if(tracks.length > 0) handlePlay(tracks[0]); }} className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center text-black hover:scale-105 transition shadow-lg"><Play fill="black" className="ml-1" /></button>
+                 <button onClick={() => { if(tracks.length > 0) handlePlay(tracks[0]); }} className="w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center text-black hover:scale-105 transition shadow-lg"><Play fill="black" className="ml-1" /></button>
                  {selectedPlaylist !== 'liked' && selectedPlaylist !== 'my_songs' && (
                     <button onClick={openAddSongModal} className="w-10 h-10 rounded-full border border-zinc-600 text-zinc-400 flex items-center justify-center hover:border-white hover:text-white transition"><Plus size={20} /></button>
                  )}
@@ -447,7 +447,7 @@ export default function LibraryPage() {
                             const isThisTrackActive = currentTrack?.id === track.id;
 
                             return (
-                                <tr key={track.id} className={`group hover:bg-zinc-900/60 rounded-lg transition ${isThisTrackActive ? 'text-green-400' : 'text-zinc-300'}`} onDoubleClick={() => handlePlay(track)}>
+                                <tr key={track.id} className={`group hover:bg-zinc-900/60 rounded-lg transition ${isThisTrackActive ? 'text-blue-400' : 'text-zinc-300'}`} onDoubleClick={() => handlePlay(track)}>
                                     <td className="p-3 w-12 text-center text-sm">
                                         <span className={`group-hover:hidden ${isThisTrackActive ? 'hidden' : 'block'}`}>{idx + 1}</span>
                                         <button onClick={() => isThisTrackActive ? togglePlay() : handlePlay(track)} className={`hidden group-hover:inline-block ${isThisTrackActive ? '!inline-block' : ''}`}>
@@ -472,7 +472,7 @@ export default function LibraryPage() {
                                                 <span className="text-zinc-600 text-xs flex items-center gap-1 whitespace-nowrap"><Crown size={12} className="text-yellow-500"/> Owned</span>
                                             )}
                                             {track.expires_at && (
-                                                <button onClick={(e) => { e.stopPropagation(); openExtendModal(track); }} className="opacity-0 group-hover/expires:opacity-100 transition-opacity duration-200 text-[10px] font-bold border border-zinc-700 bg-zinc-800 text-zinc-300 px-2 py-1 rounded hover:border-green-400 hover:text-white">Extend</button>
+                                                <button onClick={(e) => { e.stopPropagation(); openExtendModal(track); }} className="opacity-0 group-hover/expires:opacity-100 transition-opacity duration-200 text-[10px] font-bold border border-zinc-700 bg-zinc-800 text-zinc-300 px-2 py-1 rounded hover:border-blue-400 hover:text-white">Extend</button>
                                             )}
                                         </div>
                                     </td>
@@ -516,7 +516,7 @@ export default function LibraryPage() {
                                         {isExpired ? ( <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><AlertTriangle size={16} className="text-red-500"/></div> ) : !track.expires_at ? ( <div className="absolute top-0 right-0 p-0.5 bg-yellow-500/80 rounded-bl-md"><Zap size={8} className="text-black fill-black"/></div> ) : null}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className={`font-bold text-sm truncate ${isThisTrackActive ? 'text-green-500' : 'text-white'}`}>{track.title}</div>
+                                        <div className={`font-bold text-sm truncate ${isThisTrackActive ? 'text-blue-500' : 'text-white'}`}>{track.title}</div>
                                         <div className="text-xs text-zinc-500 truncate">{track.artist?.username}</div>
                                     </div>
                                 </div>
@@ -571,7 +571,7 @@ export default function LibraryPage() {
                         )}
                         {activeMobileTrack.expires_at && (
                             <button onClick={() => { openExtendModal(activeMobileTrack); setActiveMobileTrack(null); }} className="w-full flex items-center gap-4 p-4 hover:bg-zinc-800 rounded-xl transition text-left">
-                                <Clock className="text-green-500" size={20}/>
+                                <Clock className="text-blue-500" size={20}/>
                                 <div><div className="font-bold text-sm text-white">Extend Collection</div><div className="text-xs text-zinc-500">Expires: {new Date(activeMobileTrack.expires_at).toLocaleDateString()}</div></div>
                             </button>
                         )}
@@ -598,17 +598,17 @@ export default function LibraryPage() {
             <div className="p-4 border-b border-zinc-800 shrink-0">
               <div className="relative">
                 <Search className="absolute left-3 top-3 text-zinc-500" size={18}/>
-                <input type="text" placeholder="Search your library..." value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-green-500 transition"/>
+                <input type="text" placeholder="Search your library..." value={modalSearchQuery} onChange={(e) => setModalSearchQuery(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition"/>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {likedTracks.filter(t => t.title.toLowerCase().includes(modalSearchQuery.toLowerCase())).map(track => {
                   const isSelected = selectedTrackIds.has(track.id);
                   return (
-                    <div key={track.id} onClick={() => toggleTrackSelection(track.id)} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition group border ${isSelected ? 'bg-green-500/10 border-green-500/30' : 'bg-transparent border-transparent hover:bg-zinc-800'}`}>
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition ${isSelected ? 'bg-green-500 border-green-500 text-black' : 'border-zinc-600 group-hover:border-zinc-400'}`}>{isSelected && <Check size={14} strokeWidth={4} />}</div>
+                    <div key={track.id} onClick={() => toggleTrackSelection(track.id)} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition group border ${isSelected ? 'bg-blue-500/10 border-blue-500/30' : 'bg-transparent border-transparent hover:bg-zinc-800'}`}>
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition ${isSelected ? 'bg-blue-500 border-blue-500 text-black' : 'border-zinc-600 group-hover:border-zinc-400'}`}>{isSelected && <Check size={14} strokeWidth={4} />}</div>
                       <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden shrink-0">{track.cover_image_url && <img src={track.cover_image_url} className="w-full h-full object-cover"/>}</div>
-                      <div className="flex-1 min-w-0"><div className={`font-bold text-sm truncate ${isSelected ? 'text-green-400' : 'text-white'}`}>{track.title}</div><div className="text-xs text-zinc-500 truncate">{track.artist?.username}</div></div>
+                      <div className="flex-1 min-w-0"><div className={`font-bold text-sm truncate ${isSelected ? 'text-blue-400' : 'text-white'}`}>{track.title}</div><div className="text-xs text-zinc-500 truncate">{track.artist?.username}</div></div>
                     </div>
                   );
                 })}

@@ -44,7 +44,7 @@ export const SunoTrackItem = ({
     <div
       className={`relative flex items-center gap-4 p-3 rounded-xl border transition ${
         currentTrack?.audio_url === track.audio_cdn_url && isPlaying
-          ? 'bg-zinc-800 border-green-500/50'
+          ? 'bg-zinc-800 border-blue-500/50'
           : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
       }`}
     >

@@ -121,7 +121,7 @@ export default function EarnPage() {
                             <Loader2 size={12} className="animate-spin"/> Refilling... {cooldown}s
                         </div>
                     ) : (
-                        <div className="bg-green-500/10 text-green-400 px-4 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-2 border border-green-500/20 animate-pulse">
+                        <div className="bg-blue-500/10 text-blue-400 px-4 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-2 border border-blue-500/20 animate-pulse">
                             <Zap size={12} fill="currentColor"/> Ready to Claim
                         </div>
                     )}

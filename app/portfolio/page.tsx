@@ -103,7 +103,16 @@ export default function PortfolioPage() {
   };
 
   const handleLike = async (track: any) => {
-      if (!address) return toast.error("Connect Wallet first");
+      if (!address)  { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Join unlisted now { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;}
       // Global Player 로직과 통일: 항상 모달 띄우기 (연장 유도)
       setPendingRentalTrack(track);
       setIsRentalModalOpen(true);
@@ -154,7 +163,7 @@ export default function PortfolioPage() {
             <div>
               <Link href="/market" className="text-zinc-500 hover:text-white text-xs font-bold mb-2 inline-flex items-center gap-1 transition">← BACK TO MARKET</Link>
               <h1 className="text-4xl font-black tracking-tighter text-white">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 pr-2">PORTFOLIO</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-500 pr-2">PORTFOLIO</span>
               </h1>
               <p className="text-zinc-400 text-sm mt-1">Manage your music assets and claim dividends.</p>
             </div>
@@ -288,12 +297,12 @@ function PortfolioCard({ track, address, onPlay, isCurrentTrack, isPlaying, onIn
                         <p className="text-[10px] text-zinc-500 font-bold mb-1">VALUE</p>
                         <p className="text-sm font-mono font-bold text-white">{sellValue.toFixed(4)}</p>
                     </div>
-                    <div className={`p-2 rounded-lg border ${pendingReward > 0 ? 'bg-green-900/20 border-green-900/50' : 'bg-zinc-950 border-zinc-800'}`}>
-                        <p className={`text-[10px] font-bold mb-1 ${pendingReward > 0 ? 'text-green-500' : 'text-zinc-500'}`}>REWARD</p>
+                    <div className={`p-2 rounded-lg border ${pendingReward > 0 ? 'bg-blue-900/20 border-blue-900/50' : 'bg-zinc-950 border-zinc-800'}`}>
+                        <p className={`text-[10px] font-bold mb-1 ${pendingReward > 0 ? 'text-blue-500' : 'text-zinc-500'}`}>REWARD</p>
                         <div className="flex justify-between items-center">
-                            <p className={`text-sm font-mono font-bold ${pendingReward > 0 ? 'text-green-400' : 'text-zinc-600'}`}>{pendingReward.toFixed(4)}</p>
+                            <p className={`text-sm font-mono font-bold ${pendingReward > 0 ? 'text-blue-400' : 'text-zinc-600'}`}>{pendingReward.toFixed(4)}</p>
                             {pendingReward > 0 && (
-                                <button onClick={handleClaim} disabled={isPending} className="bg-green-500 hover:bg-green-400 text-black p-1 rounded transition shadow-lg">
+                                <button onClick={handleClaim} disabled={isPending} className="bg-blue-500 hover:bg-blue-400 text-black p-1 rounded transition shadow-lg">
                                     {isPending ? <Loader2 size={12} className="animate-spin"/> : <Gift size={12}/>}
                                 </button>
                             )}

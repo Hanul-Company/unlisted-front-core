@@ -256,7 +256,7 @@ export default function AdminBannersPage() {
             {/* Form */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                {editingId ? <Edit2 size={18} className="text-yellow-500"/> : <Plus size={18} className="text-green-500"/>}
+                {editingId ? <Edit2 size={18} className="text-yellow-500"/> : <Plus size={18} className="text-blue-500"/>}
                 {editingId ? 'Edit Banner' : 'Create New Banner'}
               </h3>
               
@@ -437,7 +437,7 @@ export default function AdminBannersPage() {
                       </div>
                       
                       {/* Active Status Badge */}
-                      <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${banner.is_active ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                      <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${banner.is_active ? 'bg-blue-500/20 text-blue-500' : 'bg-red-500/20 text-red-500'}`}>
                         {banner.is_active ? 'Active' : 'Hidden'}
                       </div>
                     </div>

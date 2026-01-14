@@ -25,7 +25,7 @@ const tokenContract = getContract({ client, chain, address: MELODY_TOKEN_ADDRESS
 
 export default function UserProfilePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin text-green-500"/></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin text-blue-500"/></div>}>
       <ProfileContent />
     </Suspense>
   );
@@ -66,16 +66,16 @@ function DonateModal({ isOpen, onClose, recipientAddress, recipientName }: { isO
     return (
         <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl w-full max-w-sm animate-in fade-in zoom-in duration-200 relative overflow-hidden">
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-green-500/10 rounded-full blur-3xl pointer-events-none"/>
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"/>
                 <h3 className="text-xl font-bold mb-1 flex items-center gap-2 text-white relative z-10">🎁 Support Creator</h3>
                 <p className="text-xs text-zinc-500 mb-6 relative z-10">Send MLD tokens to <span className="text-zinc-300 font-bold">{recipientName}</span></p>
                 {status === 'idle' ? (
                     <>
-                        <div className="relative mb-6"> <input autoFocus type="number" placeholder="0" className="w-full bg-black border border-zinc-700 rounded-xl p-4 text-white text-2xl font-mono focus:border-green-500 outline-none text-right transition-colors" value={amount} onChange={e => setAmount(e.target.value)} /> <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold pointer-events-none">MLD</span> </div>
-                        <div className="flex gap-3"> <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-zinc-800 font-bold hover:bg-zinc-700 text-white transition">Cancel</button> <button onClick={handleDonate} className="flex-1 py-3 rounded-xl bg-green-500 text-black font-bold hover:bg-green-400 transition flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(34,197,94,0.4)]"><Zap size={18} fill="black"/> Send</button> </div>
+                        <div className="relative mb-6"> <input autoFocus type="number" placeholder="0" className="w-full bg-black border border-zinc-700 rounded-xl p-4 text-white text-2xl font-mono focus:border-blue-500 outline-none text-right transition-colors" value={amount} onChange={e => setAmount(e.target.value)} /> <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold pointer-events-none">MLD</span> </div>
+                        <div className="flex gap-3"> <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-zinc-800 font-bold hover:bg-zinc-700 text-white transition">Cancel</button> <button onClick={handleDonate} className="flex-1 py-3 rounded-xl bg-blue-500 text-black font-bold hover:bg-blue-400 transition flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(34,197,94,0.4)]"><Zap size={18} fill="black"/> Send</button> </div>
                     </>
                 ) : (
-                    <div className="py-4 flex flex-col items-center justify-center text-center space-y-4"> <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center animate-bounce"><UserCheck className="text-black w-6 h-6" /></div> <div className="space-y-1 w-full"><h4 className="font-bold text-lg text-white animate-pulse">{status === 'success' ? 'Sent Successfully!' : 'Processing...'}</h4><p className="text-xs text-zinc-400 font-mono h-4">{loadingMsg}</p></div> <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden relative"><div className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}/></div> </div>
+                    <div className="py-4 flex flex-col items-center justify-center text-center space-y-4"> <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center animate-bounce"><UserCheck className="text-black w-6 h-6" /></div> <div className="space-y-1 w-full"><h4 className="font-bold text-lg text-white animate-pulse">{status === 'success' ? 'Sent Successfully!' : 'Processing...'}</h4><p className="text-xs text-zinc-400 font-mono h-4">{loadingMsg}</p></div> <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden relative"><div className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}/></div> </div>
                 )}
             </div>
         </div>
@@ -179,12 +179,30 @@ function ProfileContent() {
 
   // --- Handlers ---
   const handleInvest = (track: any) => {
-      if (!myAddress) return toast.error("Connect Wallet first");
+      if (!myAddress) { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Join unlisted now { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;}
       setTrackToInvest(track); 
   };
 
   const handleLike = async (track: any) => {
-      if (!myAddress) return toast.error("Connect Wallet first");
+      if (!myAddress)  { 
+                      const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                      if (headerBtn) {
+                          headerBtn.click(); 
+                          // toast("Join unlisted now { icon: '👆' });
+                      } else {
+                          // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                          toast.error("Please Join unlisted first.");
+                      }
+                      return;}
       // Global Player 로직과 동일하게 항상 렌탈 모달 (연장) 유도
       setPendingRentalTrack(track);
       setIsRentalModalOpen(true);
@@ -238,7 +256,16 @@ function ProfileContent() {
   };
 
   const toggleFollow = async () => {
-    if (!myAddress) return toast.error("Connect Wallet Required");
+    if (!myAddress)  { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Join unlisted now { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;}
     if (myAddress === targetWallet) return toast.error("You can not follow yourself.");
     if (isFollowing) {
         await supabase.from('creator_follows').delete().match({ follower_address: myAddress, creator_address: targetWallet });
@@ -288,7 +315,7 @@ function ProfileContent() {
                             {profile.social_links.instagram && <a href={`https://instagram.com/${profile.social_links.instagram}`} target="_blank" rel="noopener noreferrer" className="hover:text-pink-500 transition p-1"><Instagram size={20}/></a>}
                             {profile.social_links.twitter && <a href={`https://twitter.com/${profile.social_links.twitter}`} target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition p-1"><Twitter size={20}/></a>}
                             {profile.social_links.youtube && <a href={`https://youtube.com/@${profile.social_links.youtube}`} target="_blank" rel="noopener noreferrer" className="hover:text-red-500 transition p-1"><Youtube size={20}/></a>}
-                            {profile.social_links.spotify && <a href={`http://open.spotify.com/artist/${profile.social_links.spotify}`} target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition p-1"><MusicIcon size={20}/></a>}
+                            {profile.social_links.spotify && <a href={`http://open.spotify.com/artist/${profile.social_links.spotify}`} target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 transition p-1"><MusicIcon size={20}/></a>}
                         </div>
                      )}
                  </div>
@@ -296,7 +323,7 @@ function ProfileContent() {
                     <button onClick={toggleFollow} className={`px-8 py-3 rounded-full font-bold flex items-center gap-2 transition border ${isFollowing ? 'bg-black text-white border-zinc-700' : 'bg-white text-black border-white hover:scale-105'}`}>
                         {isFollowing ? <><UserCheck size={18}/> Following</> : <><UserPlus size={18}/> Follow</>}
                     </button>
-                    <button onClick={() => setShowDonate(true)} className="px-6 py-3 rounded-full bg-zinc-900 text-green-400 border border-zinc-800 hover:border-green-500/50 hover:bg-zinc-800/80 transition font-bold flex items-center gap-2">
+                    <button onClick={() => setShowDonate(true)} className="px-6 py-3 rounded-full bg-zinc-900 text-blue-400 border border-zinc-800 hover:border-blue-500/50 hover:bg-zinc-800/80 transition font-bold flex items-center gap-2">
                         <Zap size={18} fill="currentColor"/> Donate
                     </button>
                     <button onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied"); }} className="p-3 rounded-full border border-zinc-800 text-zinc-400 hover:text-white hover:border-white transition"><Share2 size={18}/></button>
@@ -306,13 +333,13 @@ function ProfileContent() {
 
           {/* Tabs */}
           <div className="flex gap-8 border-b border-zinc-800 mb-8 sticky top-0 bg-black/95 backdrop-blur z-20 pt-4">
-            <button onClick={() => fetchTabContent('tracks')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='tracks' ? 'border-green-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Uploaded Tracks</button>
-            <button onClick={() => fetchTabContent('likes')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='likes' ? 'border-green-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Liked Collection</button>
-            <button onClick={() => fetchTabContent('playlists')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='playlists' ? 'border-green-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Playlists</button>
+            <button onClick={() => fetchTabContent('tracks')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='tracks' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Uploaded Tracks</button>
+            <button onClick={() => fetchTabContent('likes')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='likes' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Liked Collection</button>
+            <button onClick={() => fetchTabContent('playlists')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='playlists' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Playlists</button>
           </div>
 
           {/* Grid Layout */}
-          {loading ? ( <div className="col-span-full text-center py-32 text-zinc-500"><Loader2 className="animate-spin mb-2 text-green-500 inline"/> Loading...</div> ) : (
+          {loading ? ( <div className="col-span-full text-center py-32 text-zinc-500"><Loader2 className="animate-spin mb-2 text-blue-500 inline"/> Loading...</div> ) : (
             
             // Playlist Grid
             activeTab === 'playlists' ? (
@@ -338,7 +365,7 @@ function ProfileContent() {
                                         ) : ( <div className="w-full h-full flex items-center justify-center bg-zinc-800"><ListMusic size={48} className="text-zinc-700"/></div> )}
                                     </div>
                                     <div className="p-4">
-                                        <h3 className="font-bold truncate text-sm mb-1 text-white group-hover:text-green-500 transition">{pl.name}</h3>
+                                        <h3 className="font-bold truncate text-sm mb-1 text-white group-hover:text-blue-500 transition">{pl.name}</h3>
                                         <div className="flex justify-between items-center text-xs text-zinc-500">
                                             <span>{pl.playlist_items?.length || 0} songs</span>
                                             <span className="flex items-center gap-1"><Copy size={10}/> {pl.fork_count || 0}</span>
@@ -366,9 +393,8 @@ function ProfileContent() {
                                         </div>
                                     </div>
                                     <div className="p-4">
-                                        <h3 className={`font-bold truncate text-sm mb-1 ${isThisTrackPlaying ? 'text-green-500' : 'text-white'}`}>{track.title}</h3>
+                                        <h3 className={`font-bold truncate text-sm mb-1 ${isThisTrackPlaying ? 'text-blue-500' : 'text-white'}`}>{track.title}</h3>
                                         <div className="flex justify-between items-center text-xs text-zinc-500">
-                                            <span className="truncate max-w-[80px]">{new Date(track.created_at).toLocaleDateString()}</span>
                                             {track.genre && <span className="border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] uppercase">{Array.isArray(track?.genre) ? track.genre.join(' ') : (track?.genre || 'Unknown')}</span>}
                                         </div>
                                     </div>

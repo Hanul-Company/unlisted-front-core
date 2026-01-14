@@ -165,7 +165,7 @@ export default function AdminTutorialPage() {
       {/* Editor */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mb-8 max-w-3xl shadow-xl">
         <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-            {editingId ? <Edit2 size={18} className="text-yellow-500"/> : <Plus size={18} className="text-green-500"/>}
+            {editingId ? <Edit2 size={18} className="text-yellow-500"/> : <Plus size={18} className="text-blue-500"/>}
             {editingId ? "Edit Step" : "Add New Step"}
         </h2>
 
@@ -273,7 +273,7 @@ export default function AdminTutorialPage() {
                     <p className="text-zinc-500 text-sm line-clamp-2">{step.desc_kr || step.desc_en || "No Desc"}</p>
                     <div className="flex gap-2 mt-2">
                         {LANGS.map(l => (
-                            <span key={l.code} className={`text-[10px] px-1.5 py-0.5 rounded border ${step[`title_${l.code}`] ? 'bg-green-900/30 border-green-500/30 text-green-400' : 'bg-zinc-800 border-zinc-700 text-zinc-600'}`}>
+                            <span key={l.code} className={`text-[10px] px-1.5 py-0.5 rounded border ${step[`title_${l.code}`] ? 'bg-blue-900/30 border-blue-500/30 text-blue-400' : 'bg-zinc-800 border-zinc-700 text-zinc-600'}`}>
                                 {l.code.toUpperCase()}
                             </span>
                         ))}

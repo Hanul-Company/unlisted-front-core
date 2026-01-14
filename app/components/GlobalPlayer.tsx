@@ -187,7 +187,7 @@ export default function GlobalPlayer() {
                   <span className="text-[10px] text-zinc-400 truncate max-w-[80px]">{currentTrack.artist?.username}</span>
               </div>
               <div className="h-4 w-px bg-zinc-700 mx-2"/>
-              <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-green-400 transition">
+              <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-blue-400 transition">
                   {isPlaying ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}
               </button>
               <button onClick={(e) => { e.stopPropagation(); setIsMinimized(false); setMobilePlayerOpen(true); }} className="ml-2 text-zinc-500 hover:text-white md:hidden">
@@ -229,7 +229,7 @@ export default function GlobalPlayer() {
           {/* Center */}
           <div className="flex flex-col items-center gap-2 w-1/3">
               <div className="flex items-center gap-6">
-                  {/* 색상 변경: hover:text-white -> hover:text-blue-400 (Optional) / text-green-500 -> text-blue-500 */}
+                  {/* 색상 변경: hover:text-white -> hover:text-blue-400 (Optional) / text-blue-500 -> text-blue-500 */}
                   <button onClick={toggleShuffle} className={`text-zinc-400 hover:text-white transition ${isShuffle ? 'text-blue-500' : ''}`}><Shuffle size={16}/></button>
                   <button onClick={prev} className="text-zinc-400 hover:text-white transition"><SkipBack size={20}/></button>
                   <button onClick={togglePlay} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">

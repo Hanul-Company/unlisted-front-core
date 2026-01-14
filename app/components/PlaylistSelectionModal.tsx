@@ -93,7 +93,7 @@ export default function PlaylistSelectionModal({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="New playlist name..."
-                className="flex-1 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500"
+                className="flex-1 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreate();
                   if (e.key === 'Escape') {

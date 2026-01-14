@@ -362,7 +362,7 @@ function UploadContent() {
 
   const getInvestorTier = (share: number) => {
       if (share <= 20) return { label: "DEFENSIVE", color: "text-blue-400", desc: "Low risk for you, low appeal for investors." };
-      if (share <= 35) return { label: "BALANCED", color: "text-green-400", desc: "Standard market rate. Good balance." };
+      if (share <= 35) return { label: "BALANCED", color: "text-blue-400", desc: "Standard market rate. Good balance." };
       return { label: "AGGRESSIVE", color: "text-red-400", desc: "High investor appeal! Faster funding expected." };
   };
   const tier = getInvestorTier(investorShare);
@@ -384,7 +384,7 @@ function UploadContent() {
           {/* Loading Overlay */}
           {isAutoFilling && (
              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-                 <Loader2 className="animate-spin text-green-500 mb-2" size={32}/>
+                 <Loader2 className="animate-spin text-blue-500 mb-2" size={32}/>
                  <p className="text-sm font-bold animate-pulse">Importing track from AI Studio...</p>
              </div>
           )}
@@ -404,13 +404,13 @@ function UploadContent() {
             <div 
                 onClick={() => fileInputRef.current?.click()} 
                 // ✨ 'relative' 클래스 추가 (자식 버튼 위치 기준점)
-                className={`relative flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${file ? 'border-green-500/80 bg-green-500/10' : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'}`}
+                className={`relative flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${file ? 'border-blue-500/80 bg-blue-500/10' : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'}`}
             >
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" className="hidden"/>
               {file ? (
                   <>
-                    <Music size={24} className="text-green-400 mb-2"/>
-                    <p className="text-green-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">{file.name}</p>
+                    <Music size={24} className="text-blue-400 mb-2"/>
+                    <p className="text-blue-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">{file.name}</p>
                     
                     {/* ✨ 오디오 삭제 버튼 추가 (박스 안쪽 우상단) */}
                     <button 
@@ -437,7 +437,7 @@ function UploadContent() {
           <div className="mb-2"><label className="text-xs text-zinc-500 uppercase font-bold">Who created the melody?</label></div>
           <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4">
             <button onClick={() => setCreationType('ai')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${creationType === 'ai' ? 'bg-zinc-900 border-cyan-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}><div className={`p-3 rounded-full ${creationType === 'ai' ? 'bg-cyan-500 text-white' : 'bg-zinc-900'}`}><Bot size={22}/></div><div className="font-bold text-sm">Gen AI</div></button>
-            <button onClick={() => setCreationType('human')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${creationType === 'human' ? 'bg-zinc-900 border-green-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}><div className={`p-3 rounded-full ${creationType === 'human' ? 'bg-green-500 text-black' : 'bg-zinc-900'}`}><User size={22}/></div><div className="font-bold text-sm">Human</div></button>
+            <button onClick={() => setCreationType('human')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${creationType === 'human' ? 'bg-zinc-900 border-blue-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}><div className={`p-3 rounded-full ${creationType === 'human' ? 'bg-blue-500 text-black' : 'bg-zinc-900'}`}><User size={22}/></div><div className="font-bold text-sm">Human</div></button>
           </div>
 
           {/* Metadata Inputs */}
@@ -568,14 +568,14 @@ function UploadContent() {
 
           <div className="mt-8 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-bold text-white flex items-center gap-2"><TrendingUp size={16} className="text-green-500"/> Investor Share</label>
+                  <label className="text-sm font-bold text-white flex items-center gap-2"><TrendingUp size={16} className="text-blue-500"/> Investor Share</label>
                   <span className={`text-xs font-black px-2 py-0.5 rounded border border-white/10 bg-black/50 ${tier.color}`}>{tier.label}</span>
               </div>
               <p className="text-xs text-zinc-400 mb-6 leading-relaxed">Decide how much of the <strong>future revenue</strong> you want to share with investors.<br/>Higher share = Faster funding & Viral potential.</p>
-              <div className="relative h-10 flex items-center mb-6 px-2"><input type="range" min="10" max="50" step="5" value={investorShare} onChange={(e) => setInvestorShare(parseInt(e.target.value))} className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-green-500 z-10 relative"/><div className="absolute top-6 left-0 right-0 flex justify-between text-[10px] text-zinc-600 font-mono px-1"><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span></div></div>
+              <div className="relative h-10 flex items-center mb-6 px-2"><input type="range" min="10" max="50" step="5" value={investorShare} onChange={(e) => setInvestorShare(parseInt(e.target.value))} className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500 z-10 relative"/><div className="absolute top-6 left-0 right-0 flex justify-between text-[10px] text-zinc-600 font-mono px-1"><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span></div></div>
               <div className="bg-black rounded-xl p-4 border border-zinc-800 flex items-center gap-6">
                   <div className="w-16 h-16 relative"><svg viewBox="0 0 36 36" className="w-full h-full rotate-[-90deg]"><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#333" strokeWidth="4" /><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" strokeWidth="4" strokeDasharray={`${investorShare}, 100`} /></svg><div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{investorShare}%</div></div>
-                  <div className="flex-1 space-y-2"><div className="flex justify-between text-xs"><span className="text-zinc-500">For Investors</span><span className="text-green-400 font-bold">{investorShare}% (Revenue)</span></div><div className="flex justify-between text-xs"><span className="text-zinc-500">For You & Team</span><span className="text-white font-bold">{100 - investorShare}% (Retained)</span></div><div className="h-px bg-zinc-800 my-1"/><p className="text-[10px] text-zinc-500 italic">"{tier.desc}"</p></div>
+                  <div className="flex-1 space-y-2"><div className="flex justify-between text-xs"><span className="text-zinc-500">For Investors</span><span className="text-blue-400 font-bold">{investorShare}% (Revenue)</span></div><div className="flex justify-between text-xs"><span className="text-zinc-500">For You & Team</span><span className="text-white font-bold">{100 - investorShare}% (Retained)</span></div><div className="h-px bg-zinc-800 my-1"/><p className="text-[10px] text-zinc-500 italic">"{tier.desc}"</p></div>
               </div>
           </div>
 
@@ -599,7 +599,7 @@ export default function UploadPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <Loader2 className="animate-spin text-green-500" size={40} />
+        <Loader2 className="animate-spin text-blue-500" size={40} />
       </div>
     }>
       <UploadContent />

@@ -2,6 +2,8 @@ import './globals.css';
 import type { Metadata } from 'next';
 // 1. Noto Sans KR 임포트 (기존 폰트 제거)
 import { Noto_Sans_KR } from 'next/font/google';
+import { Chiron_Hei_HK } from 'next/font/google';
+
 import { Providers } from './providers';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
@@ -16,9 +18,9 @@ import Script from 'next/script';
 import OnboardingModal from './components/OnboardingModal';
 
 // 2. 폰트 설정 (다양한 굵기 포함)
-const notoSansKr = Noto_Sans_KR({
+const notoSansKr = Chiron_Hei_HK({
   subsets: ['latin'], // 한글은 Next.js가 자동으로 처리합니다.
-  weight: ['100', '300', '400', '500', '700', '900'], 
+  weight: ['300', '400', '500', '700', '900'], 
   variable: '--font-noto',
   display: 'swap',
 });

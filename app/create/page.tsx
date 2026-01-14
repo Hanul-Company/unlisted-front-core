@@ -338,7 +338,16 @@ export default function CreateDashboard() {
 
   // 2. Request Creation
   const handleRequestCreate = async () => {
-    if (!account?.address) return toast.error("Please connect wallet.");
+    if (!account?.address) { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Please connect wallet to play", { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;}
 
     // ✅ [추가] 크레딧 체크 (프론트엔드 방어)
     if (credits <= 0) {
@@ -691,7 +700,7 @@ export default function CreateDashboard() {
                     <div className="relative">
                       <div
                         className={`w-3 h-3 rounded-full ${
-                          job.status === 'done' ? 'bg-green-500 shadow-[0_0_8px_lime]' :
+                          job.status === 'done' ? 'bg-blue-500 shadow-[0_0_8px_lime]' :
                           job.status === 'processing' ? 'bg-blue-500 animate-pulse' :
                           job.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
                         }`}
@@ -716,7 +725,7 @@ export default function CreateDashboard() {
 
                   <div className="flex items-center gap-3">
                     {job.status === 'done' && !expandedJobIds.has(job.id) && (
-                      <span className="text-[10px] font-bold bg-green-900/30 text-green-400 px-2 py-0.5 rounded border border-green-500/20">Ready</span>
+                      <span className="text-[10px] font-bold bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">Ready</span>
                     )}
                     <button onClick={(e) => handleDiscardJob(job.id, e)} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-full transition"><Trash2 size={14} /></button>
                     <div className={`p-2 rounded-full transition ${expandedJobIds.has(job.id) ? 'bg-zinc-800 text-white rotate-180' : 'text-zinc-500'}`}>
@@ -836,7 +845,7 @@ export default function CreateDashboard() {
                   audioRef.current.currentTime = newTime;
                 }}
               >
-                <div className="h-full bg-white rounded-full relative z-10 group-hover:bg-green-500 transition-colors" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
+                <div className="h-full bg-white rounded-full relative z-10 group-hover:bg-blue-500 transition-colors" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
               </div>
               <span className="text-[10px] font-mono w-8 text-zinc-500">{formatTime(duration)}</span>
             </div>
@@ -871,7 +880,7 @@ export default function CreateDashboard() {
               </div>
               <div>
                   <div className="text-xs font-bold text-white max-w-[100px] truncate">{currentTrack.title}</div>
-                  <div className="text-[10px] text-green-400">{isPlaying ? "Playing..." : "Paused"}</div>
+                  <div className="text-[10px] text-blue-400">{isPlaying ? "Playing..." : "Paused"}</div>
               </div>
               <Maximize2 size={14} className="text-zinc-500 ml-2"/>
           </div>

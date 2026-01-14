@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, ChevronLeft, Sparkles, Quote, Volume2, VolumeX } from 'lucide-react';
+import { LogIn, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, ChevronLeft, Sparkles, Quote, Volume2, VolumeX } from 'lucide-react';
 import { useActiveAccount } from "thirdweb/react";
 import toast from 'react-hot-toast';
 import { Link } from "@/lib/i18n";
@@ -11,7 +11,6 @@ import RentalModal from '../components/RentalModal';
 import TradeModal from '../components/TradeModal';
 import PlaylistSelectionModal from '../components/PlaylistSelectionModal';
 import { useRouter } from 'next/navigation';
-
 // ✅ 전역 플레이어를 가져오긴 하지만, '끄기' 용도로만 사용합니다.
 import { usePlayer } from '../context/PlayerContext';
 import { useMediaSession } from '@/hooks/useMediaSession';
@@ -90,7 +89,21 @@ function RadioContent() {
       let tracks: any[] = [];
       
       if (mode === 'ai') {
-         if (!userProfile?.id) { toast.error("Log in required for AI mix."); return; }
+        if (!address || !userProfile?.id) {
+                // ✅ 헤더의 Connect 버튼을 찾아서 클릭
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                
+                if (headerBtn) {
+                    headerBtn.click(); // 🖱️ 자동 클릭! -> 자연스럽게 Thirdweb 모달이 뜸
+                    
+                    // (선택사항) 사용자에게 안내 메시지를 띄우고 싶다면
+                    // toast("Please connect wallet to play", { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please connect your wallet first.");
+                }
+                return;
+            }
          const { data, error } = await supabase.rpc('get_personalized_radio_v4', { p_user_id: userProfile.id, p_limit: 10 });
          if (error) throw error;
          tracks = data || [];
@@ -181,8 +194,26 @@ function RadioContent() {
 });
 
   // --- Collection Handlers ---
-  const handleInvest = () => { if (!address) return toast.error("Connect Wallet"); setShowTradeModal(true); };
-  const openCollectModal = () => { if (!address) return toast.error("Connect Wallet"); setShowRentalModal(true); };
+  const handleInvest = () => { if (!address)  { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Join unlisted now { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;} setShowTradeModal(true); };
+  const openCollectModal = () => { if (!address)  { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Join unlisted now { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;} setShowRentalModal(true); };
   
   const handleRentalConfirm = async (months: number, price: number) => {
       setTempRentalTerms({ months, price });
@@ -360,7 +391,7 @@ function RadioContent() {
 
 export default function RadioPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin text-green-500"/></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin text-blue-500"/></div>}>
       <RadioContent />
     </Suspense>
   );

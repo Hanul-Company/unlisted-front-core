@@ -77,7 +77,7 @@ export default function InvestmentCard({ track, onPlay, onInvest }: InvestmentCa
 
     return (
         <div 
-            className="min-w-[240px] w-[240px] group bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-green-500/50 transition-all hover:shadow-xl cursor-pointer flex flex-col snap-center"
+            className="min-w-[240px] w-[240px] group bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all hover:shadow-xl cursor-pointer flex flex-col snap-center"
             onClick={() => onPlay(track)}
         >
             {/* Top Image Section */}
@@ -106,7 +106,7 @@ export default function InvestmentCard({ track, onPlay, onInvest }: InvestmentCa
             <div className="p-3 flex flex-col flex-1 gap-3">
                 {/* Title */}
                 <div>
-                    <h3 className="font-bold text-sm text-white truncate group-hover:text-green-400 transition">{track.title}</h3>
+                    <h3 className="font-bold text-sm text-white truncate group-hover:text-blue-400 transition">{track.title}</h3>
                     <p className="text-xs text-zinc-500 truncate">{track.artist?.username}</p>
                 </div>
 
@@ -130,7 +130,7 @@ export default function InvestmentCard({ track, onPlay, onInvest }: InvestmentCa
                         {/* Progress Bar */}
                         <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden mt-1.5">
                             <div 
-                                className={`h-full ${timeLeftPercent < 20 ? 'bg-red-500' : 'bg-green-500'}`} 
+                                className={`h-full ${timeLeftPercent < 20 ? 'bg-red-500' : 'bg-blue-500'}`} 
                                 style={{ width: `${timeLeftPercent}%` }}
                             />
                         </div>
@@ -140,7 +140,7 @@ export default function InvestmentCard({ track, onPlay, onInvest }: InvestmentCa
                 {/* Invest Button */}
                 <button 
                     onClick={(e) => { e.stopPropagation(); onInvest(track); }} 
-                    className="mt-auto w-full bg-white text-black hover:bg-green-400 hover:scale-[1.02] active:scale-95 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition shadow-lg flex items-center justify-center gap-1.5"
+                    className="mt-auto w-full bg-white text-black hover:bg-blue-400 hover:scale-[1.02] active:scale-95 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition shadow-lg flex items-center justify-center gap-1.5"
                 >
                     <Zap size={14} fill="black"/> Invest Now
                 </button>

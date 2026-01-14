@@ -21,7 +21,24 @@ import { parseEther, formatEther } from 'viem';
 // Contract
 const tokenContract = getContract({ client, chain, address: MELODY_TOKEN_ADDRESS, abi: MELODY_TOKEN_ABI as any });
 
-// --- [Components] ---
+// ✅ [NEW] 소수점 사이즈를 줄여주는 헬퍼 컴포넌트
+const NumberWithSmallDecimal = ({ value, className }: { value: number, className?: string }) => {
+  // 1. 숫자를 문자열로 변환 (콤마 포함, 소수점 최대 2~4자리 설정)
+  const formatted = value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  // 2. 소수점 기준으로 분리
+  const [integer, decimal] = formatted.split('.');
+
+  return (
+    <span className={className}>
+      {integer}
+      {decimal && (
+        // text-[0.6em]: 부모 폰트 크기의 60%로 설정 (자동 비율 조절)
+        // opacity-70: 소수점은 살짝 흐리게 처리하여 시각적 위계 설정
+        <span className="text-[0.6em] font-medium opacity-80">.{decimal}</span>
+      )}
+    </span>
+  );
+};
 
 // 1. Dashboard Card (Updated: Total Sum as Hero)
 const DashboardCard = ({ title, mldValue, pmldValue, icon: Icon, colorClass, label }: any) => {
@@ -46,30 +63,34 @@ const DashboardCard = ({ title, mldValue, pmldValue, icon: Icon, colorClass, lab
             {/* Main Hero Number (Sum) */}
             <div className="mb-4">
                 <div className="flex items-baseline gap-1">
-                    <span className="text-5xl font-black text-white tracking-tight">{totalValue.toLocaleString()}</span>
+                    {/* ✅ 수정됨: 헬퍼 컴포넌트 사용 */}
+                    <NumberWithSmallDecimal 
+                        value={totalValue} 
+                        className="text-5xl font-black text-white tracking-tight"
+                    />
                     <span className="text-lg font-medium text-zinc-600">Total</span>
                 </div>
             </div>
 
             {/* Breakdown Row (MLD vs pMLD) */}
             <div className="flex items-center gap-4 border-t border-zinc-800/50 pt-3">
-                {/* MLD: 강조됨 (Main Feel) */}
+                {/* MLD */}
                 <div className="flex flex-col">
                     <span className="text-[10px] uppercase font-bold text-emerald-500/70 mb-0.5">Token (MLD)</span>
                     <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-lg">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                        {mldValue.toLocaleString()}
+                        {/* ✅ 수정됨 */}
+                        <NumberWithSmallDecimal value={mldValue} />
                     </div>
                 </div>
-
                 <div className="w-px h-8 bg-zinc-800"></div>
-
-                {/* pMLD: 덜 강조됨 (Sub Feel) */}
+                {/* pMLD */}
                 <div className="flex flex-col">
                     <span className="text-[10px] uppercase font-bold text-zinc-600 mb-0.5">Points (pMLD)</span>
                     <div className="flex items-center gap-1.5 text-zinc-400 font-medium text-lg">
                         <div className="w-2 h-2 rounded-full bg-zinc-600"></div>
-                        {pmldValue.toLocaleString()}
+                        {/* ✅ 수정됨 */}
+                        <NumberWithSmallDecimal value={pmldValue} />
                     </div>
                 </div>
             </div>
@@ -206,45 +227,61 @@ const SwapModal = ({ isOpen, onClose, balance, onSwapSuccess }: any) => {
     );
 };
 
-// 4. Custom Bar Chart (Last 12 Months)
 const PerformanceChart = ({ monthlyData }: { monthlyData: any[] }) => {
-    const maxVal = Math.max(...monthlyData.map(d => d.total), 1); // Avoid div by 0
-
+    const maxVal = Math.max(...monthlyData.map(d => d.total), 1);
+    const len = monthlyData.length; // 데이터 전체 길이 확인
     return (
-        <div className="w-full h-64 flex items-end justify-between gap-2 mt-4 select-none">
-            {monthlyData.map((data, i) => (
-                <div key={i} className="flex-1 h-full flex flex-col justify-end group relative">
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-zinc-800 border border-zinc-700 p-3 rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                        <div className="text-xs font-bold text-white mb-2 border-b border-zinc-700 pb-1">{data.month}</div>
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Music</span><span className="text-blue-400">{data.music.toLocaleString()}</span></div>
-                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Playlist</span><span className="text-purple-400">{data.playlist.toLocaleString()}</span></div>
-                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Invest</span><span className="text-emerald-400">{data.invest.toLocaleString()}</span></div>
-                            <div className="flex justify-between text-[10px] text-zinc-400"><span>Ads</span><span className="text-yellow-400">{data.ads.toLocaleString()}</span></div>
-                            <div className="flex justify-between text-xs font-bold text-white pt-1 border-t border-zinc-700 mt-1"><span>Total</span><span>{data.total.toLocaleString()}</span></div>
+        <div className="w-full h-64 flex items-end justify-between gap-2 mt-4 select-none relative">
+            {monthlyData.map((data, i) => {
+                // ✅ [핵심 로직] 인덱스에 따라 툴팁 위치 클래스 동적 할당
+                let tooltipPositionClass = "left-1/2 -translate-x-1/2"; // 기본: 중앙 정렬
+                let tooltipOriginClass = "origin-bottom"; // 애니메이션 기준점
+                if (i < 2) { 
+                    // 왼쪽 끝 2개 데이터: 왼쪽 정렬
+                    tooltipPositionClass = "left-0"; 
+                    tooltipOriginClass = "origin-bottom-left";
+                } else if (i >= len - 2) { 
+                    // 오른쪽 끝 2개 데이터: 오른쪽 정렬
+                    tooltipPositionClass = "right-0";
+                    tooltipOriginClass = "origin-bottom-right";
+                }
+                return (
+                    <div key={i} className="flex-1 h-full flex flex-col justify-end group relative">
+                        {/* Tooltip */}
+                        <div className={`
+                            absolute bottom-full mb-2 w-48 bg-zinc-800 border border-zinc-700 p-3 rounded-xl shadow-xl 
+                            opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none
+                            ${tooltipPositionClass} ${tooltipOriginClass} 
+                        `}>
+                            {/* z-index를 z-50으로 높여서 다른 요소 위에 확실히 뜨게 함 */}
+                            <div className="text-xs font-bold text-white mb-2 border-b border-zinc-700 pb-1">{data.month}</div>
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-[10px] text-zinc-400"><span>Music</span><span className="text-blue-400">{data.music.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-[10px] text-zinc-400"><span>Playlist</span><span className="text-purple-400">{data.playlist.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-[10px] text-zinc-400"><span>Invest</span><span className="text-emerald-400">{data.invest.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-[10px] text-zinc-400"><span>Ads</span><span className="text-yellow-400">{data.ads.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-xs font-bold text-white pt-1 border-t border-zinc-700 mt-1"><span>Total</span><span>{data.total.toLocaleString()}</span></div>
+                            </div>
                         </div>
+                        {/* Bars (Stacked) */}
+                        <div className="w-full rounded-t-sm overflow-hidden flex flex-col-reverse relative bg-zinc-800/30 hover:brightness-125 transition-all" style={{ height: `${(data.total / maxVal) * 100}%` }}>
+                            {data.total > 0 ? (
+                                <>
+                                    <div style={{ height: `${(data.music / data.total) * 100}%` }} className="w-full bg-blue-500"></div>
+                                    <div style={{ height: `${(data.playlist / data.total) * 100}%` }} className="w-full bg-purple-500"></div>
+                                    <div style={{ height: `${(data.invest / data.total) * 100}%` }} className="w-full bg-emerald-500"></div>
+                                    <div style={{ height: `${(data.ads / data.total) * 100}%` }} className="w-full bg-yellow-500"></div>
+                                </>
+                            ) : (
+                                <div className="w-full h-1 bg-zinc-800"></div>
+                            )}
+                        </div>
+                        
+                        {/* Label */}
+                        <div className="text-[10px] text-zinc-600 text-center mt-2 font-mono group-hover:text-zinc-400">{data.label}</div>
                     </div>
-
-                    {/* Bars (Stacked) */}
-                    <div className="w-full rounded-t-sm overflow-hidden flex flex-col-reverse relative bg-zinc-800/30 hover:brightness-125 transition-all" style={{ height: `${(data.total / maxVal) * 100}%` }}>
-                        {/* 비율대로 쌓기 */}
-                        {data.total > 0 ? (
-                            <>
-                                <div style={{ height: `${(data.music / data.total) * 100}%` }} className="w-full bg-blue-500"></div>
-                                <div style={{ height: `${(data.playlist / data.total) * 100}%` }} className="w-full bg-purple-500"></div>
-                                <div style={{ height: `${(data.invest / data.total) * 100}%` }} className="w-full bg-emerald-500"></div>
-                                <div style={{ height: `${(data.ads / data.total) * 100}%` }} className="w-full bg-yellow-500"></div>
-                            </>
-                        ) : (
-                            <div className="w-full h-1 bg-zinc-800"></div> // 빈 달 표시
-                        )}
-                    </div>
-                    
-                    {/* Label */}
-                    <div className="text-[10px] text-zinc-600 text-center mt-2 font-mono group-hover:text-zinc-400">{data.label}</div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };

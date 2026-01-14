@@ -175,6 +175,7 @@ export default function HeaderProfile() {
 
   if (!user && !account) {
     return (
+      <div id="header-connect-wrapper">
       <ConnectButton
         client={client}
         wallets={wallets}
@@ -186,6 +187,7 @@ export default function HeaderProfile() {
         }}
         connectModal={{ size: "compact", title: "Join Unlisted", welcomeScreen: { title: "Your Music Assets", subtitle: "Login to start collecting & investing" } }}
       />
+      </div>
     );
   }
 
@@ -216,7 +218,7 @@ export default function HeaderProfile() {
               </div>
               <div className="bg-black/40 p-2 rounded-lg border border-zinc-800">
                 <div className="text-[10px] text-zinc-500 flex items-center gap-1 mb-1"><Zap size={10}/> Token</div>
-                <div className="text-sm font-mono font-bold text-green-400">
+                <div className="text-sm font-mono font-bold text-blue-400">
                   {mldBalanceVal ? Number(formatEther(mldBalanceVal)).toLocaleString(undefined, {maximumFractionDigits:0}) : 0} <span className="text-[10px]">MLD</span>
                 </div>
               </div>
@@ -235,7 +237,7 @@ export default function HeaderProfile() {
             
             {account ? (
               <div className="space-y-2">
-                <div className="text-xs text-green-400 flex items-center gap-2 bg-green-400/10 p-2 rounded-lg border border-green-400/20">
+                <div className="text-xs text-blue-400 flex items-center gap-2 bg-blue-400/10 p-2 rounded-lg border border-blue-400/20">
                   <ShieldCheck size={14}/> 
                   <span className="truncate flex-1 font-mono">{account.address.slice(0,6)}...{account.address.slice(-4)}</span>
                 </div>

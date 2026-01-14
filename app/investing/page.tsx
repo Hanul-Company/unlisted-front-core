@@ -214,7 +214,7 @@ function JackpotCard({ item, onTrade, onPlay, isPlaying, isCurrent }: { item: an
             {/* Info Area (Clicking here opens Trade Modal) */}
             <div className="p-5 flex-1 flex flex-col" onClick={onTrade}>
                 <div className="mb-4">
-                    <h3 className={`text-xl font-bold mb-1 line-clamp-1 transition ${isCurrent ? 'text-green-500' : 'text-white group-hover:text-green-400'}`}>{item.title}</h3>
+                    <h3 className={`text-xl font-bold mb-1 line-clamp-1 transition ${isCurrent ? 'text-blue-500' : 'text-white group-hover:text-blue-400'}`}>{item.title}</h3>
                     <p className="text-sm text-zinc-500">{item.artist?.username}</p>
                 </div>
 
@@ -240,7 +240,7 @@ function JackpotCard({ item, onTrade, onPlay, isPlaying, isCurrent }: { item: an
                             <span className="font-mono text-white">{timeLeft}</span>
                         </div>
                         <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                            <div className={`h-full transition-all duration-1000 ${isEnding ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${progress}%` }} />
+                            <div className={`h-full transition-all duration-1000 ${isEnding ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }} />
                         </div>
                     </div>
                 </div>

@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Clock, Infinity as InfinityIcon, CheckCircle, Loader2, Music, Layers, ArrowUpCircle, CalendarDays, Coins, ShieldCheck } from 'lucide-react';
+// ✅ [추가] 로그인 상태 확인 및 토스트 메시지용 임포트
+import { useActiveAccount } from "thirdweb/react"; 
+import toast from 'react-hot-toast';
 
 interface RentalModalProps {
   isOpen: boolean;
@@ -20,18 +23,22 @@ export default function RentalModal({
     isOpen, onClose, onConfirm, isLoading: externalLoading,
     targetTitle = "this track", 
     trackCount = 1,
-    basePrice = 10, // ✅ 기준 가격 10 (이걸 기준으로 0.1배, 0.5배... 계산)
+    basePrice = 10,
     isExtension = false,
     currentExpiryDate = null
 }: RentalModalProps) {
-    
+  
+  // ✅ [추가] 현재 지갑 주소 가져오기
+  const account = useActiveAccount();
+  const address = account?.address;
+
   // 기본 선택값: 6개월
   const [selectedPlan, setSelectedPlan] = useState<number>(6);
   const [status, setStatus] = useState<'idle' | 'processing' | 'success'>('idle');
   const [progress, setProgress] = useState(0);
   const [loadingMsg, setLoadingMsg] = useState("Initializing...");
 
-  // ✅ Lifetime 체크: 만료일이 "Lifetime"이거나 "Forever"인 경우
+  // ✅ Lifetime 체크
   const isLifetimeOwned = currentExpiryDate === 'Lifetime' || currentExpiryDate === 'Forever';
 
   // Progress Simulation
@@ -46,26 +53,40 @@ export default function RentalModal({
 
   useEffect(() => { if(!isOpen) { setStatus('idle'); } }, [isOpen]);
 
-  // ✅ 가격 계산 함수 (트랙 수 반영)
+  // ✅ 가격 계산 함수
   const getPrice = (multiplier: number) => { 
-      // 예: 1개월 -> 10 * 0.1 * 1 = 1 MLD
-      // 예: 6개월 -> 10 * 0.5 * 1 = 5 MLD
       return basePrice * multiplier * trackCount; 
   };
 
-  // ✅ [수정됨] 요청하신 가격 정책 적용
-  // basePrice = 10 기준
   const plans = [
-    { months: 1, multiplier: 0.1, label: '1 Month', icon: Clock },     // 1 MLD
-    { months: 6, multiplier: 0.5, label: '6 Months', icon: Clock, recommended: true }, // 5 MLD
-    { months: 12, multiplier: 1.0, label: '1 Year', icon: Clock },     // 10 MLD
-    { months: 999, multiplier: 1.5, label: 'Forever', icon: InfinityIcon }, // 15 MLD
+    { months: 1, multiplier: 0.1, label: '1 Month', icon: Clock },
+    { months: 6, multiplier: 0.5, label: '6 Months', icon: Clock, recommended: true },
+    { months: 12, multiplier: 1.0, label: '1 Year', icon: Clock },
+    { months: 999, multiplier: 1.5, label: 'Forever', icon: InfinityIcon },
   ];
 
-  const actionVerb = isExtension ? "Extend" : "Rent";
-  const successTitle = isExtension ? "Extended Successfully! 🎉" : (trackCount > 1 ? "Playlist Collected! 🎉" : "Rental Active! 🎉");
+  const actionVerb = isExtension ? "Extend" : "Collect";
+  const successTitle = isExtension ? "Extended Successfully! 🎉" : (trackCount > 1 ? "Playlist Collected! 🎉" : "Collection Active! 🎉");
 
   const handleConfirm = async () => {
+      // ✅ [추가] 로그인 체크 로직 (비로그인 시 헤더 버튼 자동 클릭)
+      if (!address) {
+          const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+          if (headerBtn) {
+              // 모달이 겹칠 수 있으므로 현재 렌탈 모달은 닫아주는 것이 UX상 좋습니다 (선택사항)
+              onClose(); 
+              
+              // 헤더의 로그인 버튼 강제 클릭
+              headerBtn.click(); 
+              
+              // 안내 메시지
+              toast("Please Join unlisted first.", { icon: '👆' });
+          } else {
+              toast.error("Please connect your wallet first.");
+          }
+          return;
+      }
+
       // 이미 평생 소장 중이면 동작 안 함
       if (isLifetimeOwned) return;
 
@@ -98,11 +119,11 @@ export default function RentalModal({
         <div className="flex justify-between items-start mb-6">
           <div>
               <h2 className="text-xl font-black text-white flex items-center gap-2">
-                  {isExtension ? <ArrowUpCircle size={20} className="text-green-400"/> : (trackCount > 1 ? <Layers size={20}/> : <Music size={20}/>)}
+                  {isExtension ? <ArrowUpCircle size={20} className="text-blue-400"/> : (trackCount > 1 ? <Layers size={20}/> : <Music size={20}/>)}
                   {trackCount > 1 ? 'Collect Playlist' : `${actionVerb} Track`}
               </h2>
               <p className="text-xs text-zinc-400 mt-1">
-                  {trackCount > 1 ? `Collecting ${trackCount} tracks` : `${actionVerb} access for "${targetTitle}"`}
+                  {trackCount > 1 ? `Collecting ${trackCount} tracks` : `Access for "${targetTitle}"`}
               </p>
               
               {/* 만료일 표시 */}
@@ -138,7 +159,6 @@ export default function RentalModal({
                 <div className="space-y-3 mb-6">
                 {plans.map((plan) => {
                     const price = getPrice(plan.multiplier);
-                    // 1 MLD = 1 pMLD 이므로 둘 다 price로 표시
                     const displayLabel = (isExtension && plan.months !== 999) ? `+ ${plan.label}` : plan.label;
 
                     return (
@@ -160,7 +180,7 @@ export default function RentalModal({
                                 </div>
                                 <div className="text-left">
                                     <div className="font-bold text-sm">{displayLabel}</div>
-                                    {plan.recommended && !isLifetimeOwned && <span className="text-[10px] text-green-400 font-mono">BEST VALUE</span>}
+                                    {plan.recommended && !isLifetimeOwned && <span className="text-[10px] text-blue-400 font-mono">BEST VALUE</span>}
                                 </div>
                             </div>
                             
@@ -210,7 +230,7 @@ export default function RentalModal({
                 {status === 'processing' ? (
                     <div className="relative"> <Loader2 className="animate-spin text-purple-500 w-16 h-16"/> <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><Music size={20} className="text-white"/></div> </div>
                 ) : (
-                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_20px_lime]"> <CheckCircle className="text-black w-8 h-8"/> </div>
+                    <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_20px_lime]"> <CheckCircle className="text-black w-8 h-8"/> </div>
                 )}
                 <div className="space-y-2 w-full"> <h4 className="font-bold text-xl text-white animate-pulse">{status === 'success' ? successTitle : 'Processing Payment...'}</h4> <p className="text-xs text-zinc-400 font-mono">{loadingMsg}</p> </div>
                 <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden relative"> <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}/> </div>

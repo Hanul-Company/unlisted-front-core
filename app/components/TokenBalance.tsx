@@ -18,7 +18,7 @@ export default function TokenBalance({ address }: { address?: string }) {
   if (!address) return null;
 
   return (
-    <div className="hidden sm:block text-xs font-mono text-green-400 bg-zinc-950 px-3 py-1.5 rounded-full border border-zinc-800 shadow-inner">
+    <div className="hidden sm:block text-xs font-mono text-blue-400 bg-zinc-950 px-3 py-1.5 rounded-full border border-zinc-800 shadow-inner">
       {balanceData ? Number(formatEther(balanceData as bigint)).toLocaleString(undefined, {maximumFractionDigits:0}) : 0} MLD
     </div>
   );

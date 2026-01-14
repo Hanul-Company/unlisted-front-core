@@ -114,11 +114,11 @@ export default function OnboardingModal() {
         </button>
 
         {/* Background Deco */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/2"/>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/2"/>
 
         <div className="relative z-10 text-center">
-            <div className="w-16 h-16 mx-auto bg-zinc-800 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-900/20 border-2 border-zinc-800">
-                {initialAvatar ? <img src={initialAvatar} className="w-full h-full rounded-full object-cover"/> : <Sparkles className="text-green-400"/>}
+            <div className="w-16 h-16 mx-auto bg-zinc-800 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-900/20 border-2 border-zinc-800">
+                {initialAvatar ? <img src={initialAvatar} className="w-full h-full rounded-full object-cover"/> : <Sparkles className="text-blue-400"/>}
             </div>
 
             <h2 className="text-2xl font-black text-white mb-2">Welcome to unlisted!</h2>
@@ -131,7 +131,7 @@ export default function OnboardingModal() {
                     <input 
                         value={username} 
                         onChange={(e) => setUsername(e.target.value)} 
-                        className="w-full bg-black border border-zinc-700 rounded-xl px-4 py-3 text-white font-bold focus:border-green-500 outline-none transition"
+                        className="w-full bg-black border border-zinc-700 rounded-xl px-4 py-3 text-white font-bold focus:border-blue-500 outline-none transition"
                         placeholder="Enter your name"
                     />
                 </div>
@@ -159,7 +159,7 @@ export default function OnboardingModal() {
             <button 
                 onClick={handleSaveProfile} 
                 disabled={loading} 
-                className="w-full mt-8 bg-green-500 text-black font-black py-4 rounded-xl hover:scale-[1.02] active:scale-95 transition flex items-center justify-center gap-2 shadow-lg shadow-green-900/20"
+                className="w-full mt-8 bg-blue-500 text-black font-black py-4 rounded-xl hover:scale-[1.02] active:scale-95 transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
             >
                 {loading ? <Loader2 className="animate-spin"/> : <>Get Started <CheckCircle size={18}/></>}
             </button>

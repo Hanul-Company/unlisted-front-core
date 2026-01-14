@@ -5,10 +5,10 @@ import { supabase } from '@/utils/supabase';
 import { Loader2 } from 'lucide-react'; // 화살표 아이콘 제거
 import { Link } from "@/lib/i18n"; 
 
-import { Lora, Noto_Sans_KR } from 'next/font/google';
+import { Chiron_Hei_HK, Lora, Noto_Sans_KR, Sunflower } from 'next/font/google';
 
-const oswald = Noto_Sans_KR({ subsets: ['latin'], weight: ['400'] }); 
-const notoSans = Noto_Sans_KR({ subsets: ['latin'], weight: ['400', '700', '900'] });
+const oswald = Chiron_Hei_HK({ subsets: ['latin'], weight: ['400'] }); 
+const notoSans = Chiron_Hei_HK({ subsets: ['latin'], weight: ['400', '700', '900'] });
 
 export default function MarketCarousel() {
   const [banners, setBanners] = useState<any[]>([]);

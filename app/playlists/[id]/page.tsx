@@ -125,7 +125,16 @@ export default function PublicPlaylistPage() {
   };
 
   const openRentalModal = (type: 'single' | 'batch', track?: PlaylistTrack) => {
-      if (!address) return toast.error("Connect wallet first");
+      if (!address)  { 
+                      const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                      if (headerBtn) {
+                          headerBtn.click(); 
+                          // toast("Join unlisted now { icon: '👆' });
+                      } else {
+                          // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                          toast.error("Please Join unlisted first.");
+                      }
+                      return;}
       if (info?.creator_wallet === address) return toast("This is your playlist!", { icon: "😅" });
       
       setRentalTarget({ type, track });
@@ -293,7 +302,7 @@ export default function PublicPlaylistPage() {
 
   const coverImages = tracks.slice(0, 4).map(t => t.cover_image_url).filter(Boolean);
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-green-500" size={40}/></div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={40}/></div>;
 
   return (
     <div className="min-h-screen bg-black text-white pb-32 font-sans">
@@ -343,7 +352,7 @@ export default function PublicPlaylistPage() {
         <div className="flex items-center gap-4">
             <button 
                 onClick={() => { if(tracks.length > 0) handlePlay(tracks[0]); }}
-                className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center text-black hover:scale-105 transition shadow-lg shadow-green-500/20"
+                className="w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center text-black hover:scale-105 transition shadow-lg shadow-blue-500/20"
             >
                 {/* Global Player State Check */}
                 {isPlaying && currentTrack?.id === tracks[0]?.id ? <Pause fill="black" size={24}/> : <Play fill="black" size={24} className="ml-1"/>}
@@ -356,7 +365,7 @@ export default function PublicPlaylistPage() {
             disabled={isJustForked} 
             className={`px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition shadow-lg 
                 ${isJustForked 
-                    ? 'bg-zinc-800 text-green-500 border border-green-500/30' 
+                    ? 'bg-zinc-800 text-blue-500 border border-blue-500/30' 
                     : isAllOwned 
                         ? 'bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-700' 
                         : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:scale-105 shadow-blue-900/50' 
@@ -397,17 +406,17 @@ export default function PublicPlaylistPage() {
                             <td className="p-3 w-12 text-center text-zinc-500 text-sm">
                                 <span className={`group-hover:hidden ${isThisTrackActive ? 'hidden' : 'block'}`}>{idx + 1}</span>
                                 <button onClick={() => isThisTrackActive ? togglePlay() : handlePlay(track)} className={`hidden group-hover:inline-block ${isThisTrackActive ? '!inline-block' : ''}`}>
-                                    {isThisTrackPlaying ? <Pause size={14} fill="currentColor" className="text-green-500"/> : <Play size={14} fill="currentColor" className={isThisTrackActive ? 'text-green-500' : 'text-white'}/>}
+                                    {isThisTrackPlaying ? <Pause size={14} fill="currentColor" className="text-blue-500"/> : <Play size={14} fill="currentColor" className={isThisTrackActive ? 'text-blue-500' : 'text-white'}/>}
                                 </button>
                             </td>
                             <td className="p-3">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-zinc-800 rounded-md overflow-hidden flex-shrink-0 relative">
                                         {track.cover_image_url ? <img src={track.cover_image_url} className="w-full h-full object-cover"/> : <Disc className="p-3 text-zinc-600"/>}
-                                        {isThisTrackPlaying && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><div className="w-2 h-2 bg-green-500 rounded-full animate-ping"/></div>}
+                                        {isThisTrackPlaying && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"/></div>}
                                     </div>
                                     <div>
-                                        <div className={`font-bold text-sm md:text-base ${isThisTrackActive ? 'text-green-500' : 'text-white'}`}>{track.title}</div>
+                                        <div className={`font-bold text-sm md:text-base ${isThisTrackActive ? 'text-blue-500' : 'text-white'}`}>{track.title}</div>
                                         <div className="text-zinc-500 text-xs md:text-sm">{track.artist?.username}</div>
                                     </div>
                                 </div>

@@ -210,7 +210,7 @@ export default function AdminDashboard() {
         <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold flex items-center gap-2">
-              <LayoutGrid className="text-green-400" size={20}/>
+              <LayoutGrid className="text-blue-400" size={20}/>
               Featured Playlists
             </h2>
             <div className="flex gap-2">
@@ -225,7 +225,7 @@ export default function AdminDashboard() {
                   Save Order
                 </button>
               )}
-              <span className={`text-sm font-bold px-3 py-1.5 rounded-full ${featuredList.length >= 10 ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
+              <span className={`text-sm font-bold px-3 py-1.5 rounded-full ${featuredList.length >= 10 ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'}`}>
                 {featuredList.length} / 10
               </span>
             </div>
@@ -322,7 +322,7 @@ export default function AdminDashboard() {
             <input 
               type="text" 
               placeholder="Playlist name or username..." 
-              className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 focus:outline-none focus:border-green-500 transition text-white placeholder-zinc-600"
+              className="flex-1 bg-black border border-zinc-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition text-white placeholder-zinc-600"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -346,7 +346,7 @@ export default function AdminDashboard() {
                    <button 
                      onClick={() => toggleFeatured(pl.id, true)}
                      disabled={featuredList.length >= 10}
-                     className="bg-green-600/20 text-green-500 hover:bg-green-600 hover:text-white p-2 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                     className="bg-blue-600/20 text-blue-500 hover:bg-blue-600 hover:text-white p-2 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                    >
                      <Plus size={18}/>
                    </button>

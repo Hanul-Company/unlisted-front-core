@@ -207,7 +207,13 @@ return (
                     {/* Title & Info */}
                     <div className="text-center space-y-1 mb-8 w-full mt-6">
                         <h2 className="text-2xl font-black tracking-tight truncate text-white">{track.title}</h2>
-                        <Link href={`/u?wallet=${track.artist?.wallet_address}`} className="text-sm font-medium text-zinc-400 hover:text-white hover:underline transition">
+                        
+                        {/* ✅ [수정] 아티스트 클릭 시 플레이어 닫기 (onClose 추가) */}
+                        <Link 
+                            href={`/u?wallet=${track.artist?.wallet_address}`} 
+                            onClick={onClose} // 👈 이 부분 추가!
+                            className="text-sm font-medium text-zinc-400 hover:text-white hover:underline transition"
+                        >
                             {track.artist?.username}
                         </Link>
                     </div>
@@ -215,13 +221,13 @@ return (
                     {/* Controls */}
                     <div className="w-full">
                         <div className="flex items-center justify-between px-2 mb-8">
-                            <button onClick={onToggleShuffle} className={`p-2 transition ${isShuffle ? 'text-green-500' : 'text-zinc-600'}`}><Shuffle size={20}/></button>
+                            <button onClick={onToggleShuffle} className={`p-2 transition ${isShuffle ? 'text-blue-500' : 'text-zinc-600'}`}><Shuffle size={20}/></button>
                             <button onClick={onPrev} className="w-12 h-12 rounded-full bg-zinc-900/50 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition backdrop-blur-md"><SkipBack size={24}/></button>
                             <button onClick={onPlayPause} className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition shadow-[0_0_30px_rgba(255,255,255,0.2)]">
                                 {isPlaying ? <Pause size={28} fill="black"/> : <Play size={28} fill="black" className="ml-1"/>}
                             </button>
                             <button onClick={onNext} className="w-12 h-12 rounded-full bg-zinc-900/50 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition backdrop-blur-md"><SkipForward size={24}/></button>
-                            <button onClick={onToggleRepeat} className={`p-2 transition ${repeatMode !== 'off' ? 'text-green-500' : 'text-zinc-600'}`}>
+                            <button onClick={onToggleRepeat} className={`p-2 transition ${repeatMode !== 'off' ? 'text-blue-500' : 'text-zinc-600'}`}>
                                 {repeatMode === 'one' ? <Repeat1 size={20}/> : <Repeat size={20}/>}
                             </button>
                         </div>

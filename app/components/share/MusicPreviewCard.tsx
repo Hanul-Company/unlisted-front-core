@@ -190,7 +190,7 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
 
         {/* 로그인 상태 배지 */}
         {isLoggedIn && (
-          <div className="absolute top-4 right-4 bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border border-green-500/30">
+          <div className="absolute top-4 right-4 bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border border-blue-500/30">
             <CheckCircle2 size={10} /> Connected
           </div>
         )}
@@ -212,7 +212,7 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
 
             <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
                  <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-white border border-white/10 flex items-center gap-1">
-                    <TrendingUp size={10} className={investorSharePercent >= 30 ? "text-red-500" : "text-green-500"}/> 
+                    <TrendingUp size={10} className={investorSharePercent >= 30 ? "text-red-500" : "text-blue-500"}/> 
                     {investorSharePercent}% Yield
                  </div>
             </div>

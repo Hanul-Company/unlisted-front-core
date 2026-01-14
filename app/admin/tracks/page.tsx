@@ -226,7 +226,7 @@ export default function AdminTracksPage() {
               onChange={(e) => { setInput(e.target.value); setShowDropdown(true); }}
               onKeyDown={(e) => e.key === 'Enter' && add(input)}
               placeholder={options.length > 0 ? "Select or type..." : "Add item..."}
-              className="flex-1 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-xs focus:border-green-500 outline-none"
+              className="flex-1 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-xs focus:border-blue-500 outline-none"
             />
             <button onClick={() => add(input)} className="bg-zinc-800 px-3 rounded-lg hover:bg-zinc-700 transition">
               <Plus size={16} />
@@ -242,7 +242,7 @@ export default function AdminTracksPage() {
                   className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition flex items-center justify-between group"
                 >
                   {opt}
-                  <Plus size={12} className="opacity-0 group-hover:opacity-100 text-green-500" />
+                  <Plus size={12} className="opacity-0 group-hover:opacity-100 text-blue-500" />
                 </button>
               ))}
             </div>
@@ -267,7 +267,7 @@ export default function AdminTracksPage() {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKey}
               placeholder="Search title or artist..."
-              className="bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2 w-64 text-sm focus:border-green-500 outline-none"
+              className="bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-2 w-64 text-sm focus:border-blue-500 outline-none"
             />
             <Search className="absolute left-3 top-2.5 text-zinc-500" size={16} />
           </div>
@@ -288,7 +288,7 @@ export default function AdminTracksPage() {
           </thead>
           <tbody className="divide-y divide-zinc-800">
             {loading ? (
-              <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-green-500" /></td></tr>
+              <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-blue-500" /></td></tr>
             ) : tracks.length === 0 ? (
               <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No tracks found.</td></tr>
             ) : tracks.map(track => {
@@ -348,7 +348,7 @@ export default function AdminTracksPage() {
                       ) : <span className="text-zinc-700">-</span>}
                       {track.ai_metadata?.vibe_tags?.length ? (
                         <div className="flex items-center gap-1">
-                          <Hash size={12} className="text-green-400" /> {track.ai_metadata.vibe_tags.slice(0, 2).join(', ')}
+                          <Hash size={12} className="text-blue-400" /> {track.ai_metadata.vibe_tags.slice(0, 2).join(', ')}
                         </div>
                       ) : null}
                     </div>
@@ -378,7 +378,7 @@ export default function AdminTracksPage() {
         <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-zinc-800 flex justify-between items-center sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-xl font-bold flex items-center gap-2"><Music className="text-green-500" /> Edit Track Metadata</h2>
+              <h2 className="text-xl font-bold flex items-center gap-2"><Music className="text-blue-500" /> Edit Track Metadata</h2>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-800 rounded-full"><X size={20} /></button>
             </div>
 
@@ -392,7 +392,7 @@ export default function AdminTracksPage() {
                   <input
                     value={editingTrack.title}
                     onChange={(e) => setEditingTrack({ ...editingTrack, title: e.target.value })}
-                    className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-green-500 outline-none"
+                    className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none"
                   />
                 </div>
 
@@ -466,7 +466,7 @@ export default function AdminTracksPage() {
 
             <div className="p-6 border-t border-zinc-800 bg-zinc-900 sticky bottom-0 flex justify-end gap-4">
               <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition">Cancel</button>
-              <button onClick={handleSave} className="px-8 py-3 bg-green-500 hover:bg-green-400 text-black rounded-xl font-black shadow-lg shadow-green-900/20 flex items-center gap-2 transition"><Save size={18} /> Save Changes</button>
+              <button onClick={handleSave} className="px-8 py-3 bg-blue-500 hover:bg-blue-400 text-black rounded-xl font-black shadow-lg shadow-blue-900/20 flex items-center gap-2 transition"><Save size={18} /> Save Changes</button>
             </div>
           </div>
         </div>

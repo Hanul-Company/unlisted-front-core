@@ -150,7 +150,16 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   };
 
   const handleTrade = () => {
-    if (!address) return toast.error("Connect wallet");
+    if (!address) { 
+                const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+                if (headerBtn) {
+                    headerBtn.click(); 
+                    // toast("Please connect wallet to play", { icon: '👆' });
+                } else {
+                    // 만약 헤더 버튼을 못 찾았을 경우 대비 (Fallback)
+                    toast.error("Please Join unlisted first.");
+                }
+                return;}
     setStatus('processing');
 
     if (mode === 'buy') {
@@ -258,7 +267,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
   };
 
   const handleShare = async () => {
-      const shareText = `I just invested in "${track.title}" on MelodyLink! 🚀`;
+      const shareText = `I just invested in "${track.title}" on unlisted! 🚀`;
       navigator.clipboard.writeText(shareText);
       toast.success("Copied to clipboard!");
   };
@@ -309,19 +318,19 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                          <span className="text-sm font-bold text-white">{myOwnership}% <span className="text-zinc-600 font-normal">({myShares} shares)</span></span>
                     </div>
                     {pendingReward > 0 && (
-                        <div className="flex items-center gap-2 bg-green-900/30 px-3 py-1.5 rounded-lg border border-green-500/30">
+                        <div className="flex items-center gap-2 bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-500/30">
                             <div className="flex flex-col items-end">
-                                <span className="text-[10px] text-green-400 font-bold">REWARD</span>
+                                <span className="text-[10px] text-blue-400 font-bold">REWARD</span>
                                 <span className="text-sm font-black text-white">{pendingReward.toFixed(4)}</span>
                             </div>
-                            <button onClick={handleClaimReward} className="bg-green-500 hover:bg-green-400 text-black p-1.5 rounded-md transition shadow-lg shadow-green-500/20"><Gift size={14}/></button>
+                            <button onClick={handleClaimReward} className="bg-blue-500 hover:bg-blue-400 text-black p-1.5 rounded-md transition shadow-lg shadow-blue-500/20"><Gift size={14}/></button>
                         </div>
                     )}
                 </div>
 
                 {/* Mode Toggles */}
                 <div className="flex p-2 gap-2 bg-zinc-900">
-                    <button onClick={() => setMode('buy')} className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition ${mode === 'buy' ? 'bg-green-500 text-black shadow-lg shadow-green-500/20' : 'bg-zinc-800 text-zinc-500 hover:text-white'}`}><TrendingUp size={16}/> Buy</button>
+                    <button onClick={() => setMode('buy')} className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition ${mode === 'buy' ? 'bg-blue-500 text-black shadow-lg shadow-blue-500/20' : 'bg-zinc-800 text-zinc-500 hover:text-white'}`}><TrendingUp size={16}/> Buy</button>
                     <button onClick={() => setMode('sell')} className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition ${mode === 'sell' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-zinc-800 text-zinc-500 hover:text-white'}`}><TrendingDown size={16}/> Sell</button>
                 </div>
 
@@ -343,7 +352,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                         <div className="flex justify-between text-sm"><span className="text-zinc-500">Price per share</span><span className="font-mono text-zinc-400">{(mode === 'buy' ? estimatedCost/Number(amount) || 0 : estimatedPayout/Number(amount) || 0).toFixed(4)} MLD</span></div>
                         <div className="flex justify-between items-center bg-zinc-800/50 p-3 rounded-xl">
                             <span className="font-bold text-white text-sm">TOTAL ESTIMATED</span>
-                            <span className={`font-mono font-black text-xl ${mode === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
+                            <span className={`font-mono font-black text-xl ${mode === 'buy' ? 'text-blue-400' : 'text-red-400'}`}>
                                 {(mode === 'buy' ? buyTotal : estimatedPayout).toFixed(4)} MLD
                             </span>
                         </div>
@@ -399,7 +408,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                                     onClick={handleTrade} 
                                     disabled={timeLeftStr === "Round Ended"}
                                     className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition shadow-lg ${
-                                        timeLeftStr === "Round Ended" ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-green-500 text-black hover:scale-[1.02] shadow-green-500/20'
+                                        timeLeftStr === "Round Ended" ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-blue-500 text-black hover:scale-[1.02] shadow-blue-500/20'
                                     }`}
                                 >
                                     {timeLeftStr === "Round Ended" ? 'Round Ended (Trading Only)' : 'CONFIRM BUY 🚀'}
@@ -421,7 +430,7 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
             <div className="p-8 flex flex-col items-center justify-center text-center space-y-6 min-h-[350px]">
                 {status === 'success' ? (
                     <>
-                        <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_30px_rgba(34,197,94,0.4)]">
+                        <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_30px_rgba(34,197,94,0.4)]">
                             <Trophy className="text-black w-10 h-10" strokeWidth={3}/>
                         </div>
                         <div className="space-y-2">
@@ -447,14 +456,14 @@ export default function TradeModal({ isOpen, onClose, track }: TradeModalProps) 
                 ) : (
                     <>
                         <div className="relative">
-                            <Loader2 className="animate-spin text-green-500 w-16 h-16"/>
+                            <Loader2 className="animate-spin text-blue-500 w-16 h-16"/>
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">{Math.round(progress)}%</div>
                         </div>
                         <div className="space-y-2">
                             <h4 className="font-bold text-xl text-white animate-pulse">Processing...</h4>
                             <p className="text-xs text-zinc-500 font-mono">{loadingMsg}</p>
                         </div>
-                        <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden"><div className="h-full bg-green-500 transition-all duration-300" style={{ width: `${progress}%` }}/></div>
+                        <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden"><div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${progress}%` }}/></div>
                     </>
                 )}
             </div>
