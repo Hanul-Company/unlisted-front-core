@@ -57,48 +57,63 @@ export default function SettingsPage() {
   const [nextAnalyzeDate, setNextAnalyzeDate] = useState<Date | null>(null);
   const [showConfirmAvatarModal, setShowConfirmAvatarModal] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
+    let isMounted = true; // 컴포넌트 마운트 상태 추적
+
     const fetchProfile = async () => {
-      if (!address) return;
-      
-      const { data } = await supabase.from('profiles').select('*').eq('wallet_address', address).single();
-
-      if (data) {
-        setUsername(data.username || '');
-        setBio(data.bio || '');
-        setAvatarUrl(data.avatar_url);
-        if (data.social_links) setSocials(prev => ({ ...prev, ...data.social_links }));
-
-        // Music Taste
-        if (data.music_taste) {
-            if (data.music_taste.input_artists) setFavArtists(data.music_taste.input_artists);
-            if (data.music_taste.input_tracks) setFavTracks(data.music_taste.input_tracks);
-            if (data.music_taste.summary) setAnalysisResult(data.music_taste);
-            if (data.music_taste.updated_at) {
-                // (기존 24시간 락 로직 유지)
-            }
-        }
-
-        // Persona Data & Daily Limit Check
-        if (data.persona_data) {
-            setPersonaImage(data.persona_data.image_url);
-            if (data.persona_data.attributes) setPersonaInputs(prev => ({...prev, ...data.persona_data.attributes}));
-        }
-
-        // 날짜가 바뀌었으면 카운트 리셋 로직 (프론트 표시용, 실제는 DB 업데이트 시 처리 추천)
-        const lastDate = data.last_persona_date ? new Date(data.last_persona_date).getDate() : null;
-        const today = new Date().getDate();
-        if (lastDate !== today) {
-            setDailyCount(0); // 날짜 다르면 0회
-        } else {
-            setDailyCount(data.persona_daily_count || 0);
-        }
+      // 1. 지갑 주소가 없을 때 (새로고침 직후 or 비로그인)
+      if (!address) {
+          // SDK 초기화 시간을 고려해 1초 정도 기다림
+          const timer = setTimeout(() => {
+              if (isMounted) setLoading(false); // 1초 뒤에도 없으면 로딩 해제
+          }, 1000);
+          return () => clearTimeout(timer);
       }
-      setLoading(false);
-    };
-    fetchProfile();
-  }, [address]);
 
+      // 2. 지갑 주소가 있을 때 -> 데이터 로드 시작
+      try {
+        const { data } = await supabase.from('profiles').select('*').eq('wallet_address', address).single();
+
+        if (data && isMounted) {
+          setUsername(data.username || '');
+          setBio(data.bio || '');
+          setAvatarUrl(data.avatar_url);
+          if (data.social_links) setSocials(prev => ({ ...prev, ...data.social_links }));
+
+          // Music Taste 로드
+          if (data.music_taste) {
+              if (data.music_taste.input_artists) setFavArtists(data.music_taste.input_artists);
+              if (data.music_taste.input_tracks) setFavTracks(data.music_taste.input_tracks);
+              if (data.music_taste.summary) setAnalysisResult(data.music_taste);
+          }
+
+          // Persona Data 로드
+          if (data.persona_data) {
+              setPersonaImage(data.persona_data.image_url);
+              if (data.persona_data.attributes) setPersonaInputs(prev => ({...prev, ...data.persona_data.attributes}));
+          }
+
+          // Daily Count 로드
+          const lastDate = data.last_persona_date ? new Date(data.last_persona_date).getDate() : null;
+          const today = new Date().getDate();
+          if (lastDate !== today) {
+              setDailyCount(0);
+          } else {
+              setDailyCount(data.persona_daily_count || 0);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      } finally {
+        // 3. 성공하든 실패하든 로딩 종료
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchProfile();
+
+    return () => { isMounted = false; };
+  }, [address]);
   // --- Handlers ---
 
   const handleSaveProfile = async () => {
@@ -129,7 +144,18 @@ export default function SettingsPage() {
     setTimeout(() => { setAnalyzing(false); toast.success("Analysis Mockup Complete"); }, 2000); 
   };
 
-// ✅ [수정] 페르소나 생성 (실험실 모달 연출 추가)
+  // ✅ [Helper] Base64 문자열을 File 객체로 변환하는 함수
+  const base64ToFile = (base64String: string, filename: string) => {
+    const byteCharacters = atob(base64String);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new File([byteArray], filename, { type: 'image/png' });
+  };
+
+// ✅ [수정] 페르소나 생성 및 Supabase 업로드 로직
   const handleGeneratePersona = async () => {
     if (dailyCount >= 3) return toast.error("Daily limit reached (3/3).");
     if (!personaInputs.nationality) return toast.error("Please enter a nationality.");
@@ -137,57 +163,77 @@ export default function SettingsPage() {
     const validArtists = personaInputs.artists.filter(a => a.trim() !== '');
     if (validArtists.length === 0) return toast.error("Mix at least 1 artist DNA.");
 
-    // 1. 모달 열기 및 초기화
+    // 1. 모달 열기 및 애니메이션 시작
     setIsGeneratingModalOpen(true);
     setGenerationStep(0);
     
-    // 2. 가짜 진행 단계 시뮬레이션 (비주얼용 타이머)
+    // 시각적 진행 단계 연출
     const stepInterval = setInterval(() => {
         setGenerationStep(prev => (prev < 3 ? prev + 1 : prev));
-    }, 2500); // 2.5초마다 멘트 변경
+    }, 2500);
 
     try {
-        // 실제 생성 요청 (약 8~12초 소요 예상)
-        const generatedUrl = await generatePersonaImage({
+        // 2. DALL-E 이미지 생성 (Base64 데이터 수신)
+        const b64Json = await generatePersonaImage({
             artists: validArtists,
             gender: personaInputs.gender,
             age: personaInputs.age,
             nationality: personaInputs.nationality,
             vibe: personaInputs.vibe
         });
-        
-        // --- [테스트용 Mockup] (실제 API 사용시 주석 처리) ---
-        // await new Promise(resolve => setTimeout(resolve, 8000)); // 8초 대기
-        // const generatedUrl = `https://picsum.photos/seed/${Date.now()}/800/800`;
-        // --------------------------------------------------
 
+        // 3. Base64 -> File 변환
+        const timestamp = Date.now();
+        const fileName = `persona_${address}_${timestamp}.png`;
+        const imageFile = base64ToFile(b64Json, fileName);
+
+        // 4. Supabase Storage에 업로드 (영구 저장)
+        const { error: uploadError } = await supabase.storage
+            .from('music_assets') // ✅ 기존 버킷 사용
+            .upload(fileName, imageFile, {
+                contentType: 'image/png',
+                upsert: false
+            });
+
+        if (uploadError) throw uploadError;
+
+        // 5. Supabase Public URL 가져오기 (만료되지 않음!)
+        const { data: publicUrlData } = supabase.storage
+            .from('music_assets')
+            .getPublicUrl(fileName);
+            
+        const permanentUrl = publicUrlData.publicUrl;
+
+        // 6. DB에 영구 URL 저장
         const personaData = {
             name: "Virtual " + validArtists[0],
-            image_url: generatedUrl,
+            image_url: permanentUrl, // ✅ 이제 Supabase URL이 저장됨
             attributes: personaInputs,
             created_at: new Date().toISOString()
         };
 
-        const { error } = await supabase.from('profiles').update({
+        const { error: dbError } = await supabase.from('profiles').update({
             persona_data: personaData,
             persona_daily_count: dailyCount + 1,
             last_persona_date: new Date().toISOString()
         }).eq('wallet_address', address);
 
-        if (error) throw error;
+        if (dbError) throw dbError;
 
-        setPersonaImage(generatedUrl);
+        // 7. 상태 업데이트 및 완료 처리
+        setPersonaImage(permanentUrl);
         setDailyCount(prev => prev + 1);
         
-        // 성공 시 잠시 100% 보여주고 닫기
         setGenerationStep(4); 
-        setTimeout(() => setIsGeneratingModalOpen(false), 1000);
+        setTimeout(() => setIsGeneratingModalOpen(false), 1500); // 1.5초 뒤 닫기
 
     } catch (e: any) {
+        console.error(e);
         toast.error("Generation failed: " + e.message);
-        setIsGeneratingModalOpen(false); // 실패 시 즉시 닫기
+        setIsGeneratingModalOpen(false);
     } finally {
         clearInterval(stepInterval);
+        setGeneratingPersona(false);
     }
   };
 
@@ -227,7 +273,26 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin text-blue-500"/></div>;
+  if (loading) {
+      return (
+          <div className="min-h-screen bg-black flex items-center justify-center text-white z-[9999] fixed inset-0">
+              <Loader2 className="animate-spin text-blue-500 w-10 h-10"/>
+          </div>
+      );
+  }
+
+  // 2. 로딩은 끝났는데 주소가 없을 때 (비로그인 상태 -> 접근 차단 or 안내)
+  if (!address) {
+      return (
+          <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-6 text-center">
+              <h2 className="text-xl font-bold mb-4">Re-Authentication Required</h2>
+              <p className="text-zinc-500 mb-6">Please come back after opening Market Page.</p>
+              <Link href="/market" className="px-6 py-3 bg-white text-black font-bold rounded-full hover:bg-zinc-200 transition">
+                  Go to Market
+              </Link>
+          </div>
+      );
+  }
 
   return (
 // ✅ [변경 1] max-w-4xl -> max-w-[1600px] (3단 레이아웃을 위해 넓게)
@@ -298,7 +363,7 @@ export default function SettingsPage() {
                 <div className="flex justify-between items-start mb-6">
                     <div>
                         <h2 className="text-xl font-black text-white flex items-center gap-2">
-                            <UserPlus className="text-blue-400" size={24}/> Persona Studio
+                            <UserPlus className="text-blue-400" size={24}/> Persona
                         </h2>
                         <p className="text-zinc-500 text-xs mt-1">Create your virtual artist identity.</p>
                     </div>
@@ -375,7 +440,7 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                             <button onClick={handleSetAsAvatarClick} disabled={settingAvatar} className="w-full mt-4 bg-zinc-800 text-blue-400 border border-blue-500/30 hover:bg-blue-500/10 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
-                                {settingAvatar ? <Loader2 className="animate-spin" size={16}/> : <><ArrowUpRight size={16}/> Set as Main Profile</>}
+                                {settingAvatar ? <Loader2 className="animate-spin" size={16}/> : <><ArrowUpRight size={16}/> Update Profile Picture</>}
                             </button>
                         </div>
                     )}
@@ -516,9 +581,6 @@ export default function SettingsPage() {
               <div className="relative max-w-2xl w-full aspect-square" onClick={(e) => e.stopPropagation()}>
                   <img src={personaImage} className="w-full h-full object-contain rounded-xl shadow-2xl"/>
                   <button onClick={() => setIsZoomed(false)} className="absolute -top-12 right-0 text-white hover:text-zinc-300 transition"><X size={32}/></button>
-                  <button onClick={handleSetAsAvatarClick} disabled={settingAvatar} className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white text-black font-bold px-8 py-3 rounded-full hover:scale-105 transition shadow-xl">
-                    {settingAvatar ? "Updating..." : "Set as Profile Picture"}
-                  </button>
               </div>
           </div>
       )}

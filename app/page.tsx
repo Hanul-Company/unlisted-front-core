@@ -2,287 +2,177 @@
 
 import React from 'react';
 import { Link } from "@/lib/i18n";
-import { Play, Radio, Download, ArrowRight, Coins, Headphones, Sparkles, TrendingUp, Gift } from 'lucide-react';
+import { Play, Radio, Download, ArrowRight, Wand2, Headphones, Sparkles, UserPlus, Disc } from 'lucide-react';
 import { usePWA } from './context/PWAContext';
-import { motion, Variants } from 'framer-motion';
+import { motion } from 'framer-motion';
+import HeaderProfile from './components/HeaderProfile'; 
+import toast from 'react-hot-toast';
 
+// Animations (하단 버튼은 애니메이션 제외)
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
 };
 
-const stagger = {
+const containerAnim = {
   animate: { transition: { staggerChildren: 0.1 } }
-};
-
-const cardVariant: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    transition: { duration: 0.5, ease: "easeOut" }
-  }
 };
 
 export default function LandingPage() {
   const { isInstallable, installApp } = usePWA();
 
+  const handleArtistClick = () => {
+    const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
+    if (headerBtn) {
+        headerBtn.click();
+    } else {
+        toast.error("Please connect wallet from the top right.");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30 overflow-hidden">
+    <div className="min-h-screen bg-black text-white selection:bg-cyan-500/30 overflow-hidden flex flex-col">
+      
       {/* Background Gradients */}
       <div className="fixed inset-0 pointer-events-none z-0">
-          <div className="absolute top-[-10%] left-[-20%] w-[70%] h-[70%] rounded-full bg-blue-900/10 blur-[120px] animate-pulse-slow"/>
-          <div className="absolute bottom-[-10%] right-[-20%] w-[70%] h-[70%] rounded-full bg-cyan-900/10 blur-[150px] animate-pulse-slow delay-1000"/>
+          <div className="absolute top-[-20%] left-[20%] w-[60%] h-[60%] rounded-full bg-blue-900/20 blur-[150px] animate-pulse-slow"/>
+          <div className="absolute bottom-[-20%] right-[20%] w-[60%] h-[60%] rounded-full bg-indigo-900/10 blur-[150px] animate-pulse-slow delay-1000"/>
       </div>
 
-      {/* Header Nav */}
-      <header className="fixed top-0 w-full z-50 p-6 backdrop-blur-md border-b border-white/5 flex justify-between items-center bg-black/50">
-        <div className="text-2xl font-black tracking-tighter flex items-center gap-2">
-        <img
-            src="/icon-192.png"
-            alt="unlisted logo"
-            className="h-[1em] w-[1em] rounded-[0.2em] object-contain"
-        />
-        <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 lowercase leading-none">
-            unlisted
-        </span>
+      {/* Header */}
+      <header className="fixed top-0 w-full z-50 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-2">
+            {/* ✅ 로고 배경/그림자 제거 */}
+            <img src="/icon-192.png" alt="logo" className="h-8 w-8 object-contain"/>
+            <span className="text-xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500">unlisted</span>
         </div>
         
-        <div className="flex gap-4">
-            <button 
-                onClick={installApp}
-                className="flex md:hidden items-center gap-2 px-5 py-2 rounded-full bg-white text-black hover:scale-105 transition text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
-            >
-                <Download size={16} /> Install App
-            </button>
+        <div className="pointer-events-auto flex gap-4 items-center">
+            {isInstallable && (
+                <button onClick={installApp} className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition text-xs font-bold text-zinc-400">
+                    <Download size={14} /> App
+                </button>
+            )}
+            <div className="opacity-0 md:opacity-100 pointer-events-none md:pointer-events-auto transition-opacity">
+                 <div className="scale-75 origin-right"><HeaderProfile /></div>
+            </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex flex-col justify-center items-center px-6 pt-20">
-        <motion.div variants={stagger} initial="initial" animate="animate" className="text-center max-w-4xl mx-auto space-y-6 z-10">
-            <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-900/30 border border-blue-500/30 backdrop-blur-md text-xs font-medium text-blue-300 mb-2">
-                <Radio size={14} className="animate-pulse"/> The music never existed
-            </motion.div>
-
-            <motion.h1 variants={fadeInUp} className="text-6xl md:text-8xl font-light tracking-tighter leading-[0.9] bg-clip-text text-transparent bg-gradient-to-br from-white via-cyan-100 to-blue-600 font-heading">
-                For the music <br/> <span className="font-semibold">unlisted.</span>
-            </motion.h1>
-            
-            <motion.p variants={fadeInUp} className="text-lg font-light text-zinc-400 max-w-xl mx-auto leading-relaxed tracking-wide">
-                Stream for free. Invest for fun. <br className="hidden md:block"/>
-                <span className="text-cyan-200">unlisted</span> is a music market that never existed.
-            </motion.p>
-
-            <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6 w-full">
-                <Link href="/radio" className="w-full sm:w-auto">
-                    <button className="group relative px-6 py-3 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold overflow-hidden hover:scale-105 transition-all shadow-lg shadow-blue-900/30 text-white w-full sm:w-auto min-w-[200px] flex items-center justify-center gap-2">
-                        <span className="relative z-10 flex items-center justify-center gap-2">
-                            Start Streaming <Play fill="currentColor" size={14}/>
-                        </span>
-                        <div className="absolute inset-0 bg-white/20 blur-md group-hover:animate-shine"/>
-                    </button>
-                </Link>
-
-                <Link href="/market" className="w-full sm:w-auto">
-                    <button className="px-6 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-sm font-bold hover:bg-zinc-800 transition w-full sm:w-auto min-w-[200px] flex items-center justify-center gap-2 text-zinc-300 hover:text-white group">
-                        Launch Market <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
-                    </button>
-                </Link>
-            </motion.div>
-        </motion.div>
-
-        {/* Hero Visual Graph */}
-        <div className="absolute bottom-0 left-0 right-0 h-[40vh] overflow-hidden pointer-events-none z-0 opacity-60">
-             <div className="w-full h-full bg-cover bg-center opacity-50 animate-pulse-slow" style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%233B82F6' fill-opacity='0.2' d='M0,160L48,176C96,192,192,224,288,224C384,224,480,192,576,165.3C672,139,768,117,864,128C960,139,1056,181,1152,186.7C1248,192,1344,160,1392,144L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E")`}}></div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section className="relative py-24 px-6 z-10 bg-black/80 backdrop-blur-sm border-t border-white/5">
-        <div className="max-w-6xl mx-auto">
-            <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6 }}
-                className="mb-16 text-center space-y-4"
-            >
-                <h2 className="text-3xl md:text-5xl font-light tracking-tighter">
-                    How to <span className="text-blue-500 font-semibold">Play</span> & <span className="text-cyan-400 font-semibold">Earn</span>
-                </h2>
-                <p className="text-zinc-400 max-w-2xl mx-auto">
-                    unlisted is a new kind of music market where listening can become investing.<br/>
-                    See how you grow from listener to investor.
-                </p>
-            </motion.div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Card 1 */}
-                <motion.div 
-                    variants={cardVariant}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    className="col-span-1 md:col-span-1 bg-zinc-900/50 border border-white/10 p-8 rounded-3xl hover:border-blue-500/50 transition-colors group relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Headphones size={120} />
-                    </div>
-                    <div className="relative z-10">
-                        <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mb-6 text-blue-400">
-                            <Headphones size={24} />
-                        </div>
-                        <h3 className="text-xl font-bold mb-3 text-white">1. Upload & Earn</h3>
-                        <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            Just publish your music on <span className="text-blue-300 font-semibold">unlisted</span>, and the
-                            <span className="text-white font-bold mx-1">MLD</span> paid by listeners accumulates automatically. 
-                            Upload now and start mining rewards.
-                        </p>
-                        <div className="bg-black/40 rounded-xl p-4 border border-white/5">
-                            <div className="flex justify-between items-center text-xs mb-2">
-                                <span className="text-zinc-500">Reward</span>
-                                <span className="text-blue-400 font-bold">1 MLD per 1 Collect</span>
-                            </div>
-                            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-                                <div className="bg-blue-500 h-full w-2/3 animate-pulse"></div>
-                            </div>
-                        </div>
-                    </div>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col justify-center items-center relative z-10 px-4 py-24 md:py-20">
+        
+        <motion.div 
+            variants={containerAnim} 
+            initial="initial" 
+            animate="animate" 
+            className="w-full max-w-6xl mx-auto flex flex-col items-center gap-10 md:gap-12"
+        >
+            {/* Headlines */}
+            <div className="text-center space-y-4">
+                <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/50 border border-white/5 backdrop-blur-md text-xs font-bold text-zinc-400 mb-2 shadow-lg">
+                    <Sparkles size={12} className="text-cyan-400"/> The music never existed
                 </motion.div>
-
-                {/* Card 2 */}
-                <motion.div 
-                    variants={cardVariant}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.1 }}
-                    className="col-span-1 md:col-span-1 bg-zinc-900/50 border border-white/10 p-8 rounded-3xl hover:border-cyan-500/50 transition-colors group relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Sparkles size={120} />
-                    </div>
-                    <div className="relative z-10">
-                         <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mb-6 text-cyan-400">
-                            <Sparkles size={24} />
-                        </div>
-                        <h3 className="text-xl font-bold mb-3 text-white">2. Pay to Collect</h3>
-                        <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            Listen for free, then use <span className="text-white font-bold mx-1">MLD</span> to
-                            <span className="text-cyan-300 font-semibold mx-1">Collect</span> songs you love.
-                            Build your library and enjoy your picks anytime.
-                        </p>
-                        <ul className="space-y-2 text-xs text-zinc-400">
-                            <li className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                                <span>Collecting adds the track to your library.</span>
-                            </li>
-                            <li className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                                <span>If pMLD is not enough, you can also pay with MLD.</span>
-                            </li>
-                        </ul>
-                    </div>
-                </motion.div>
-
-                 {/* Card 3 */}
-                 <motion.div 
-                    variants={cardVariant}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.2 }}
-                    className="col-span-1 md:col-span-1 bg-gradient-to-br from-zinc-900/80 to-blue-900/20 border border-white/10 p-8 rounded-3xl hover:border-indigo-500/50 transition-colors group relative overflow-hidden"
-                >
-                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <TrendingUp size={120} />
-                    </div>
-                    <div className="relative z-10">
-                        <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center mb-6 text-indigo-400">
-                            <TrendingUp size={24} />
-                        </div>
-                        <h3 className="text-xl font-bold mb-3 text-white">3. Invest & Trade</h3>
-                        <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                            Go beyond listening and collecting—use <span className="text-indigo-300 font-bold mx-1">MLD</span> to
-                            buy music shares. Become an owner, earn distributions, and realize gains.
-                        </p>
-                        <Link href="/market">
-                            <button className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold transition flex items-center justify-center gap-2">
-                                Go to Market <ArrowRight size={12}/>
-                            </button>
-                        </Link>
-                    </div>
-                </motion.div>
-
-                {/* Card 4 */}
-                <motion.div 
-                    variants={cardVariant}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.3 }}
-                    className="col-span-1 md:col-span-3 bg-zinc-900/30 border border-white/10 p-8 rounded-3xl relative overflow-hidden"
-                >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                        <div>
-                             <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                                <Coins className="text-yellow-400"/> Token System
-                             </h3>
-                             <p className="text-zinc-400 text-sm mb-6">
-                                unlisted runs on a hybrid system of two tokens.
-                             </p>
-                             
-                             <div className="space-y-4">
-                                <div className="flex items-start gap-4 p-4 rounded-xl bg-black/40 border border-white/5">
-                                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                                        <span className="text-blue-400 font-bold text-xs">P</span>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-blue-400 text-sm">pMLD (Points)</h4>
-                                        <p className="text-xs text-zinc-500 mt-1">
-                                            Points used for listening and collecting. You can mine them for free via ads (Web2 Points).
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-start gap-4 p-4 rounded-xl bg-black/40 border border-white/5">
-                                    <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
-                                        <span className="text-indigo-400 font-bold text-xs">M</span>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-indigo-400 text-sm">MLD (Token)</h4>
-                                        <p className="text-xs text-zinc-500 mt-1">
-                                            A token that supports listening, renting, investing, and cash-out (Web3 Token).
-                                        </p>
-                                    </div>
-                                </div>
-                             </div>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 rounded-2xl p-6 border border-blue-500/30 text-center relative overflow-hidden">
-                             <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-r from-transparent via-white/10 to-transparent rotate-45 animate-shine pointer-events-none"/>
-                             
-                             <Gift size={48} className="mx-auto text-yellow-400 mb-4 animate-bounce-slow"/>
-                             <h4 className="text-xl font-bold text-white mb-2">Want Free Tokens?</h4>
-                             <p className="text-zinc-300 text-xs mb-6">
-                                New here? Claim free pMLD and test MLD from the faucet.
-                             </p>
-                             <Link href="/earn">
-                                <button className="px-8 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition shadow-lg shadow-blue-500/20 text-sm">
-                                    Get Free Tokens
-                                </button>
-                             </Link>
-                        </div>
-                    </div>
-                </motion.div>
+                
+                {/* ✅ 기본 폰트(Layout), 얇은 두께(font-light) 적용 */}
+                <motion.h1 variants={fadeInUp} className="text-5xl md:text-8xl font-light tracking-tight leading-[0.9] text-white">
+                    For the music <br/>
+                    <span className="font-normal text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500">unlisted.</span>
+                </motion.h1>
+                
+                <motion.p variants={fadeInUp} className="text-zinc-400 text-sm md:text-lg max-w-2xl font-light px-4">
+                    The wave of AI <span className="text-white font-medium">music meets daily streaming.</span> <br className="hidden md:block"/>
+                    Create, Share, Listen and Earn.
+                </motion.p>
             </div>
-        </div>
-      </section>
 
-      <footer className="py-8 text-center text-zinc-600 text-xs border-t border-white/5 relative z-10 bg-black">
-        <p>© 2026 unlisted. The Future of Sound Investment.</p>
+            {/* ✅ 2. 버튼 높이 축소 (500px -> 340px) */}
+            <motion.div variants={fadeInUp} className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 h-auto md:h-[340px]">
+                
+                {/* [Left] Listener Button */}
+                <Link href="/radio" className="w-full h-full group relative block">
+                    <div className="relative min-h-[240px] h-full bg-gradient-to-br from-cyan-900/20 to-blue-900/10 rounded-[2rem] border border-white/10 group-hover:border-cyan-500/50 transition-all duration-500 overflow-hidden">
+                        <div className="absolute inset-0 bg-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl"/>
+                        
+                        <div className="relative h-full flex flex-col justify-between p-8 z-10">
+                            <div className="flex justify-between items-start">
+                                <div className="p-3 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm group-hover:scale-110 transition-transform duration-500 text-cyan-400">
+                                    <Headphones size={28} />
+                                </div>
+                                <ArrowRight className="text-zinc-600 group-hover:text-cyan-400 -rotate-45 group-hover:rotate-0 transition-all duration-300 transform scale-125"/>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h2 className="text-2xl md:text-3xl font-bold text-white group-hover:text-cyan-100 transition-colors">
+                                    I am a Listener
+                                </h2>
+                                <p className="text-zinc-400 group-hover:text-cyan-200/70 transition-colors text-sm leading-relaxed">
+                                    Stream fresh <span className="text-white font-bold">AI Music</span>.<br/>
+                                    Curate playlists & discover gems.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </Link>
+
+                {/* [Right] Artist Button */}
+                <button onClick={handleArtistClick} className="w-full h-full group relative text-left block">
+                    <div className="relative min-h-[240px] h-full bg-gradient-to-bl from-indigo-900/20 to-purple-900/10 rounded-[2rem] border border-white/10 group-hover:border-indigo-500/50 transition-all duration-500 overflow-hidden">
+                        <div className="absolute inset-0 bg-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl"/>
+                        
+                        <div className="relative h-full flex flex-col justify-between p-8 z-10">
+                            <div className="flex justify-between items-start">
+                                <div className="p-3 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm group-hover:scale-110 transition-transform duration-500 text-indigo-400">
+                                    <Wand2 size={28} />
+                                </div>
+                                <UserPlus className="text-zinc-600 group-hover:text-indigo-400 transition-colors transform scale-125"/>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h2 className="text-2xl md:text-3xl font-bold text-white group-hover:text-indigo-100 transition-colors">
+                                    I am an Artist
+                                </h2>
+                                <p className="text-zinc-400 group-hover:text-indigo-200/70 transition-colors text-sm leading-relaxed">
+                                    <span className="text-white font-bold">Create & Publish</span> with AI.<br/>
+                                    Upload DNA & earn revenue.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </button>
+            </motion.div>
+
+            {/* ✅ 3. 하단 버튼 (애니메이션 제거하여 노출 보장) */}
+            <div className="pt-4 pb-10 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                 <span className="text-zinc-500 text-xs md:text-sm font-medium tracking-wider opacity-80">
+                    Let me just
+                 </span>
+
+                 <Link href="/market">
+                    {/* 그라디언트 테두리 래퍼 */}
+                    <button className="relative group rounded-full p-[1px] overflow-hidden transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-cyan-500/20">
+                        {/* 1. 배경 (그라디언트) */}
+                        <span className="absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-500 to-indigo-500"></span>
+                        
+                        {/* 2. 내부 (검정 -> 호버시 투명) */}
+                        <div className="relative px-10 py-4 bg-black rounded-full group-hover:bg-transparent transition-colors duration-300 flex items-center gap-3">
+                            {/* 텍스트: 기본 밝은 시안색 -> 호버시 흰색 */}
+                            <span className="font-bold text-sm md:text-base tracking-wide text-cyan-400 group-hover:text-white transition-colors">
+                                Explore Unlisted first
+                            </span>
+                            <Disc size={20} className="text-cyan-500 group-hover:text-white group-hover:animate-spin-slow transition-colors"/>
+                        </div>
+                    </button>
+                 </Link>
+            </div>
+
+        </motion.div>
+      </main>
+      
+      {/* Footer */}
+      <footer className="w-full py-6 text-center text-[10px] text-zinc-700 font-mono uppercase tracking-widest relative z-10">
+        © 2026 UNLISTED. AI-POWERED MUSIC PROTOCOL.
       </footer>
     </div>
   );
