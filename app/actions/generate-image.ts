@@ -119,7 +119,7 @@ export async function generatePersonaImage(formData: FormData) {
             : `Subject: A ${inputs.gender}, approximately ${inputs.age} years old, of ${inputs.nationality} descent.`;
 
         const finalPrompt = `
-      A medium-shot studio profile portrait of a stylized virtual musician.
+      A medium~lagrge shot portrait of a stylized virtual artist.
       
       ${subjectDescription}
       
