@@ -174,13 +174,24 @@ export default function SettingsPage() {
 
     try {
         // 2. DALL-E 이미지 생성 (Base64 데이터 수신)
-        const b64Json = await generatePersonaImage({
+        // ✅ [수정] FormData 생성하여 전송
+        const formData = new FormData();
+        
+        // 1. 텍스트 입력값 JSON으로 변환하여 추가
+        formData.append('inputs', JSON.stringify({
             artists: validArtists,
             gender: personaInputs.gender,
             age: personaInputs.age,
             nationality: personaInputs.nationality,
             vibe: personaInputs.vibe
-        });
+        }));
+
+        // 2. (선택사항) 내 얼굴 이미지가 있다면 추가
+        // userRefImage는 State에 저장된 File 객체여야 합니다.
+        if (userRefImage) {
+            formData.append('personaImage', userRefImage);
+        }
+        const b64Json = await generatePersonaImage(formData);
 
         // 3. Base64 -> File 변환
         const timestamp = Date.now();

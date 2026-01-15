@@ -44,7 +44,7 @@ export default function LandingPage() {
       <header className="fixed top-0 w-full z-50 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2">
             {/* ✅ 로고 배경/그림자 제거 */}
-            <img src="/icon-192.png" alt="logo" className="h-8 w-8 object-contain"/>
+            <img src="/icon-192.png" alt="logo" className="h-6 w-6 object-contain"/>
             <span className="text-xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500">unlisted</span>
         </div>
         
