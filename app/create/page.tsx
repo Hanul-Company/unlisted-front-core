@@ -53,6 +53,7 @@ type SunoJob = {
   } | null;
   error_message?: string;
   created_at: string;
+  creation_type?: 'simple' | 'custom';
 };
 
 // --- Language Dictionary ---
@@ -83,7 +84,11 @@ const DICT = {
     status_failed: "Failed",
     empty_queue: "Your queue is empty. Start creating!",
     history: "History",
-    select: "Select"
+    select: "Select",
+    lyrics_concept_ph: "Describe the topic or story in one sentence. (AI generates lyrics)",
+    lyrics_full_ph: "Paste your full lyrics here.",
+    lyrics_tip_simple: "Tip: Simple concepts work best. AI will write the rhymes.",
+    lyrics_tip_custom: "Tip: Structure your lyrics with [Verse], [Chorus] for better results."
   },
   kr: {
     welcome: "당신의 취향으로 음악을 만들어보세요.",
@@ -111,7 +116,13 @@ const DICT = {
     status_failed: "실패",
     empty_queue: "대기열이 비어있습니다.",
     history: "히스토리",
-    select: "선택 및 업로드"
+    select: "선택 및 업로드",
+    lyrics_concept: "가사 컨셉",
+    lyrics_full: "전체 가사",
+    lyrics_concept_ph: "곡의 주제나 스토리를 한 문장으로 적어주세요. (AI가 가사 생성)",
+    lyrics_full_ph: "전체 가사를 여기에 붙여넣으세요.",
+    lyrics_tip_simple: "Tip: Simple concepts work best. AI will write the rhymes.",
+    lyrics_tip_custom: "Tip: Structure your lyrics with [Verse], [Chorus] for better results."
   }
 };
 
@@ -189,6 +200,8 @@ export default function CreateDashboard() {
   const [credits, setCredits] = useState(3); // 기본 3개
   const [nextResetTime, setNextResetTime] = useState<Date | null>(null);
   const [timerString, setTimerString] = useState("");
+
+  const [lyricsMode, setLyricsMode] = useState<'simple' | 'custom'>('simple'); // ✅ [추가] 가사 모드
 
   const formatTime = (sec: number) => {
     if (!sec || Number.isNaN(sec)) return "0:00";
@@ -378,7 +391,8 @@ export default function CreateDashboard() {
         ref_track: `${refSongTitle} - ${refSongArtist}`,
         ref_artist: targetVoice,
         target_title: analyzedData.title,
-        lyrics: analyzedData.lyrics,
+        lyrics: lyricsMode === 'custom' ? userLyrics : analyzedData.lyrics, 
+        creation_type: lyricsMode,
         etc_info: etcInfo,
         gpt_prompt: analyzedData.prompt,
         genres: analyzedData.genres,
@@ -396,6 +410,7 @@ export default function CreateDashboard() {
       setTargetTitle(''); setLyrics(''); setEtcInfo('');
       fetchJobs();
       checkCredits(); // ✅ [추가] 사용했으니 크레딧 갱신
+      setLyricsMode('simple');
     } catch (e: any) {
       toast.dismiss();
       toast.error(e.message);
@@ -414,6 +429,14 @@ export default function CreateDashboard() {
 
   const handleGoToUpload = async (job: SunoJob, track: SunoTrackResult, index: number) => {
     await supabase.from('suno_jobs').update({ selected_index: index }).eq('id', job.id);
+    let finalLyrics = '';
+    
+    if (job.creation_type === 'custom') {
+        finalLyrics = job.lyrics || '';
+    } else {
+        finalLyrics = track.lyrics_from_api || job.lyrics || '';
+    }
+
     const query = new URLSearchParams({
       title: job.target_title,
       artist: `${job.ref_artist} Style (AI)`,
@@ -424,8 +447,9 @@ export default function CreateDashboard() {
       tags: (job.tags || []).join(','),
       jobId: job.id.toString(),
       refInfo: `${job.ref_track} by ${job.ref_artist}`,
-      lyrics: track.lyrics_from_api || job.lyrics || '' // ✅ [수정] lyrics 파라미터 추가 (API 가사 우선, 없으면 작업 시 생성된 가사)
+      lyrics: finalLyrics // ✅ 수정된 가사 값 전달
     }).toString();
+    
     router.push(`/upload?${query}`);
   };
 
@@ -581,9 +605,58 @@ export default function CreateDashboard() {
               <h3 className="font-bold flex items-center gap-2 text-zinc-400 text-sm uppercase tracking-wider">
                 <Mic2 size={16} /> {t.optional}
               </h3>
+              {/* Lyrics Input Section */}
               <div>
-                <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.lyrics}</label>
-                <textarea value={userLyrics} onChange={e => setLyrics(e.target.value)} placeholder={t.lyrics_ph} className="w-full bg-black border border-zinc-700 rounded-xl p-3.5 text-sm h-20 focus:border-zinc-500 outline-none resize-none transition" />
+                <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase block">
+                        {t.lyrics}
+                    </label>
+                    
+                    {/* ✅ [추가] 모드 선택 버튼 */}
+                    <div className="flex bg-black rounded-lg p-0.5 border border-zinc-800">
+                        <button
+                            onClick={() => setLyricsMode('simple')}
+                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
+                                lyricsMode === 'simple' 
+                                ? 'bg-zinc-800 text-white shadow-sm' 
+                                : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
+                        >
+                            Concept
+                        </button>
+                        <button
+                            onClick={() => setLyricsMode('custom')}
+                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
+                                lyricsMode === 'custom' 
+                                ? 'bg-zinc-800 text-white shadow-sm' 
+                                : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
+                        >
+                            Full Lyrics
+                        </button>
+                    </div>
+                </div>
+
+                <textarea 
+                    value={userLyrics} 
+                    onChange={e => setLyrics(e.target.value)} 
+                    // ✅ [수정] 모드에 따라 Placeholder 변경
+                    placeholder={
+                        lyricsMode === 'simple' 
+                        ? t.lyrics_concept_ph
+                        : t.lyrics_full_ph
+                    }
+                    className={`w-full bg-black border rounded-xl p-3.5 text-sm h-24 focus:border-zinc-500 outline-none resize-none transition ${
+                        lyricsMode === 'custom' ? 'border-blue-900/50 focus:border-blue-500' : 'border-zinc-700'
+                    }`} 
+                />
+                
+                {/* 힌트 텍스트 (옵션) */}
+                <p className="text-[10px] text-zinc-600 mt-1.5 px-1">
+                    {lyricsMode === 'simple' 
+                        ? t.lyrics_tip_simple
+                        : t.lyrics_tip_custom}
+                </p>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">{t.vibe}</label>
