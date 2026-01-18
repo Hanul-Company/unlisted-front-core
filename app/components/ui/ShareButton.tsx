@@ -196,25 +196,49 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
 
             const blob = new Blob(chunks, { type: mimeType });
             const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-            const file = new File([blob], `${trackData.title}_clip.${ext}`, { type: mimeType });
+            const fileName = `${trackData.title}_clip.${ext}`;
+            const file = new File([blob], fileName, { type: mimeType });
 
+            // ✅ [기능 분리] 다운로드 함수 (공유 실패 시에만 실행)
             const triggerDownload = () => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${trackData.title}_clip.${ext}`;
-                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                a.download = fileName;
+                document.body.appendChild(a); 
+                a.click(); 
+                document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                toast.success("Video saved!", { icon: '🎬' });
+                toast.success("Saved to device (Share skipped)", { icon: '💾' });
             };
 
+            // 🚀 [핵심 변경] 저장보다 "공유"를 최우선으로 실행
+            // 모바일에서는 이 코드가 실행되면 즉시 하단에서 공유 시트가 올라옵니다.
             setTimeout(async () => {
                 if (navigator.share && navigator.canShare({ files: [file] })) {
-                    try { await navigator.share({ files: [file], title: trackData.title }); } catch (err) { triggerDownload(); }
-                } else { triggerDownload(); }
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: trackData.title,
+                            text: `Check out ${trackData.title} by ${trackData.artist} on Traverse!`,
+                        });
+                        // 공유 성공 시
+                        toast.success("Shared successfully!", { icon: '✨' });
+                    } catch (err) { 
+                        // 1. 사용자가 공유 창을 닫았거나(AbortError)
+                        // 2. 권한 문제 등으로 실패했을 때 -> 다운로드 실행
+                        console.log('Share canceled or failed, downloading instead...');
+                        triggerDownload();
+                    }
+                } else {
+                    // PC이거나 공유 API 미지원 브라우저 -> 바로 다운로드
+                    triggerDownload();
+                }
+                
+                // 정리 및 UI 초기화
                 setIsGenerating(false);
                 setProgress(0);
-            }, 500);
+            }, 500); // 0.5초 딜레이 (UI가 100% 도달한 것을 보여주기 위함)
         };
 
         source.start(0, START_OFFSET); 
