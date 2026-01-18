@@ -577,7 +577,7 @@ export default function LibraryPage() {
                         )}
                         <div className="w-full flex items-center justify-between p-4 hover:bg-zinc-800 rounded-xl transition">
                             <div className="flex items-center gap-4"><Share2 className="text-zinc-400" size={20}/><div><div className="font-bold text-sm text-white">Share</div><div className="text-xs text-zinc-500">Instagram & Link</div></div></div>
-                            <ShareButton assetId={activeMobileTrack.id.toString()} trackData={{ title: activeMobileTrack.title, artist: activeMobileTrack.artist?.username || activeMobileTrack.artist_name || "Unknown", coverUrl: activeMobileTrack.cover_image_url || "" }} className="bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white" />
+                            <ShareButton assetId={activeMobileTrack.id.toString()} trackData={{ title: activeMobileTrack.title, artist: activeMobileTrack.artist?.username || activeMobileTrack.artist_name || "Unknown", coverUrl: activeMobileTrack.cover_image_url || "", audioUrl: activeMobileTrack.audio_url || "" }} className="bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-white" />
                         </div>
                     </div>
                     <button onClick={() => setActiveMobileTrack(null)} className="w-full mt-4 py-3 bg-black rounded-xl font-bold text-zinc-500">Cancel</button>

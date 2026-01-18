@@ -1,23 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/utils/supabase';
-import { generateSunoPrompt } from '@/app/actions/generate-suno-prompt';
-import { useActiveAccount } from "thirdweb/react";
-import HeaderProfile from '../components/HeaderProfile';
-import MobilePlayer from '../components/MobilePlayer'; 
-import { Link } from "../../lib/i18n";
+import React from 'react';
 import { useAudioCheck } from '@/hooks/useAudioCheck';
 import toast from 'react-hot-toast';
 
 import {
-  Loader2, Mic2, Disc, UploadCloud, Play, Pause, Trash2,
-  Clock, RefreshCw, AlertCircle, Wand2, Menu, Quote,
-  ChevronDown, ChevronUp, Globe, Sparkles, Layers,
-  SkipBack, SkipForward, Volume2, VolumeX, Minimize2, Maximize2, X
+  Loader2, UploadCloud, Play, Pause
 } from 'lucide-react';
 
-// Props 타입 정의 (필요한 것만)
+// Props 타입 정의
 interface SunoTrackItemProps {
   job: any;
   track: any;
@@ -37,74 +28,120 @@ export const SunoTrackItem = ({
   t 
 }: SunoTrackItemProps) => {
   
-  // ✅ 여기서 가용성 체크! (Job은 Done이지만, 파일은 아직일 수 있음)
+  // 1. 오디오 CDN 접근 가능 여부 체크 (Job이 done이어도 CDN 배포에 시간 걸림)
   const isAudioReady = useAudioCheck(track.audio_cdn_url, job.status === 'done');
+  
+  // 2. "작업 중" 상태 정의 (서버 프로세싱 중이거나 OR 오디오 파일이 아직 안 떴을 때)
+  const isProcessingJob = job.status === 'processing';
+  const isLoading = isProcessingJob || !isAudioReady;
+
+  // 3. 현재 재생 중인지 체크
+  const isCurrentPlaying = currentTrack?.id === track.id && isPlaying;
 
   return (
     <div
-      className={`relative flex items-center gap-4 p-3 rounded-xl border transition ${
-        currentTrack?.audio_url === track.audio_cdn_url && isPlaying
-          ? 'bg-zinc-800 border-blue-500/50'
-          : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
+      className={`relative flex items-center justify-between p-3 rounded-xl border transition-all duration-500 ${
+        isLoading
+          ? 'bg-zinc-900/40 border-zinc-800/50' // 로딩 중일 때: 약간 흐리게
+          : isCurrentPlaying
+            ? 'bg-zinc-900 border-blue-500/50 shadow-md shadow-blue-900/20' // 재생 중
+            : 'bg-black/40 border-zinc-800 hover:bg-zinc-900/60' // 대기 중
       }`}
     >
-      {/* Cover & Play Area */}
-      <div
-        className={`w-14 h-14 rounded-lg overflow-hidden relative shrink-0 shadow-lg ${
-           isAudioReady ? 'cursor-pointer group' : 'cursor-wait opacity-60'
-        }`}
-        onClick={() => {
-            if (isAudioReady) {
-                playFromFooter(buildPlayerTrack(job, track, idx));
-            } else {
-                toast("Audio is finalizing... Please wait.", { icon: "⏳" });
-            }
-        }}
-      >
-        <img src={track.cover_cdn_url} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[1px] transition-opacity duration-300">
-            {!isAudioReady ? (
-                // ⏳ 로딩 중 표시
-                <Loader2 className="animate-spin text-white/80" size={20}/>
-            ) : (
-                // ▶️ 재생 버튼 (Hover 시 또는 재생 중일 때 보임)
-                <div className={`opacity-0 group-hover:opacity-100 transition ${currentTrack?.audio_url === track.audio_cdn_url && isPlaying ? 'opacity-100' : ''}`}>
-                    {currentTrack?.audio_url === track.audio_cdn_url && isPlaying
-                    ? <Pause fill="white" size={20} />
-                    : <Play fill="white" size={20} />}
-                </div>
-            )}
-        </div>
-      </div>
+      <div className="flex items-center gap-3 overflow-hidden flex-1">
+        {/* Cover & Play Area */}
+        <div
+            className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 group transition-all duration-500 ${
+            !isLoading ? 'cursor-pointer shadow-lg' : 'cursor-wait'
+            }`}
+            onClick={() => {
+                if (!isLoading) {
+                    playFromFooter(buildPlayerTrack(job, track, idx));
+                } else {
+                    const msg = isProcessingJob ? "Creating music..." : "Finalizing audio...";
+                    toast(msg, { icon: "💿" });
+                }
+            }}
+        >
+            {/* 앨범 아트 */}
+            <img 
+                src={track.cover_cdn_url} 
+                className={`w-full h-full object-cover transition-transform duration-[2s] ease-in-out ${
+                    // 로딩 중일 때는 이미지가 살짝 커지고 블러 처리됨 (작업 중 느낌)
+                    isLoading ? 'scale-110 blur-[1px] opacity-80' : 'scale-100 opacity-100'
+                }`} 
+                alt="cover"
+            />
 
-      {/* Meta Info */}
-      <div className="flex-1 min-w-0">
-        <h5 className="font-bold text-sm text-white truncate">
-          {job.target_title} <span className="text-zinc-600 text-xs font-normal">v{idx + 1}</span>
-        </h5>
-        <div className="text-[11px] text-zinc-500 mt-0.5">
-            {!isAudioReady ? (
-                <span className="text-yellow-500 flex items-center gap-1 animate-pulse font-bold">
-                   Finalizing Audio...
-                </span>
-            ) : (
-                <span>AI Generated • Ready</span>
-            )}
+            {/* 오버레이 (스피너 or 재생버튼) */}
+            <div className={`absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] transition-opacity duration-300 ${
+                isLoading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            } ${isCurrentPlaying ? 'opacity-100' : ''}`}>
+                
+                {isLoading ? (
+                    // ⏳ 로딩 중 표시
+                    <Loader2 className="animate-spin text-white/90" size={18}/>
+                ) : (
+                    // ▶️ 재생 버튼
+                    isCurrentPlaying
+                    ? <Pause fill="white" size={18} className="text-white drop-shadow-md" />
+                    : <Play fill="white" size={18} className="text-white drop-shadow-md ml-0.5" />
+                )}
+            </div>
+        </div>
+
+        {/* Meta Info */}
+        <div className="min-w-0 flex-1">
+            <h5 className={`font-bold text-sm truncate transition-colors ${isLoading ? 'text-zinc-400' : 'text-zinc-200'}`}>
+                {job.target_title || "Untitled Track"} 
+                <span className="text-zinc-600 text-xs font-normal ml-2">v{idx + 1}</span>
+            </h5>
+            
+            <div className="text-[11px] mt-0.5 truncate">
+                {isProcessingJob ? (
+                    // Case 1: 서버 생성 중
+                    <span className="text-blue-400 flex items-center gap-1.5 animate-pulse font-medium">
+                       Creating Track...
+                    </span>
+                ) : !isAudioReady ? (
+                    // Case 2: 생성 완료됐으나 CDN 대기 중
+                    <span className="text-yellow-500 flex items-center gap-1.5 animate-pulse font-medium">
+                       Finalizing Audio...
+                    </span>
+                ) : (
+                    // Case 3: 완료
+                    <span className="text-zinc-500 flex items-center gap-2">
+                        <span>{job.genres?.[0] || 'AI Music'}</span>
+                        {track.duration && (
+                            <>
+                                <span className="w-0.5 h-0.5 rounded-full bg-zinc-600"/> 
+                                <span>{Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}</span>
+                            </>
+                        )}
+                    </span>
+                )}
+            </div>
         </div>
       </div>
 
       {/* Action Button */}
-      <button
-        disabled={!isAudioReady} // 준비 안됐으면 선택 불가
-        onClick={() => handleGoToUpload(job, track, idx)}
-        className={`px-4 py-2 text-xs font-bold rounded-lg transition shadow-md flex items-center gap-2 ${
-            isAudioReady 
-            ? 'bg-white text-black hover:bg-zinc-200' 
-            : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-        }`}
-      >
-        <UploadCloud size={14} /> {t.select}
-      </button>
+      <div className="ml-3 shrink-0">
+        {isLoading ? (
+             // 로딩 중일 땐 비활성 상태의 텍스트 박스
+             <div className="px-3 py-1.5 text-[10px] font-bold text-zinc-600 border border-zinc-800 rounded-lg bg-black/20">
+                {isProcessingJob ? "Processing..." : "Finalizing..."}
+             </div>
+        ) : (
+            // 완료되면 선택 버튼
+            <button
+                onClick={() => handleGoToUpload(job, track, idx)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-black rounded-lg text-xs font-bold hover:bg-zinc-200 transition shadow-lg shadow-white/5 active:scale-95"
+            >
+                <UploadCloud size={14} /> 
+                <span className="hidden sm:inline">{t.select}</span>
+            </button>
+        )}
+      </div>
     </div>
   );
 };

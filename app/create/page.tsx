@@ -8,6 +8,7 @@ import HeaderProfile from '../components/HeaderProfile';
 import MobilePlayer from '../components/MobilePlayer'; 
 import { Link } from "../../lib/i18n";
 import { useAudioCheck } from '@/hooks/useAudioCheck';
+import { fixBucketCors } from '@/app/actions/fix-bucket-cors';
 
 import {
   Loader2, Mic2, Disc, UploadCloud, Play, Pause, Trash2,
@@ -18,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import { useRouter } from "@/lib/i18n";
 import { SunoTrackItem } from '../components/SunoTrackItem'; // 별도 파일로 뺐다면
+import { generateLyricsDraft } from '@/app/actions/generate-lyrics';
 
 // --- Types ---
 type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
@@ -202,6 +204,9 @@ export default function CreateDashboard() {
   const [timerString, setTimerString] = useState("");
 
   const [lyricsMode, setLyricsMode] = useState<'simple' | 'custom'>('simple'); // ✅ [추가] 가사 모드
+  const [lyricsCredits, setLyricsCredits] = useState(3); // 가사 생성 크레딧
+  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  const [isLyricsExpanded, setIsLyricsExpanded] = useState(false);
 
   const formatTime = (sec: number) => {
     if (!sec || Number.isNaN(sec)) return "0:00";
@@ -490,9 +495,28 @@ export default function CreateDashboard() {
     }
   };
 
+  // [2-1] 가사 크레딧 체크 함수 (기존 checkCredits 아래에 추가)
+  const checkLyricsCredits = async () => {
+    if (!account?.address) return;
+    const { data } = await supabase.from('profiles').select('lyrics_daily_count, last_lyrics_date').eq('wallet_address', account.address).single();
+    
+    if (data) {
+        const lastDate = data.last_lyrics_date ? new Date(data.last_lyrics_date).getDate() : null;
+        const today = new Date().getDate();
+        if (lastDate !== today) {
+            setLyricsCredits(3); // 날짜 다르면 리셋
+        } else {
+            setLyricsCredits(Math.max(0, 3 - (data.lyrics_daily_count || 0)));
+        }
+    }
+  };
+
   // ✅ [추가] 2. 초기 로드 및 계정 변경 시 크레딧 체크
   useEffect(() => {
     checkCredits();
+  }, [account?.address]);
+  useEffect(() => {
+    checkLyricsCredits();
   }, [account?.address]);
 
   // ✅ [추가] 3. 타이머 돌리기 (1초마다)
@@ -511,6 +535,40 @@ export default function CreateDashboard() {
 
     return () => clearInterval(interval);
   }, [nextResetTime]);
+
+  // [2-2] 가사 생성 핸들러 (handleRequestCreate 함수 근처에 추가)
+  const handleGenerateLyrics = async () => {
+    if (lyricsCredits <= 0) return toast.error("Daily lyrics limit reached (3/3).");
+    
+    // 입력된 가사(키워드)가 없으면 제목이라도 가져옴
+    const topic = userLyrics.trim() || targetTitle; 
+    const vibe = etcInfo;
+
+    if (!topic) return toast.error(isKorean ? "주제나 키워드를 가사 입력창이나 제목에 적어주세요." : "Please enter a topic or keywords.");
+
+    setIsGeneratingLyrics(true);
+    const toastId = toast.loading("Writing lyrics...");
+
+    try {
+        const generatedLyrics = await generateLyricsDraft(topic, vibe);
+        
+        // DB 카운트 업데이트 (RPC가 없다면 직접 update)
+        const { data: profile } = await supabase.from('profiles').select('lyrics_daily_count').eq('wallet_address', account?.address).single();
+        await supabase.from('profiles').update({ 
+            lyrics_daily_count: (profile?.lyrics_daily_count || 0) + 1,
+            last_lyrics_date: new Date().toISOString()
+        }).eq('wallet_address', account?.address);
+
+        setLyrics(generatedLyrics); // Textarea에 채워넣기
+        setLyricsCredits(prev => prev - 1);
+        toast.success("Lyrics Drafted! You can edit now.", { id: toastId });
+
+    } catch (e) {
+        toast.error("Failed to generate lyrics.", { id: toastId });
+    } finally {
+        setIsGeneratingLyrics(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col">
@@ -539,7 +597,6 @@ export default function CreateDashboard() {
             ← Back
           </Link>
         </div>
-
         <div className="flex items-center gap-4">
           <button
             onClick={() => setIsKorean(!isKorean)}
@@ -605,57 +662,74 @@ export default function CreateDashboard() {
               <h3 className="font-bold flex items-center gap-2 text-zinc-400 text-sm uppercase tracking-wider">
                 <Mic2 size={16} /> {t.optional}
               </h3>
-              {/* Lyrics Input Section */}
+              {/* Lyrics Input Section (Expandable) */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase block">
                         {t.lyrics}
                     </label>
                     
-                    {/* ✅ [추가] 모드 선택 버튼 */}
                     <div className="flex bg-black rounded-lg p-0.5 border border-zinc-800">
-                        <button
-                            onClick={() => setLyricsMode('simple')}
-                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                                lyricsMode === 'simple' 
-                                ? 'bg-zinc-800 text-white shadow-sm' 
-                                : 'text-zinc-500 hover:text-zinc-300'
-                            }`}
-                        >
+                        <button onClick={() => setLyricsMode('simple')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${lyricsMode === 'simple' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>
                             Concept
                         </button>
-                        <button
-                            onClick={() => setLyricsMode('custom')}
-                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                                lyricsMode === 'custom' 
-                                ? 'bg-zinc-800 text-white shadow-sm' 
-                                : 'text-zinc-500 hover:text-zinc-300'
-                            }`}
-                        >
+                        <button onClick={() => setLyricsMode('custom')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${lyricsMode === 'custom' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>
                             Full Lyrics
                         </button>
                     </div>
                 </div>
 
-                <textarea 
-                    value={userLyrics} 
-                    onChange={e => setLyrics(e.target.value)} 
-                    // ✅ [수정] 모드에 따라 Placeholder 변경
-                    placeholder={
-                        lyricsMode === 'simple' 
-                        ? t.lyrics_concept_ph
-                        : t.lyrics_full_ph
-                    }
-                    className={`w-full bg-black border rounded-xl p-3.5 text-sm h-24 focus:border-zinc-500 outline-none resize-none transition ${
-                        lyricsMode === 'custom' ? 'border-blue-900/50 focus:border-blue-500' : 'border-zinc-700'
-                    }`} 
-                />
+                {/* AI Writer Tool (Custom 모드일 때만 표시) */}
+                {lyricsMode === 'custom' && (
+                    <div className="mb-2 flex justify-end animate-in fade-in slide-in-from-bottom-1">
+                        <button 
+                            onClick={handleGenerateLyrics}
+                            disabled={isGeneratingLyrics || lyricsCredits <= 0}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 border border-indigo-500/30 text-[11px] font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isGeneratingLyrics ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12}/>}
+                            <span>Auto-Write Lyrics</span>
+                            <span className={`px-1.5 rounded text-[9px] ${lyricsCredits === 0 ? 'bg-red-500/20 text-red-400' : 'bg-indigo-500/20'}`}>
+                                {lyricsCredits}/3
+                            </span>
+                        </button>
+                    </div>
+                )}
+
+                {/* ✅ [수정] Textarea Container (Relative for button positioning) */}
+                <div className="relative group">
+                    <textarea 
+                        value={userLyrics} 
+                        onChange={e => setLyrics(e.target.value)} 
+                        placeholder={
+                            lyricsMode === 'simple' 
+                            ? (isKorean ? "곡의 주제나 스토리를 한 문장으로 적어주세요. (AI가 가사 생성)" : "Describe the topic or story in one sentence. (AI generates lyrics)")
+                            : (isKorean ? "키워드만 적고 'Auto-Write'를 누르거나, 직접 가사를 입력하세요." : "Type keywords and click 'Auto-Write', or paste full lyrics.")
+                        }
+                        // ✅ 높이 동적 변경 (h-32 <-> h-96) 및 트랜지션 추가
+                        className={`w-full bg-black border rounded-xl p-3.5 text-sm outline-none resize-none transition-all duration-300 ease-in-out scrollbar-hide ${
+                            lyricsMode === 'custom' ? 'border-indigo-900/50 focus:border-indigo-500' : 'border-zinc-700'
+                        } ${
+                            isLyricsExpanded ? 'h-96' : 'h-32'
+                        }`} 
+                    />
+                    
+                    {/* ✅ [추가] Expand/Collapse Toggle Button */}
+                    <button 
+                        onClick={() => setIsLyricsExpanded(!isLyricsExpanded)}
+                        className="absolute bottom-3 right-3 p-2 bg-zinc-800/80 backdrop-blur-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-700 transition shadow-lg border border-zinc-700/50"
+                        title={isLyricsExpanded ? "Collapse" : "Expand"}
+                    >
+                        {isLyricsExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    </button>
+                </div>
                 
-                {/* 힌트 텍스트 (옵션) */}
-                <p className="text-[10px] text-zinc-600 mt-1.5 px-1">
-                    {lyricsMode === 'simple' 
-                        ? t.lyrics_tip_simple
-                        : t.lyrics_tip_custom}
+                <p className="text-[10px] text-zinc-600 mt-1.5 px-1 flex justify-between">
+                    <span>
+                        {lyricsMode === 'simple' 
+                        ? "Tip: Simple concepts work best." 
+                        : "Tip: Use [Verse], [Chorus] tags for better structure."}
+                    </span>
                 </p>
               </div>
               <div>
@@ -833,12 +907,11 @@ export default function CreateDashboard() {
                         </div>
                       )}
                     </div>
-
-                    {/* Results (Tracks) */}
-                    {job.status === 'done' && job.result_data?.tracks ? (
+                    
+                    {/* ✅ [수정] processing 상태라도 데이터(tracks)가 있으면 보여줌 */}
+                    {(job.result_data?.tracks && job.result_data.tracks.length > 0) ? (
                       <div className="grid grid-cols-1 gap-3">
                         {job.result_data.tracks.map((track, idx) => (
-                          // ✅ 기존의 긴 div 덩어리를 이걸로 교체!
                           <SunoTrackItem
                             key={`${job.id}-${idx}`}
                             job={job}
@@ -854,9 +927,11 @@ export default function CreateDashboard() {
                         ))}
                       </div>
                     ) : (
+                      // 데이터도 없고 처리 중일 때만 텍스트 표시
                       job.status === 'processing' && (
-                        <div className="text-center py-6 text-zinc-500 text-xs animate-pulse">
-                          generating tracks...
+                        <div className="text-center py-8 flex flex-col items-center gap-3 text-zinc-500 animate-pulse">
+                          <Loader2 className="animate-spin" size={24}/>
+                          <span className="text-xs">Generating artwork & audio...</span>
                         </div>
                       )
                     )}

@@ -280,7 +280,7 @@ function PortfolioCard({ track, address, onPlay, isCurrentTrack, isPlaying, onIn
                 <div className="absolute top-3 right-3 z-20">
                     <ShareButton 
                         assetId={track.id.toString()}
-                        trackData={{ title: track.title, artist: track.artist?.username, coverUrl: track.cover_image_url || "" }} 
+                        trackData={{ title: track.title, artist: track.artist?.username, coverUrl: track.cover_image_url || "", audioUrl: track.audio_url || "" }} 
                         className="w-8 h-8 bg-black/40 hover:bg-white/20 backdrop-blur-md border border-white/10 hover:border-white/50 rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-all duration-300 hover:scale-110 shadow-lg"
                         size={16}
                     />

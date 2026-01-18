@@ -159,7 +159,7 @@ export default function LandingPage() {
                         <div className="relative px-10 py-4 bg-black rounded-full group-hover:bg-transparent transition-colors duration-300 flex items-center gap-3">
                             {/* 텍스트: 기본 밝은 시안색 -> 호버시 흰색 */}
                             <span className="font-bold text-sm md:text-base tracking-wide text-cyan-400 group-hover:text-white transition-colors">
-                                Explore Unlisted first
+                                Explore unlisted first
                             </span>
                             <Disc size={20} className="text-cyan-500 group-hover:text-white group-hover:animate-spin-slow transition-colors"/>
                         </div>
