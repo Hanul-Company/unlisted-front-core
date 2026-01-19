@@ -7,6 +7,10 @@ import { usePWA } from './context/PWAContext';
 import { motion } from 'framer-motion';
 import HeaderProfile from './components/HeaderProfile'; 
 import toast from 'react-hot-toast';
+import { useActiveAccount } from "thirdweb/react";
+import { supabase } from '@/utils/supabase';
+import { useRouter } from "@/lib/i18n"; // Use centralized router
+import { useState, useEffect } from 'react';
 
 // Animations (하단 버튼은 애니메이션 제외)
 const fadeInUp = {
@@ -21,8 +25,27 @@ const containerAnim = {
 
 export default function LandingPage() {
   const { isInstallable, installApp } = usePWA();
+  const account = useActiveAccount();
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+
+  // Check Supabase session
+  useEffect(() => {
+    const checkUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+    };
+    checkUser();
+  }, []);
 
   const handleArtistClick = () => {
+    // 1. If logged in (wallet connected or email login), go to Market
+    if (account?.address || user) {
+        router.push('/market');
+        return;
+    }
+
+    // 2. Otherwise, trigger connect modal
     const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
     if (headerBtn) {
         headerBtn.click();
