@@ -88,7 +88,7 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                     <Link href="/investing" onClick={onClose}>
                         <div className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
                             <TrendingUp size={18}/>
-                            <span className="text-sm font-medium">Invest</span>
+                            <span className="text-sm font-medium">Invest (Beta)</span>
                         </div>
                     </Link>
                 </div>
@@ -105,10 +105,10 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                     </div>
 
                     {/* 🔒 Portfolio */}
-                    <div onClick={() => handleRestricted('/portfolio')} className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
+                    {/* <div onClick={() => handleRestricted('/portfolio')} className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
                         <Book size={18}/>
                         <span className="text-sm font-medium">Portfolio</span>
-                    </div>
+                    </div> */}
                 </div>
             </div>
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef} from 'react';
 import { 
-  PlayCircle, Book, Wand2, AlertTriangle, Radio, Play, TrendingUp, Loader2, UploadCloud, 
+  Plus, Brain, Sparkles, X, PlayCircle, Book, Wand2, AlertTriangle, Radio, Play, TrendingUp, Loader2, UploadCloud, 
   Music as MusicIcon, Trash2, Coins, User, Disc, Zap, ArrowRight, Search, Menu, ListMusic, Heart 
 } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
@@ -19,6 +19,7 @@ import HorizontalScroll from '../components/HorizontalScroll';
 import InvestmentCard from '../components/InvestmentCard';
 import MarketCarousel from '../components/MarketCarousel';
 import { useRouter } from 'next/navigation';
+import { extractSearchKeywords } from '@/app/actions/aiSearch'; // 👈 import 추가
 
 // [Thirdweb Imports]
 import { getContract, prepareContractCall } from "thirdweb";
@@ -84,6 +85,7 @@ export default function MarketPage() {
   const [investTracks, setInvestTracks] = useState<Track[]>([]);
   const [creators, setCreators] = useState<Profile[]>([]);
   const [featuredPlaylists, setFeaturedPlaylists] = useState<FeaturedPlaylist[]>([]);
+  const [username, setUsername] = useState<string | null>(null); // 👈 추가
 
   // User States (Rentals)
   const [rentedTrackIds, setRentedTrackIds] = useState<Set<number>>(new Set());
@@ -109,19 +111,24 @@ export default function MarketPage() {
   const [isRentalModalOpen, setIsRentalModalOpen] = useState(false);
   const [pendingRentalTrack, setPendingRentalTrack] = useState<Track | null>(null);
   const [isRentalLoading, setIsRentalLoading] = useState(false);
+  const [forYouTracks, setForYouTracks] = useState<Track[]>([]); // 👈 추가
 
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateOriginalTrack, setDuplicateOriginalTrack] = useState<Track | null>(null);
 
   const mainRef = useRef<HTMLDivElement>(null);
 
+  const [isAiMode, setIsAiMode] = useState(false);
+  const [aiKeywords, setAiKeywords] = useState<string[]>([]); // GPT가 뽑은 키워드 보여주기용
+
   // --- 1. Fetch User Data ---
   useEffect(() => {
     const fetchUserData = async () => {
       if (!address) { setRentedTrackIds(new Set()); return; }
       try {
-        const { data: profile } = await supabase.from('profiles').select('id').eq('wallet_address', address).single();
+        const { data: profile } = await supabase.from('profiles').select('id, username').eq('wallet_address', address).single();
         if (profile) {
+            setUsername(profile.username);
             const now = new Date().toISOString();
             const { data: collectionData } = await supabase.from('collections').select('track_id, expires_at').eq('profile_id', profile.id).or(`expires_at.gt.${now},expires_at.is.null`);
             if (collectionData) {
@@ -139,14 +146,24 @@ export default function MarketPage() {
     fetchUserData();
   }, [address]);
 
-  // --- 2. Fetch Market Data (기존 유지) ---
+ // --- 2. Fetch Market Data ---
+
+  // ✅ [수정 1] 공통 데이터 가져오기 (로그인 여부 상관없음, 최초 1회만 실행)
   useEffect(() => {
-    const fetchTopData = async () => {
+    const fetchPublicData = async () => {
       setLoadingTop(true);
+      
+      // 1. Hot Tracks
       const { data: hotTrackData } = await supabase.rpc('get_most_collected_tracks', { limit_count: 15 });
       setHotTracks((hotTrackData as any) || []);
 
-      const { data: hotPlData } = await supabase.from('playlists').select(`id, name, fork_count, created_at, playlist_items (added_at, tracks (cover_image_url)), profiles (username, wallet_address)`).is('original_playlist_id', null).order('fork_count', { ascending: false }).order('created_at', { ascending: false }).limit(15);
+      // 2. Hot Playlists
+      const { data: hotPlData } = await supabase.from('playlists')
+        .select(`id, name, fork_count, created_at, playlist_items (added_at, tracks (cover_image_url)), profiles (username, wallet_address)`)
+        .is('original_playlist_id', null)
+        .order('fork_count', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(15);
       
       const formattedHotPlaylists = hotPlData?.map((pl: any) => ({
           id: pl.id, name: pl.name, fork_count: pl.fork_count, created_at: pl.created_at,
@@ -155,41 +172,135 @@ export default function MarketPage() {
       })) || [];
       setHotPlaylists(formattedHotPlaylists);
 
-      const { data: newData } = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').order('created_at', { ascending: false }).limit(15);
+      // 3. New Tracks
+      const { data: newData } = await supabase.from('tracks')
+        .select('*,artist:profiles (username,wallet_address,avatar_url)')
+        .order('created_at', { ascending: false })
+        .limit(15);
       setNewTracks(newData || []);
 
-      const { data: allData } = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').eq('is_minted', true).limit(20);
-      setInvestTracks((allData || []).slice(0, 5));
-
+      // 4. Creators
       const { data: creatorData } = await supabase.from('profiles').select('*').limit(20);
       setCreators(creatorData || []);
+
+      // 5. Featured Playlists
+      const { data: featuredData } = await supabase.from('playlists')
+        .select(`id, name, playlist_items (added_at, tracks (cover_image_url))`)
+        .eq('is_featured', true)
+        .order('id', { ascending: false });
+        
+      const formattedFeatured: FeaturedPlaylist[] = (featuredData || []).map((pl: any) => ({ 
+          id: pl.id, 
+          name: pl.name, 
+          cover_image: pl.playlist_items?.[0]?.tracks?.cover_image_url || null 
+      }));
+      setFeaturedPlaylists(formattedFeatured);
+
       setLoadingTop(false);
     };
-    fetchTopData();
 
-    const fetchPlaylists = async () => {
-      const { data, error } = await supabase.from('playlists').select(`id, name, playlist_items (added_at, tracks (cover_image_url))`).eq('is_featured', true).order('id', { ascending: false });
-      if (error) return;
-      const formatted: FeaturedPlaylist[] = data.map((pl: any) => ({ id: pl.id, name: pl.name, cover_image: pl.playlist_items?.[0]?.tracks?.cover_image_url || null }));
-      setFeaturedPlaylists(formatted);
+    fetchPublicData();
+  }, []); // 의존성 없음 (최초 1회만)
+
+
+  // ✅ [수정 2] 개인화 데이터 가져오기 (address가 바뀔 때만 실행)
+  useEffect(() => {
+    const fetchPersonalData = async () => {
+      // 1. 로그아웃 상태이거나 address가 없으면 데이터를 비움 (섹션 숨김 처리됨)
+      if (!address) {
+          setForYouTracks([]);
+          return;
+      }
+
+      // 2. 로그인 상태면 데이터 가져오기
+      const { data: forYouData } = await supabase
+        .rpc('get_tracks_for_you', { p_wallet_address: address })
+        .select('*, artist:profiles(username,wallet_address,avatar_url)');
+      
+      setForYouTracks(forYouData || []);
     };
-    fetchPlaylists();
-  }, []);
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (!query.trim()) { setIsSearching(false); setSearchTracks([]); setSearchCreators([]); setSearchPlaylists([]); return; }
-    setIsSearching(true);
-    try {
-        const [tracksRes, creatorsRes, playlistsRes] = await Promise.all([
-            supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').ilike('title', `%${query}%`).limit(10),
-            supabase.from('profiles').select('*').ilike('username', `%${query}%`).limit(10),
-            supabase.from('playlists').select('*').ilike('name', `%${query}%`).limit(10)
-        ]);
-        setSearchTracks(tracksRes.data || []); setSearchCreators(creatorsRes.data || []); setSearchPlaylists(playlistsRes.data || []);
-    } catch (e) { console.error(e); } finally { setIsSearching(false); }
+    fetchPersonalData();
+  }, [address]); // address가 변경될 때(로그인/로그아웃)마다 실행됨
+
+// ✅ [수정 1] 단순 입력 상태 업데이트
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (!val.trim()) {
+        setIsSearching(false);
+        setSearchTracks([]); setSearchCreators([]); setSearchPlaylists([]);
+        setAiKeywords([]);
+    }
   };
 
+  // ✅ [수정 2] 검색 로직 (범위 확대 & 매칭 보완)
+  useEffect(() => {
+    if (!searchQuery.trim()) return;
+
+    const delayTime = isAiMode ? 800 : 500; 
+
+    const debounceFn = setTimeout(async () => {
+        setIsSearching(true);
+        setAiKeywords([]); 
+
+        try {
+            // 기본 쿼리: is_minted 된 트랙만
+            let queryBuilder = supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').eq('is_minted', true);
+
+                if (isAiMode) {
+                // 🤖 AI 모드
+                const keywords = await extractSearchKeywords(searchQuery);
+                setAiKeywords(keywords); 
+
+                if (keywords.length > 0) {
+                    // ✅ [수정됨] RPC 함수 호출 (복잡한 쿼리 URL 문제 해결!)
+                    // RPC를 써도 .select()로 아티스트 정보를 조인해서 가져올 수 있습니다.
+                    const { data } = await supabase
+                        .rpc('search_tracks_by_keywords', { keywords: keywords })
+                        .select('*, artist:profiles(username,wallet_address,avatar_url)') // 아티스트 정보 조인
+                        .limit(20);
+                    
+                    setSearchTracks(data || []);
+                    
+                    // AI 모드는 여기서 끝 (다른 검색 비움)
+                    setSearchCreators([]);
+                    setSearchPlaylists([]);
+                    setIsSearching(false);
+                    return; // 여기서 useEffect 종료
+                } else {
+                    // 키워드 추출 실패 시 일반 검색으로 폴백
+                    // (아래 일반 모드 로직을 타게 둠)
+                    queryBuilder = queryBuilder.ilike('title', `%${searchQuery}%`);
+                }
+            } else {
+                // 🔍 일반 모드 (기존 유지 + 태그 단순 검색 추가)
+                queryBuilder = queryBuilder.or(`title.ilike.%${searchQuery}%,artist_name.ilike.%${searchQuery}%`);
+                
+                const [creatorsRes, playlistsRes] = await Promise.all([
+                    supabase.from('profiles').select('*').ilike('username', `%${searchQuery}%`).limit(10),
+                    supabase.from('playlists').select('*').ilike('name', `%${searchQuery}%`).limit(10)
+                ]);
+                setSearchCreators(creatorsRes.data || []);
+                setSearchPlaylists(playlistsRes.data || []);
+            }
+
+            const { data: tracks } = await queryBuilder.limit(20);
+            setSearchTracks(tracks || []);
+
+            if (isAiMode) {
+                setSearchCreators([]);
+                setSearchPlaylists([]);
+            }
+
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsSearching(false);
+        }
+    }, delayTime);
+
+    return () => clearTimeout(debounceFn);
+  }, [searchQuery, isAiMode]);
   // --- Handlers ---
   const handleCollectClick = async (track: Track) => {
     if (!address) { 
@@ -362,7 +473,7 @@ export default function MarketPage() {
                 </div> 
                 <Link href="/investing">
                     <div className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
-                        <TrendingUp size={18}/> <span className="text-sm font-medium">Invest</span>
+                        <TrendingUp size={18}/> <span className="text-sm font-medium">Invest (Beta)</span>
                     </div>
                 </Link> 
             </div>
@@ -371,9 +482,9 @@ export default function MarketPage() {
                 <div onClick={() => handleRestricted('/library')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
                     <PlayCircle size={18}/> <span className="text-sm font-medium">Playlists</span>
                 </div>
-                <div onClick={() => handleRestricted('/portfolio')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                {/* <div onClick={() => handleRestricted('/portfolio')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
                     <Book size={18}/> <span className="text-sm font-medium">Portfolio</span>
-                </div> 
+                </div>  */}
             </div>
             <div> 
                 <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3> 
@@ -393,16 +504,39 @@ export default function MarketPage() {
             </div>
         </nav>
     </aside>
-
       <main ref={mainRef} className="flex-1 flex flex-col overflow-y-auto pb-24 scroll-smooth relative">
         <header className="flex justify-between items-center p-6 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800">
           <div className="flex items-center gap-4"> <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white"><Menu/></button> <h1 className="text-xl font-bold">Explore</h1> </div>
           <div className="flex items-center gap-3"> <TokenBalance address={address} /> <HeaderProfile /> </div>
         </header>
-
         {loadingTop ? ( <div className="flex justify-center pt-40"><Loader2 className="animate-spin text-cyan-500" size={32}/></div> ) : (
             <div className="pb-10 pt-4">
                 <div className="px-6"> <MarketCarousel /> </div>
+
+                {/* ✅ [NEW] Tracks For You Section */}
+                {/* Only renders if user is logged in AND has recommended tracks */}
+                {address && forYouTracks.length > 0 && (
+                    <section className="py-6 border-b border-zinc-800/50"> 
+                        <div className="px-6 mb-4">
+                            <h2 className="text-lg font-bold flex items-center gap-2">
+                        Only for You, {username ? username : 'You'}
+                    </h2>
+                </div> 
+                <HorizontalScroll className="gap-4 px-6 pb-4 snap-x pt-2"> 
+                    {forYouTracks.map((t) => ( 
+                        <div key={t.id} className="min-w-[160px] w-[160px] group cursor-pointer" onClick={() => handlePlay(t, forYouTracks)}> 
+                            {/* Track Card UI ... */}
+                            <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700 mb-3 shadow-lg group-hover:border-white/20 transition"> 
+                                {t.cover_image_url ? <img src={t.cover_image_url} className="w-full h-full object-cover group-hover:scale-110 transition duration-500"/> : <MusicIcon className="w-full h-full p-10 text-zinc-600"/>} 
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><Play fill="white"/></div> 
+                            </div> 
+                            <h3 className="font-bold text-sm truncate">{t.title}</h3> 
+                            <p className="text-xs text-zinc-500 truncate">{t.artist?.username}</p> 
+                        </div> 
+                    ))} 
+                </HorizontalScroll> 
+            </section>
+        )}
 
                 {/* 0. Playlists */}
                 <section className="mb-2"> <div className="px-6 mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white flex items-center gap-2">Playlists from unlisted</h2></div> <HorizontalScroll className="gap-4 !px-6 scroll-pl-6 pb-4 snap-x pt-2"> {featuredPlaylists.length === 0 ? ( <div className="text-zinc-500 text-sm px-6">No playlists available yet.</div> ) : ( featuredPlaylists.map((pl) => ( <Link href={`/playlists/${pl.id}`} key={pl.id} className="flex-shrink-0 snap-start block"> <div className="relative overflow-hidden rounded-xl bg-zinc-800 group cursor-pointer border border-zinc-700 hover:border-white/20 min-w-[160px] w-[120px] h-[160px] md:w-[240px] md:h-[240px]"> {pl.cover_image ? ( <img src={pl.cover_image} alt={pl.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/> ) : ( <div className="w-full h-full flex items-center justify-center bg-zinc-800 bg-gradient-to-br from-zinc-700 to-zinc-900"><Disc size={32} className="text-zinc-600 md:w-16 md:h-16" /></div> )} <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-3 pointer-events-none"><span className="text-white font-medium text-xs md:text-sm drop-shadow-md break-words line-clamp-2 text-left">{pl.name}</span></div> </div> </Link> )) )} </HorizontalScroll> </section>
@@ -444,10 +578,37 @@ export default function MarketPage() {
                     </HorizontalScroll> 
                 </section>
 
-                {/* 4. Popular Creators (유지) */}
-                <section className="py-6 border-b border-zinc-800/50 bg-zinc-900/20"> <div className="px-6 mb-4"><h2 className="text-lg font-bold flex items-center gap-2">Trending Artists</h2></div> <HorizontalScroll className="gap-6 px-6 pb-2 snap-x pt-2"> {creators.map((c:any) => ( <Link href={`/u?wallet=${c.wallet_address}`} key={c.id}> <div className="flex flex-col items-center gap-2 cursor-pointer group min-w-[80px]"> <div className="w-20 h-20 rounded-full bg-zinc-800 overflow-hidden border-2 border-zinc-700 group-hover:border-cyan-500 transition"> {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover"/> : <User className="w-full h-full p-5 text-zinc-500"/>} </div> <span className="text-xs font-bold truncate w-20 text-center">{c.username || 'User'}</span> </div> </Link> ))} </HorizontalScroll> </section>
-
-                {/* 5. Top Investments */}
+                {/* 4. Popular Creators */}
+                <section className="py-8 border-b border-zinc-800/50 bg-zinc-900/20"> {/* py-6 -> py-8로 살짝 여유 줌 */}
+                    <div className="px-6 mb-5">
+                        <h2 className="text-xl font-black flex items-center gap-2">Trending Artists</h2> {/* text-lg -> text-xl로 제목도 키움 */}
+                    </div>
+                    
+                    <HorizontalScroll className="gap-6 px-6 pb-4 snap-x pt-2">
+                        {creators.map((c: any) => (
+                            <Link href={`/u?wallet=${c.wallet_address}`} key={c.id}>
+                                {/* 1. 컨테이너 최소 너비 증가 (80px -> 110px) */}
+                                <div className="flex flex-col items-center gap-3 cursor-pointer group min-w-[110px]">
+                                    
+                                    {/* 2. 이미지 크기 증가 (w-20 -> w-28) */}
+                                    <div className="w-28 h-28 rounded-full bg-zinc-800 overflow-hidden border-2 border-zinc-700 group-hover:border-cyan-500 transition shadow-lg">
+                                        {c.avatar_url ? (
+                                            <img src={c.avatar_url} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-full h-full p-6 text-zinc-500" /> 
+                                        )}
+                                    </div>
+                                    
+                                    {/* 3. 텍스트 너비 증가 (w-20 -> w-28) & 폰트 살짝 키움 */}
+                                    <span className="text-sm font-bold truncate w-28 text-center text-zinc-300 group-hover:text-white transition">
+                                        {c.username || 'User'}
+                                    </span>
+                                </div>
+                            </Link>
+                        ))}
+                    </HorizontalScroll>
+                </section>
+                {/* 5. Top Investments
                 <section className="py-6 border-b border-zinc-800/50"> 
                     <div className="px-6 mb-4 flex justify-between items-end"> <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="text-blue-400" size={20}/> Top Investment</h2> <Link href="/investing" className="text-xs text-zinc-500 hover:text-white flex items-center gap-1">View Chart <ArrowRight size={12}/></Link> </div> 
                     <HorizontalScroll className="gap-4 px-6 pb-4 snap-x pt-2 scrollbar-hide"> 
@@ -456,90 +617,125 @@ export default function MarketPage() {
                         ))} 
                         {investTracks.length === 0 && ( <div className="min-w-[240px] h-[260px] flex flex-col items-center justify-center bg-zinc-900/50 border border-zinc-800 border-dashed rounded-2xl text-zinc-500 text-xs"><p>No investment tracks yet.</p></div> )} 
                     </HorizontalScroll> 
-                </section>
+                </section> */}
 
                 {/* 6. Search Section */}
-                {/* ✅ [수정] searchQuery 유무에 따라 높이 조절 (300px <-> 600px) + 부드러운 전환 효과 추가 */}
-                <section className={`p-6 flex flex-col items-center pt-20 transition-all duration-500 ease-in-out ${searchQuery ? 'min-h-[600px]' : 'min-h-[300px]'}`}>
-                    
+                <section className={`p-6 flex flex-col items-center pt-20 transition-all duration-500 ease-in-out ${searchQuery ? 'min-h-[800px]' : 'min-h-[400px]'}`}>
                     {/* 1. 검색 헤더 및 입력창 영역 */}
-                    <div className="flex flex-col items-center gap-8 w-full max-w-4xl">
-                        <div className="text-center space-y-2">
-                            <h2 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 tracking-tight pb-2 leading-tight">
-                                What are you looking for?
+                    <div className="flex flex-col items-center gap-6 w-full max-w-4xl relative z-10">
+                        <div className="text-center space-y-2 mb-4">
+                            <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 tracking-tighter pb-2">
+                                {isAiMode ? "Just tell me what you want." : "What are you looking for?"}
                             </h2>
-                            <p className="text-zinc-500">Discover tracks, artists, and playlists.</p>
+                            <p className="text-zinc-400 font-medium">
+                                {isAiMode 
+                                    ? "unlisted AI will get you the perfect tracks." 
+                                    : "Search tracks, artists, and playlists in unlisted."}
+                            </p>
+                        </div>
+                        <div className={`relative w-full max-w-2xl transition-all duration-300 ${isAiMode ? 'scale-105' : 'scale-100'}`}>
+                            {/* Glow Effect (AI Mode일 때 색상 변경) */}
+                            <div className={`absolute -inset-1 rounded-3xl blur-xl opacity-40 transition duration-1000 ${isAiMode ? 'bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500 animate-pulse' : 'bg-gradient-to-r from-cyan-500 to-blue-500 opacity-0 group-hover:opacity-30'}`} />
+                            
+                            <div className="relative bg-zinc-900 border border-zinc-700 rounded-3xl flex items-center shadow-2xl overflow-hidden group focus-within:border-zinc-500 transition-colors">
+                                {/* Icon */}
+                                <div className="pl-6 pr-3 text-zinc-400">
+                                    {isAiMode ? <Sparkles size={20} className="text-indigo-500 animate-pulse"/> : <Search size={20}/>}
+                                </div>
+                                {/* Input Field */}
+                                <input
+                                    type="text"
+                                    placeholder={isAiMode ? "Rainy day moods..." : "Tracks, artists..."}
+                                    // ✅ [수정됨] text-lg -> text-sm md:text-lg (모바일: 작게, PC: 크게)
+                                    className="w-full bg-transparent border-none py-4 text-sm md:text-lg text-white placeholder:text-zinc-500 focus:ring-0 focus:outline-none"
+                                    value={searchQuery}
+                                    onChange={(e) => handleSearchChange(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                                    onFocus={(e) => {
+                                        setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+                                    }}
+                                />
+                                {/* Right Actions */}
+                                <div className="flex items-center pr-2 gap-2">
+                                    {isSearching && <Loader2 className="animate-spin text-zinc-500" size={20} />}
+                                    {/* ✨ AI Toggle Button */}
+                                    <button 
+                                        onClick={() => setIsAiMode(!isAiMode)}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-300 border m-1 ${
+                                            isAiMode 
+                                            ? 'bg-gradient-to-r from-cyan-400 via-blue-400 to-blue-600 text-white border-transparent shadow-[0_0_18px_rgba(59,130,246,0.6)]' 
+                                            : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700 hover:text-white'
+                                        }`}
+                                    >
+                                        <Brain size={18} className={isAiMode ? "animate-spin-slow" : ""}/>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="relative w-full max-w-2xl group">
-                            {/* Glow Effect */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition duration-500" />
-                            
-                            {/* Search Icon */}
-                            <Search
-                            className="absolute z-20 left-6 top-1/2 -translate-y-1/2 text-white/80 group-focus-within:text-white transition"
-                            size={22}
-                            />                       
-                            {/* Input Field */}
-                            <input
-                                type="text"
-                                placeholder="e.g., Cozy bedroom pop for late night"
-                                className="w-full bg-zinc-600 border border-zinc-800 rounded-3xl py-3 pl-16 pr-6 text-md text-white placeholder:text-zinc-400 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800/50 transition relative z-10 shadow-2xl"
-                                value={searchQuery}
-                                onChange={(e) => handleSearch(e.target.value)}
-                                // 엔터 키 누르면 포커스 해제 -> 키보드 내려감
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.currentTarget.blur();
-                                    }
-                                }}
-                                // ✅ 2. [추가] 포커스 시 화면 중앙으로 스크롤 (키보드 가림 방지)
-                                onFocus={(e) => {
-                                    const target = e.target;
-                                    setTimeout(() => {
-                                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    }, 300); // 키보드 올라오는 시간(약 0.3초) 기다린 후 스크롤
-                                }}
-                            />
-                            
-                            {/* Loading Spinner */}
-                            {isSearching && (
-                                <Loader2 className="absolute right-6 top-1/2 -translate-y-1/2 text-cyan-500 animate-spin z-20" size={22} />
-                            )}
-                        </div>
+                        {/* AI Keywords Display (GPT가 찾은 키워드 보여주기) */}
+                        {isAiMode && aiKeywords.length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-2 animate-in fade-in slide-in-from-top-2">
+                                <span className="text-xs text-zinc-500 font-bold mr-1 self-center">Identified:</span>
+                                {aiKeywords.map((k, i) => (
+                                    <span key={i} className="px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[10px] font-bold">
+                                        #{k}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* 2. 검색 결과 영역 */}
-                    {/* ✅ [수정] 검색 결과가 있을 때만 보이도록 하여 불필요한 여백 제거 */}
                     <div className={`w-full max-w-6xl space-y-12 transition-all duration-500 ${searchQuery ? 'mt-16 opacity-100' : 'mt-0 h-0 opacity-0 overflow-hidden'}`}>
-                        {/* Case: 검색어는 있지만 결과가 없을 때 */}
+                        
+                        {/* ✅ [수정 1] 검색 결과 없음 -> Create 유도 섹션 */}
                         {searchQuery && !isSearching && searchTracks.length === 0 && searchCreators.length === 0 && searchPlaylists.length === 0 && (
-                            <div className="text-center py-10 animate-in fade-in zoom-in duration-300">
-                                <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Search size={24} className="text-zinc-600" />
+                            <div className="flex flex-col items-center justify-center py-16 animate-in fade-in zoom-in duration-300">
+                                {/* 아이콘 박스 */}
+                                <div className="w-20 h-20 bg-zinc-900/80 rounded-full flex items-center justify-center mb-6 border border-zinc-800 shadow-xl relative overflow-hidden">
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 to-purple-500/20 animate-pulse" />
+                                    <Search size={32} className="text-zinc-500 relative z-10" />
                                 </div>
-                                <p className="text-zinc-500">
-                                    No results found for "<span className="text-white font-bold">{searchQuery}</span>"
+                                
+                                <h3 className="text-2xl font-bold text-white mb-2">
+                                    No results found for "<span className="text-cyan-400 border-b border-cyan-400/30 pb-0.5">{searchQuery}</span>"
+                                </h3>
+                                <p className="text-zinc-500 mb-8 text-center max-w-md leading-relaxed">
+                                    We couldn't find exactly what you're looking for.<br/>
+                                    But you can be the first one to create this vibe.
                                 </p>
+
+                                {/* ✨ 근사한 Create 버튼 */}
+                                <Link href="/create">
+                                    <button className="group relative px-8 py-4 rounded-full bg-zinc-900 p-[1px] transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(59,130,246,0.4)]">
+                                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 rounded-full opacity-70 group-hover:opacity-100 transition-opacity" />
+                                        <div className="relative bg-black rounded-full px-6 py-3 flex items-center gap-3">
+                                            <Wand2 size={20} className="text-white animate-pulse" />
+                                            <span className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-100 to-white">
+                                                Create "{searchQuery}"
+                                            </span>
+                                            <ArrowRight size={18} className="text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all"/>
+                                        </div>
+                                    </button>
+                                </Link>
                             </div>
                         )}
 
-                        {/* Tracks Section */}
+                        {/* ✅ [수정 2] Tracks Section (Invest -> Collect 변경) */}
                         {searchTracks.length > 0 && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Tracks</h3>
+                                <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider flex items-center gap-2">
+                                    <MusicIcon size={14}/> Tracks
+                                </h3>
                                 <div className="space-y-2">
                                     {searchTracks.map((track) => {
-                                        // Logic Variables
                                         const isOwner = address && track.uploader_address && address.toLowerCase() === track.uploader_address.toLowerCase();
                                         const isProcessingThis = processingTrackId === track.id && isPending;
                                         const errorString = track.mint_error ? String(track.mint_error).trim() : '';
                                         const isDuplicateError = errorString.includes('duplicate_melody_hash') || !!track.duplicate_of_track_id;
-                                        
-                                        // Global State Check (Now Playing)
                                         const isThisTrackPlaying = currentTrack?.id === track.id && isPlaying;
 
-                                        // Hide duplicates if not owner
                                         if (!isOwner && isDuplicateError) return null;
 
                                         return (
@@ -547,56 +743,63 @@ export default function MarketPage() {
                                                 key={track.id}
                                                 className={`group flex items-center justify-between p-3 rounded-xl transition-all border cursor-pointer ${
                                                     isThisTrackPlaying 
-                                                        ? 'bg-zinc-900 border-cyan-500/50' 
-                                                        : 'bg-transparent border-transparent hover:bg-zinc-900 hover:border-zinc-800'
+                                                        ? 'bg-zinc-900/80 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)]' 
+                                                        : 'bg-transparent border-transparent hover:bg-zinc-900/50 hover:border-zinc-800'
                                                 }`}
                                                 onClick={() => handlePlay(track, searchTracks)}
                                             >
                                                 <div className="flex items-center gap-4">
-                                                    {/* Cover Image & Playing Indicator */}
-                                                    <div className="w-12 h-12 rounded-lg bg-zinc-900 flex items-center justify-center overflow-hidden border border-zinc-800 relative">
-                                                        {track.cover_image_url ? (
-                                                            <img src={track.cover_image_url} className="w-full h-full object-cover" alt={track.title} />
-                                                        ) : (
-                                                            <MusicIcon size={20} className="text-zinc-700" />
-                                                        )}
-                                                        {isThisTrackPlaying && (
-                                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
-                                                            </div>
-                                                        )}
+                                                    <div className="w-12 h-12 rounded-lg bg-zinc-900 flex items-center justify-center overflow-hidden border border-zinc-800 relative group-hover:border-zinc-600 transition">
+                                                        {track.cover_image_url ? ( <img src={track.cover_image_url} className="w-full h-full object-cover" /> ) : ( <MusicIcon size={20} className="text-zinc-700" /> )}
+                                                        
+                                                        {/* Playing Indicator Overlay */}
+                                                        <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${isThisTrackPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                            {isThisTrackPlaying ? (
+                                                                <div className="flex gap-0.5 items-end h-4">
+                                                                    <div className="w-1 bg-cyan-400 animate-[music-bar_0.6s_ease-in-out_infinite] h-full"/>
+                                                                    <div className="w-1 bg-cyan-400 animate-[music-bar_0.8s_ease-in-out_infinite] h-2/3"/>
+                                                                    <div className="w-1 bg-cyan-400 animate-[music-bar_1.0s_ease-in-out_infinite] h-1/2"/>
+                                                                </div>
+                                                            ) : (
+                                                                <Play size={20} className="fill-white text-white"/>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    
-                                                    {/* Track Info */}
                                                     <div>
-                                                        <div className="font-bold text-base text-white">{track.title}</div>
-                                                        <Link href={`/u?wallet=${track.artist?.wallet_address}`} className="text-xs text-zinc-500 hover:text-zinc-300 transition">
-                                                            {track.artist?.username || 'Unlisted Artist'}
-                                                        </Link>
+                                                        <div className={`font-bold text-base transition ${isThisTrackPlaying ? 'text-cyan-400' : 'text-white group-hover:text-cyan-200'}`}>{track.title}</div>
+                                                        <Link href={`/u?wallet=${track.artist?.wallet_address}`} className="text-xs text-zinc-500 hover:text-zinc-300 transition hover:underline"> {track.artist?.username || 'Unlisted Artist'} </Link>
                                                     </div>
                                                 </div>
 
-                                                {/* Action Buttons */}
                                                 <div className="flex items-center gap-3">
                                                     {(() => {
+                                                        // 1. 중복 에러 & 소유자 -> Rejected
                                                         if (isDuplicateError && isOwner) {
-                                                            return <button className="text-red-500 text-xs border border-red-500/30 px-3 py-1 rounded bg-red-500/10">Rejected</button>;
+                                                            return <span className="text-red-500 text-[10px] uppercase font-bold border border-red-500/20 px-2 py-1 rounded bg-red-500/10">Rejected</span>;
                                                         }
+                                                        
+                                                        // 2. 민팅 완료됨 -> Collect 버튼 (Rental Modal)
                                                         if (track.is_minted) {
                                                             return (
                                                                 <button 
-                                                                    onClick={(e) => { e.stopPropagation(); handleInvest(track); }} 
-                                                                    className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-white hover:text-black transition"
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        handleCollectClick(track); // ✅ Invest -> Collect 변경 완료
+                                                                    }} 
+                                                                    className="flex items-center gap-1.5 bg-zinc-800 text-zinc-300 border border-zinc-700 px-4 py-2 rounded-full text-xs font-bold hover:bg-white hover:text-black hover:border-white transition group/btn"
                                                                 >
-                                                                    Invest
+                                                                    <Plus size={14} className="text-zinc-500 group-hover/btn:text-black transition-colors"/>
+                                                                    Collect
                                                                 </button>
                                                             );
                                                         }
+                                                        
+                                                        // 3. 소유자지만 아직 민팅 안됨 -> Register 버튼
                                                         if (isOwner) {
                                                             return (
                                                                 <button 
                                                                     onClick={(e) => { e.stopPropagation(); handleRegister(track); }} 
-                                                                    className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-cyan-500 hover:text-white transition" 
+                                                                    className="bg-zinc-900 text-cyan-500 border border-cyan-500/30 px-4 py-2 rounded-full text-xs font-bold hover:bg-cyan-500 hover:text-white transition shadow-[0_0_10px_rgba(6,182,212,0.1)] hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]" 
                                                                     disabled={isProcessingThis}
                                                                 >
                                                                     {isProcessingThis ? <Loader2 className="animate-spin" size={12} /> : 'Register'}
@@ -613,8 +816,8 @@ export default function MarketPage() {
                             </div>
                         )}
 
-                        {/* Creators Section */}
-                        {searchCreators.length > 0 && (
+                        {/* Creators Section (AI 모드 아닐때만 표시) */}
+                        {!isAiMode && searchCreators.length > 0 && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
                                 <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Creators</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -622,16 +825,10 @@ export default function MarketPage() {
                                         <Link href={`/u?wallet=${c.wallet_address}`} key={c.wallet_address}>
                                             <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex flex-col items-center gap-3 hover:bg-zinc-800 transition cursor-pointer group hover:border-zinc-600">
                                                 <div className="w-20 h-20 rounded-full bg-zinc-800 overflow-hidden shadow-lg">
-                                                    {c.avatar_url ? (
-                                                        <img src={c.avatar_url} className="w-full h-full object-cover group-hover:scale-110 transition" alt={c.username} />
-                                                    ) : (
-                                                        <User className="w-full h-full p-5 text-zinc-600" />
-                                                    )}
+                                                    {c.avatar_url ? ( <img src={c.avatar_url} className="w-full h-full object-cover group-hover:scale-110 transition" /> ) : ( <User className="w-full h-full p-5 text-zinc-600" /> )}
                                                 </div>
                                                 <div className="text-center">
-                                                    <div className="font-bold text-sm text-white truncate w-24 group-hover:text-cyan-400 transition">
-                                                        {c.username}
-                                                    </div>
+                                                    <div className="font-bold text-sm text-white truncate w-24 group-hover:text-cyan-400 transition">{c.username}</div>
                                                 </div>
                                             </div>
                                         </Link>
@@ -640,8 +837,8 @@ export default function MarketPage() {
                             </div>
                         )}
 
-                        {/* Playlists Section */}
-                        {searchPlaylists.length > 0 && (
+                        {/* Playlists Section (AI 모드 아닐때만 표시) */}
+                        {!isAiMode && searchPlaylists.length > 0 && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
                                 <h3 className="text-sm font-bold text-zinc-500 uppercase mb-4 px-2 tracking-wider">Playlists</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -649,13 +846,7 @@ export default function MarketPage() {
                                         <Link href={`/playlists/${pl.id}`} key={pl.id}>
                                             <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl hover:bg-zinc-800 transition cursor-pointer group hover:border-zinc-600">
                                                 <div className="aspect-square bg-zinc-800 rounded-lg overflow-hidden mb-3 relative">
-                                                    {pl.cover_image_url ? (
-                                                        <img src={pl.cover_image_url} className="w-full h-full object-cover group-hover:scale-105 transition" alt={pl.name} />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center">
-                                                            <ListMusic className="text-zinc-600" />
-                                                        </div>
-                                                    )}
+                                                    {pl.cover_image_url ? ( <img src={pl.cover_image_url} className="w-full h-full object-cover group-hover:scale-105 transition" /> ) : ( <div className="w-full h-full flex items-center justify-center"><ListMusic className="text-zinc-600" /></div> )}
                                                 </div>
                                                 <div className="font-bold text-sm text-white truncate group-hover:text-cyan-400 transition">{pl.name}</div>
                                                 <div className="text-[10px] text-zinc-500">Forks: {pl.fork_count || 0}</div>
@@ -670,10 +861,7 @@ export default function MarketPage() {
             </div>
         )}
       </main>
-
       {/* ⚠️ All Player UI Removed (Handled by GlobalPlayer) */}
-
-      {/* Page Specific Modals */}
       {selectedTrack && ( <TradeModal isOpen={!!selectedTrack} onClose={() => setSelectedTrack(null)} track={{...selectedTrack, token_id: selectedTrack.token_id ?? null}} /> )}
       
       {isRentalModalOpen && ( 

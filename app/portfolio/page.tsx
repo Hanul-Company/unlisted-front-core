@@ -162,10 +162,10 @@ export default function PortfolioPage() {
           <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
             <div>
               <Link href="/market" className="text-zinc-500 hover:text-white text-xs font-bold mb-2 inline-flex items-center gap-1 transition">← BACK TO MARKET</Link>
-              <h1 className="text-4xl font-black tracking-tighter text-white">
+              <h1 className="text-5xl font-black tracking-tighter text-white">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-500 pr-2">PORTFOLIO</span>
               </h1>
-              <p className="text-zinc-400 text-sm mt-1">Manage your music assets and claim dividends.</p>
+              <p className="text-zinc-400 text-md mt-1">Manage your music assets and claim dividends.</p>
             </div>
             <HeaderProfile/>
           </header>

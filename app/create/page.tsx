@@ -207,6 +207,7 @@ export default function CreateDashboard() {
   const [lyricsCredits, setLyricsCredits] = useState(3); // 가사 생성 크레딧
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [isLyricsExpanded, setIsLyricsExpanded] = useState(false);
+  const [isUnlimited, setIsUnlimited] = useState(false); // 👈 이거 추가
 
   const formatTime = (sec: number) => {
     if (!sec || Number.isNaN(sec)) return "0:00";
@@ -367,8 +368,10 @@ export default function CreateDashboard() {
                 }
                 return;}
 
-    // ✅ [추가] 크레딧 체크 (프론트엔드 방어)
-    if (credits <= 0) {
+
+
+    // ✅ [수정됨] 무제한 유저(isUnlimited)가 '아닐 때만' 크레딧을 체크합니다.
+    if (!isUnlimited && credits <= 0) {
         return toast.error(`Daily limit reached. Resets in ${timerString}`);
     }
 
@@ -468,6 +471,18 @@ export default function CreateDashboard() {
   // ✅ [추가] 1. 크레딧 상태 조회 (로드 시 + 작업 완료 시)
   const checkCredits = async () => {
     if (!account?.address) return;
+    try {
+
+      // 1. 먼저 프로필에서 'is_unlimited' 여부 확인
+      const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_unlimited')
+          .eq('wallet_address', account.address) // 혹은 user_id 등 본인 설정에 맞게
+          .single();
+
+      // 2. 상태 업데이트
+      const unlimited = profile?.is_unlimited || false;
+      setIsUnlimited(unlimited);
 
     // 24시간 전 시각 구하기
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -493,6 +508,9 @@ export default function CreateDashboard() {
         setTimerString("");
       }
     }
+    } catch (e) {
+          console.error(e);
+      }
   };
 
   // [2-1] 가사 크레딧 체크 함수 (기존 checkCredits 아래에 추가)
@@ -671,7 +689,7 @@ export default function CreateDashboard() {
                     
                     <div className="flex bg-black rounded-lg p-0.5 border border-zinc-800">
                         <button onClick={() => setLyricsMode('simple')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${lyricsMode === 'simple' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                            Concept
+                            Idea
                         </button>
                         <button onClick={() => setLyricsMode('custom')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${lyricsMode === 'custom' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>
                             Full Lyrics
@@ -740,6 +758,11 @@ export default function CreateDashboard() {
             {/* Input Form 내부의 Submit Button 부분 교체 */}
             <div className="space-y-3">
                 {/* ✅ [추가] Credit Status Bar */}
+                {isUnlimited ? (
+                <div className="bg-gradient-to-r from-amber-200 to-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                    ∞ Unlimited Pass
+                </div>
+                ) : (
                 <div className="flex items-center justify-between px-1">
                     <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider">
                         Daily Credits
@@ -748,6 +771,7 @@ export default function CreateDashboard() {
                         {credits} / 3 Available
                     </span>
                 </div>
+                )}
 
                 {/* Progress Bar (Visual) */}
                 <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
@@ -756,30 +780,40 @@ export default function CreateDashboard() {
                         style={{ width: `${(credits / 3) * 100}%` }}
                     />
                 </div>
-
                 <button
                     onClick={handleRequestCreate}
-                    // ✅ [수정] 크레딧 없으면 비활성화
-                    disabled={isSubmitting || !account?.address || credits <= 0}
+                    // ✅ 1. 비활성화 조건: (무제한이 아님 && 크레딧 0 이하)일 때만 비활성화
+                    disabled={isSubmitting || !account?.address || (!isUnlimited && credits <= 0)}
                     className={`group relative w-full rounded-xl p-[2px] transition-all duration-300
-                        ${credits > 0 
+                        ${(credits > 0 || isUnlimited) // ✅ 2. 스타일 조건: 크레딧 있거나 무제한이면 그라데이션 활성화
                             ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] hover:scale-[1.01]' 
                             : 'bg-zinc-800 cursor-not-allowed opacity-70'}
                     `}
                 >
+                    {/* 버튼 내부 배경 (호버 시 투명해짐) */}
                     <div className="absolute inset-[2px] bg-zinc-900 rounded-[10px] transition-opacity duration-300 ease-in-out group-hover:opacity-0" />
+                    
                     <div className="relative z-10 flex items-center justify-center gap-2 py-4 font-black text-white tracking-wide">
                         {isSubmitting ? (
                             <Loader2 className="animate-spin text-white" />
                         ) : (
                             <>
-                                {credits > 0 ? (
+                                {/* ✅ 3. 내용 표시 조건: 크레딧이 있거나 OR 무제한이면 생성 버튼 표시 */}
+                                {(credits > 0 || isUnlimited) ? (
                                     <>
-                                        <Wand2 size={20} className="text-cyan-300 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
-                                        <span className="group-hover:text-white transition-colors">{t.btn_generate}</span>
+                                        {/* 무제한 유저는 황금색 효과, 일반 유저는 기존 효과 */}
+                                        {isUnlimited ? (
+                                            <Sparkles size={20} className="text-amber-400 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
+                                        ) : (
+                                            <Wand2 size={20} className="text-cyan-300 group-hover:text-white group-hover:rotate-12 transition-all duration-300" />
+                                        )}
+                                        
+                                        <span className="group-hover:text-white transition-colors">
+                                            {isUnlimited ? "Unlimited Generate" : t.btn_generate}
+                                        </span>
                                     </>
                                 ) : (
-                                    // ⏳ 크레딧 소진 시 타이머 표시
+                                    // ⏳ 크레딧 소진 시 타이머 표시 (무제한 아님 && 크레딧 0일 때만 여기로 옴)
                                     <div className="flex items-center gap-2 text-red-400">
                                         <Clock size={18} />
                                         <span>Refill in {timerString || "calculating..."}</span>

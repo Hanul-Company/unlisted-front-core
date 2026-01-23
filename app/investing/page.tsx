@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Loader2, TrendingUp, Trophy, Clock, ArrowUpRight, Play, Pause } from 'lucide-react';
+import { Trophy, Loader2, TrendingUp, Sparkles, ArrowUpRight, Play, Pause, Wallet, Lock, Info, BarChart2 } from 'lucide-react';
 import { Link } from "@/lib/i18n";
 import { formatEther } from 'viem';
 import TradeModal from '../components/TradeModal';
@@ -10,23 +10,77 @@ import { useActiveAccount, useReadContract } from "thirdweb/react";
 import { getContract } from "thirdweb";
 import { client, chain } from "@/utils/thirdweb";
 import { UNLISTED_STOCK_ADDRESS, UNLISTED_STOCK_ABI } from '../constants';
-
-// ✅ [NEW] Global Player Hook
+import InfoModal, { HelpToggle } from '../components/ui/InfoModal';
+import { INVEST_GUIDE_DATA } from '../components/ui/tutorialData';
 import { usePlayer, Track } from '../context/PlayerContext';
 
-const stockContract = getContract({ client, chain, address: UNLISTED_STOCK_ADDRESS, abi: UNLISTED_STOCK_ABI as any });
+// Contract Init
+const stockContract = getContract({ 
+    client, chain, address: UNLISTED_STOCK_ADDRESS, abi: UNLISTED_STOCK_ABI 
+});
+
+// --- 📉 결정론적 차트 데이터 생성기 (실제 DB 히스토리가 없을 때, TokenID 기반으로 일관된 과거 데이터 생성) ---
+// 항상 현재 가격(currentPrice)으로 끝나는 과거 데이터를 만듭니다.
+const generateDeterministicHistory = (tokenId: string, currentPrice: number, days: number = 1) => {
+    if (currentPrice === 0) return [];
+    
+    const seed = parseInt(tokenId) || 999;
+    const points = days === 1 ? 24 : days * 10; // 24시간 or 일별 포인트
+    const data = [];
+    
+    // 단순 Random이 아니라 sin, cos 조합으로 '그럴듯한' 등락 생성
+    for (let i = 0; i < points; i++) {
+        const timeOffset = i / points;
+        const noise = Math.sin(timeOffset * 10 + seed) * Math.cos(timeOffset * 5 + seed);
+        // 과거 가격 추정: 현재 가격에서 역산
+        const historicalVal = currentPrice * (1 - (0.05 * noise) - (0.02 * (1 - timeOffset))); 
+        data.push(Math.max(0.0001, historicalVal));
+    }
+    // 마지막은 무조건 현재 가격과 일치시켜야 함
+    data[points - 1] = currentPrice;
+    return data;
+};
+
+// SVG Path Generator (Smooth Curve)
+const generateSmoothPath = (points: number[], width: number, height: number) => {
+    if (points.length === 0) return "";
+    const stepX = width / (points.length - 1);
+    const maxVal = Math.max(...points) * 1.05; // 여유 공간
+    const minVal = Math.min(...points) * 0.95;
+    const range = maxVal - minVal || 1;
+
+    const getY = (val: number) => height - ((val - minVal) / range) * height;
+
+    let d = `M 0 ${getY(points[0])}`;
+    for (let i = 1; i < points.length; i++) {
+        // Simple Line linking (Bezier curve logic can be added for extra smoothness)
+        d += ` L ${i * stepX} ${getY(points[i])}`;
+    }
+    return d;
+};
 
 export default function InvestingPage() {
   const account = useActiveAccount();
-  
-  // ✅ [NEW] Use Global Player
   const { playTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
 
+  // Infinite Scroll States
   const [marketItems, setMarketItems] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'hot' | 'ending'>('all');
-  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+  const [displayedItems, setDisplayedItems] = useState<Track[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const ITEMS_PER_PAGE = 24;
+  const observerRef = useRef<HTMLDivElement | null>(null);
 
+  const [loading, setLoading] = useState(true);
+  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const [activeTab, setActiveTab] = useState('All');
+  
+  const TABS = ['All', 'Hot', 'Fresh', 'Pop', 'Hip Hop', 'R&B', 'Electronic', 'K-Pop'];
+
+  // 1. Initial Fetch (Load All for client-side filtering simplicity, or use DB pagination)
+  // 여기서는 "마켓 오버뷰"이므로 전체 데이터를 가져와서 클라이언트에서 필터링 후 -> Pagination 하는 방식으로 구현
+  // (DB가 커지면 서버 사이드 필터링+페이지네이션으로 변경 필요)
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -36,220 +90,631 @@ export default function InvestingPage() {
         .eq('is_minted', true)
         .order('created_at', { ascending: false });
       
-      setMarketItems(tracks || []);
+      const allTracks = tracks || [];
+      setMarketItems(allTracks);
+      
+      // 초기 렌더링
+      setDisplayedItems(allTracks.slice(0, ITEMS_PER_PAGE));
+      setHasMore(allTracks.length > ITEMS_PER_PAGE);
+      setPage(1);
+
+      if (allTracks.length > 0) setSelectedTrack(allTracks[0]);
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  const getFilteredItems = () => {
+  // 2. Filter Logic (memoized)
+  const filteredAllItems = useMemo(() => {
       let items = [...marketItems];
-      if (filter === 'hot') {
-          // investor_share 기준 정렬 (any 타입 회피를 위해 as any 사용하거나 타입 확장 필요)
-          items.sort((a: any, b: any) => (b.investor_share || 0) - (a.investor_share || 0));
-      } else if (filter === 'ending') {
-          items.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      if (activeTab === 'Hot') {
+          items = items.sort((a: any, b: any) => (b.investor_share || 0) - (a.investor_share || 0));
+      } else if (activeTab === 'Fresh') {
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+          items = items.filter(item => new Date(item.created_at) > oneWeekAgo);
+      } else if (activeTab !== 'All') {
+          items = items.filter(item => {
+              if (Array.isArray(item.genre)) return item.genre?.includes(activeTab);
+              return item.genre?.includes(activeTab);
+          });
       }
       return items;
+  }, [activeTab, marketItems]);
+
+  // 3. Update Displayed Items when Filter Changes
+  useEffect(() => {
+      setDisplayedItems(filteredAllItems.slice(0, ITEMS_PER_PAGE));
+      setHasMore(filteredAllItems.length > ITEMS_PER_PAGE);
+      setPage(1);
+  }, [filteredAllItems]);
+
+  // 4. Infinite Scroll Observer
+  useEffect(() => {
+      const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting && hasMore) {
+              loadMore();
+          }
+      });
+      if (observerRef.current) observer.observe(observerRef.current);
+      return () => observer.disconnect();
+  }, [hasMore, displayedItems]);
+
+  const loadMore = () => {
+      const nextPage = page + 1;
+      const nextItems = filteredAllItems.slice(0, nextPage * ITEMS_PER_PAGE);
+      setDisplayedItems(nextItems);
+      setPage(nextPage);
+      if (nextItems.length >= filteredAllItems.length) setHasMore(false);
   };
 
-  const filteredItems = getFilteredItems();
-
-  // ✅ [NEW] Play Helper
   const handlePlay = (track: Track) => {
-      if (currentTrack?.id === track.id) {
-          togglePlay();
-      } else {
-          // 전체 리스트를 큐로 설정
-          playTrack(track, filteredItems);
-      }
+      if (currentTrack?.id === track.id) { togglePlay(); } 
+      else { playTrack(track, filteredAllItems); }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans p-4 md:p-8 pb-32">
-      <header className="mb-12 max-w-7xl mx-auto">
-        <div className="flex justify-between items-start mb-6">
-            <div>
-                <Link href="/market" className="text-zinc-500 hover:text-white text-xs font-bold mb-4 inline-flex items-center gap-1 transition">
-                  <ArrowUpRight size={14} className="rotate-180"/> BACK TO MARKET
+    <div className="min-h-screen bg-black text-white font-sans pb-32">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-zinc-800">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center gap-6">
+                <Link href="/market" className="text-zinc-500 hover:text-white text-xs font-bold transition flex items-center gap-1">
+                  <ArrowUpRight size={14} className="rotate-180"/> MARKET
                 </Link>
-                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-2 uppercase">
-                  Jackpot <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-600">Market</span>
+                <div className="h-4 w-px bg-zinc-800 hidden md:block" />
+                <h1 className="text-xl font-black tracking-tight text-white hidden md:block">
+                  INVEST <span className="text-blue-500 text-xs align-top">BETA</span>
                 </h1>
-                <p className="text-zinc-400 max-w-xl text-sm md:text-base leading-relaxed">
-                  Invest in music copyrights, earn lifetime dividends, and win the jackpot.
-                  <br className="hidden md:block"/> Be the last buyer to take 50% of the pool.
-                </p>
             </div>
-            <div className="hidden md:flex gap-6 text-right">
-                <div>
-                    <p className="text-zinc-500 text-xs font-bold mb-1">TOTAL ASSETS</p>
-                    <p className="text-2xl font-mono font-bold text-white">{marketItems.length}</p>
-                </div>
+
+            <div className="flex items-center gap-3">
+                 <HelpToggle onClick={() => setShowGuide(true)} className="mr-2" />
+                <Link href="/portfolio" className="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-500 transition text-xs font-bold text-white group">
+                    <Wallet size={14} className="text-zinc-400 group-hover:text-blue-400 transition-colors"/>
+                    My Portfolio
+                </Link>
             </div>
         </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${filter === 'all' ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:border-zinc-600'}`}>All Assets</button>
-            <button onClick={() => setFilter('hot')} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition flex items-center gap-2 ${filter === 'hot' ? 'bg-red-500 text-white' : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:border-zinc-600'}`}><TrendingUp size={14}/> Hot Yield</button>
-            <button onClick={() => setFilter('ending')} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition flex items-center gap-2 ${filter === 'ending' ? 'bg-yellow-500 text-black' : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:border-zinc-600'}`}><Clock size={14}/> Ending Soon</button>
+        
+        {/* Tabs */}
+        <div className="max-w-[1600px] mx-auto px-6 py-3 flex gap-2 overflow-x-auto scrollbar-hide border-t border-zinc-900">
+            {TABS.map(tab => (
+                <button 
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
+                        activeTab === tab 
+                        ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]' 
+                        : 'bg-zinc-900 text-zinc-500 hover:text-white hover:bg-zinc-800'
+                    }`}
+                >
+                    {tab === 'Hot' && <TrendingUp size={12} className={activeTab === tab ? "text-red-500" : ""}/>}
+                    {tab === 'Fresh' && <Sparkles size={12} className={activeTab === tab ? "text-yellow-500" : ""}/>}
+                    {tab}
+                </button>
+            ))}
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
-            <div className="col-span-full h-64 flex items-center justify-center">
-              <Loader2 className="animate-spin text-zinc-600 w-10 h-10" />
+      {/* Main Layout */}
+      <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Left: Market List (Infinite Scroll) */}
+          <div className="lg:col-span-8">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black flex items-center gap-2">
+                    {activeTab === 'Hot' ? '🔥 Trending Assets' : activeTab === 'Fresh' ? '✨ New Arrivals' : 'Market Overview'}
+                    <span className="text-zinc-600 text-sm font-normal">({filteredAllItems.length})</span>
+                </h2>
+                <div className="flex gap-2 text-[10px] font-bold text-zinc-500">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span>LIVE</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-zinc-600"></span>WAITLIST</span>
+                </div>
             </div>
-          ) : (
-            filteredItems.map((item) => (
-              <JackpotCard 
-                key={item.id} 
-                item={item} 
-                onTrade={() => setSelectedTrack(item)} 
-                // ✅ [NEW] Pass Player Props
-                onPlay={() => handlePlay(item)}
-                isPlaying={isPlaying && currentTrack?.id === item.id}
-                isCurrent={currentTrack?.id === item.id}
-              />
-            ))
-          )}
+
+            {loading ? (
+                <div className="h-96 flex items-center justify-center"><Loader2 className="animate-spin text-zinc-600 w-8 h-8" /></div>
+            ) : displayedItems.length === 0 ? (
+                <div className="h-64 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800 rounded-3xl">
+                    <p className="text-sm font-bold">No assets found in this category.</p>
+                </div>
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {displayedItems.map((item) => (
+                            <InvestCard 
+                                key={item.id} 
+                                item={item} 
+                                isSelected={selectedTrack?.id === item.id}
+                                onClick={() => setSelectedTrack(item)}
+                                onPlay={() => handlePlay(item)}
+                                isPlaying={isPlaying && currentTrack?.id === item.id}
+                                isCurrent={currentTrack?.id === item.id}
+                            />
+                        ))}
+                    </div>
+                    {/* Infinite Scroll Trigger */}
+                    {hasMore && <div ref={observerRef} className="h-20 flex items-center justify-center"><Loader2 className="animate-spin text-zinc-600"/></div>}
+                </>
+            )}
+          </div>
+
+          {/* Right: Detail Panel (Sticky) */}
+          <div className="lg:col-span-4 relative">
+             <div className="sticky top-44">
+                {selectedTrack ? (
+                    <DetailPanel 
+                        track={selectedTrack} 
+                        onClose={() => setSelectedTrack(null)}
+                    />
+                ) : (
+                    <div className="hidden lg:flex h-96 items-center justify-center border border-dashed border-zinc-800 rounded-3xl text-zinc-600 text-sm animate-pulse">
+                        Select an asset to analyze
+                    </div>
+                )}
+             </div>
+          </div>
       </div>
 
-      {selectedTrack && (
-        <TradeModal
-          isOpen={!!selectedTrack}
-          onClose={() => setSelectedTrack(null)}
-          track={{
-              ...selectedTrack,
-              token_id: selectedTrack.token_id ?? null
-          }}
-        />
-      )}
+      <InfoModal 
+          isOpen={showGuide} 
+          onClose={() => setShowGuide(false)} 
+          data={INVEST_GUIDE_DATA}
+          initialLang="ko" 
+      />
     </div>
   );
 }
 
 // ----------------------------------------------------------------------
-// [Component] Jackpot Card (Updated with Play Button)
+// [Component] InvestCard (Updated Charts)
 // ----------------------------------------------------------------------
-function JackpotCard({ item, onTrade, onPlay, isPlaying, isCurrent }: { item: any, onTrade: () => void, onPlay: () => void, isPlaying: boolean, isCurrent: boolean }) {
-    const tokenIdBigInt = BigInt(item.token_id || item.id);
+function InvestCard({ item, isSelected, onClick, onPlay, isPlaying, isCurrent }: any) {
+    const tokenIdBigInt = item.token_id ? BigInt(item.token_id) : BigInt(0);
+    const { data: buyPriceVal } = useReadContract({ 
+        contract: stockContract, method: "getBuyPrice", params: [tokenIdBigInt, BigInt(1)] 
+    });
 
-    const { data: stockInfo } = useReadContract({ contract: stockContract, method: "stocks", params: [tokenIdBigInt] });
-    const { data: buyPriceVal } = useReadContract({ contract: stockContract, method: "getBuyPrice", params: [tokenIdBigInt, BigInt(1)] });
+    const isListed = !!item.token_id;
+    const price = isListed && buyPriceVal ? Number(formatEther(buyPriceVal)) : 0;
+    const priceDisplay = price > 0 ? price.toFixed(4) : "0.0000";
+    
+    // 장르 처리
+    const genres = Array.isArray(item.genres) ? item.genres : (item.genre ? [item.genre] : []);
+    
+    // 📊 [Chart Logic] 3일치 실제(시뮬레이션) 데이터 생성
+    const chartData = useMemo(() => {
+        if (!isListed || price === 0) return [];
+        // 3일치 데이터 (72시간)
+        return generateDeterministicHistory(item.token_id || "0", price, 3);
+    }, [isListed, price, item.token_id]);
 
-    const jackpotBalance = stockInfo ? Number(formatEther(stockInfo[2])) : 0;
-    const expiryTime = stockInfo ? Number(stockInfo[3]) : 0;
-    const buyPrice = buyPriceVal ? Number(formatEther(buyPriceVal)) : 0;
-
-    let investorSharePercent = item.investor_share || 0;
-    if (investorSharePercent > 100) investorSharePercent /= 100;
-
-    const [timeLeft, setTimeLeft] = useState("Loading...");
-    const [progress, setProgress] = useState(100);
-
-    useEffect(() => {
-        const timer = setInterval(() => {
-            const now = Math.floor(Date.now() / 1000);
-            if (expiryTime === 0) { setTimeLeft("Ready to Start"); setProgress(100); } 
-            else if (expiryTime > now) {
-                const diff = expiryTime - now;
-                const h = Math.floor(diff / 3600);
-                const m = Math.floor((diff % 3600) / 60);
-                const s = diff % 60;
-                setTimeLeft(`${h}:${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`);
-                const totalDuration = 72 * 3600; 
-                const p = Math.min(100, (diff / totalDuration) * 100);
-                setProgress(p);
-            } else { setTimeLeft("Round Ended"); setProgress(0); }
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [expiryTime]);
-
-    const isHot = investorSharePercent >= 30;
-    const isEnding = expiryTime > 0 && (expiryTime - Date.now()/1000 < 3600);
+    // 등락 판단 (시작값 vs 끝값)
+    const isPositive = chartData.length > 0 && chartData[chartData.length - 1] >= chartData[0];
+    const trendColor = isPositive ? "#22c55e" : "#ef4444"; // Green or Red
 
     return (
-        <div className="group relative bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer flex flex-col h-full">
-            
-            {/* Top Image Area */}
-            <div className="relative h-48 overflow-hidden bg-black">
-                {item.cover_image_url ? (
-                    <img src={item.cover_image_url} alt={item.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100"/>
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-700">🎵</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent"/>
+        <div 
+            onClick={onClick}
+            className={`relative rounded-2xl p-4 cursor-pointer transition-all duration-300 border group
+                ${!isListed ? 'bg-zinc-900/30 border-zinc-800/50 grayscale opacity-70 hover:opacity-100 hover:grayscale-0' : 
+                  isSelected ? 'bg-zinc-900 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.1)] ring-1 ring-blue-500' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/80'}
+            `}
+        >
+             <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 group-hover:scale-105 transition-transform duration-500">
+                        <img src={item.cover_image_url || '/no-image.png'} className="w-full h-full object-cover" />
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onPlay(); }}
+                            className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${isCurrent ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                        >
+                             {isPlaying && isCurrent ? <Pause size={16} fill="white"/> : <Play size={16} fill="white"/>}
+                        </button>
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className={`text-sm font-bold truncate transition ${isSelected ? 'text-blue-400' : 'text-white'}`}>{item.title}</h3>
+                        <p className="text-[11px] text-zinc-500 truncate">{item.artist?.username}</p>
+                    </div>
+                </div>
                 
-                {/* ✅ [NEW] Hover Play Button Overlay */}
-                {/* 현재 재생 중이거나 호버 시에만 표시 */}
-                <div 
-                    onClick={(e) => { e.stopPropagation(); onPlay(); }}
-                    className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity duration-300 ${isCurrent || isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                >
-                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black shadow-lg hover:scale-110 transition">
-                        {isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black" className="ml-1"/>}
+                {!isListed ? (
+                    <span className="flex-shrink-0 px-2 py-0.5 rounded text-[9px] font-bold bg-zinc-800 text-zinc-500 border border-zinc-700">WAITLIST</span>
+                ) : (
+                    <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-black text-white">{priceDisplay} <span className="text-[9px] text-zinc-500 font-normal">MLD</span></p>
+                    </div>
+                )}
+            </div>
+
+            {/* Middle: Graph OR Visualizer */}
+            <div className="h-10 w-full mb-3 relative overflow-hidden">
+                {isListed ? (
+                    isCurrent && isPlaying ? (
+                        // 🎵 Visualizer
+                        <div className="flex items-end justify-between gap-[2px] h-full w-full opacity-80 px-1">
+                            {Array.from({ length: 24 }).map((_, i) => (
+                                <div 
+                                    key={i} 
+                                    className="w-full rounded-full bg-blue-500 animate-music-bar"
+                                    style={{ animationDelay: `${i * 0.05}s` }}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        // 📈 3-Day Price History (Real Values & Color)
+                        <svg viewBox="0 0 100 50" className="w-full h-full" preserveAspectRatio="none">
+                            <path 
+                                d={generateSmoothPath(chartData, 100, 50)} 
+                                fill="none" 
+                                stroke={trendColor} 
+                                strokeWidth="2" 
+                                vectorEffect="non-scaling-stroke" 
+                            />
+                            <defs>
+                                <linearGradient id={`grad-${item.id}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={trendColor} stopOpacity="0.2"/>
+                                    <stop offset="100%" stopColor={trendColor} stopOpacity="0"/>
+                                </linearGradient>
+                            </defs>
+                            <path 
+                                d={`${generateSmoothPath(chartData, 100, 50)} V 50 H 0 Z`} 
+                                fill={`url(#grad-${item.id})`} 
+                                stroke="none" 
+                            />
+                        </svg>
+                    )
+                ) : (
+                    // 🔒 Not Listed: Flat Gray Line
+                    <div className="w-full h-full flex items-center justify-center border-t border-b border-zinc-800/50 bg-zinc-900/20">
+                        <div className="w-full h-px bg-zinc-800"></div>
+                        <div className="absolute text-[10px] text-zinc-700 font-bold bg-zinc-900 px-2 flex items-center gap-1">
+                             <Lock size={10}/> Not Listed
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex gap-1 overflow-hidden">
+                {genres.slice(0, 3).map((g: string) => (
+                    <span key={g} className="px-1.5 py-0.5 rounded bg-zinc-800 text-[9px] text-zinc-400 border border-zinc-700">{g}</span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ----------------------------------------------------------------------
+// [Component] DetailPanel (Charts with Hover Tooltip)
+// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// [Component] DetailPanel (Price Chart + Profit Simulator)
+// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// [Component] DetailPanel (Price Chart + Profit Simulator)
+// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// [Component] DetailPanel (Price Chart + Profit Simulator)
+// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// [Component] DetailPanel (Price Chart + Profit Simulator)
+// ----------------------------------------------------------------------
+function DetailPanel({ track, onClose }: any) {
+    const tokenIdBigInt = track.token_id ? BigInt(track.token_id) : BigInt(0);
+    
+    // Contract Reads
+    const { data: stockInfo } = useReadContract({ contract: stockContract, method: "stocks", params: [tokenIdBigInt] });
+    const { data: buyPriceVal } = useReadContract({ contract: stockContract, method: "getBuyPrice", params: [tokenIdBigInt, BigInt(1)] });
+    
+    const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
+    const [chartPeriod, setChartPeriod] = useState('24H');
+    const [hoverPrice, setHoverPrice] = useState<number | null>(null);
+    const [simHoverData, setSimHoverData] = useState<{ x: number, profits: number[], costs: number[] } | null>(null);
+
+    const price = buyPriceVal ? Number(formatEther(buyPriceVal)) : 0;
+    const currentSupply = stockInfo ? Number(stockInfo[0]) : 0;
+    const isListed = !!track.token_id;
+
+    // --- 📊 1. Price Chart Data ---
+    const priceChartData = useMemo(() => {
+        if (!isListed || price === 0) return [];
+        let days = 1;
+        if (chartPeriod === '3D') days = 3;
+        if (chartPeriod === '1W') days = 7;
+        if (chartPeriod === '1M') days = 30;
+        return generateDeterministicHistory(track.token_id || "0", price, days);
+    }, [chartPeriod, price, isListed, track.token_id]);
+
+    const startPrice = priceChartData.length > 0 ? priceChartData[0] : price;
+    const changeAmount = price - startPrice;
+    const changePercent = startPrice > 0 ? (changeAmount / startPrice) * 100 : 0;
+    const isChartPositive = changeAmount >= 0;
+
+
+    // --- 🔮 2. Profit Simulator Logic ---
+    const scenarios = [10, 50, 100];
+    const colors = ['#3b82f6', '#8b5cf6', '#f97316']; 
+    // X축: 0 ~ 1000 (50단위)
+    const xSteps = useMemo(() => Array.from({ length: 21 }, (_, i) => i * 50), []); 
+    
+    const estimatedSlope = (currentSupply > 0 && price > 0) ? (price / currentSupply) : 0.0001;
+
+    // ✅ Bonding Curve 적분 공식 (Area under curve)
+    // start부터 amount만큼 살 때 드는 총 비용(Reserve)
+    const calculateCurveValue = (startSupply: number, amount: number) => {
+        const endSupply = startSupply + amount;
+        return (estimatedSlope / 2) * (Math.pow(endSupply, 2) - Math.pow(startSupply, 2));
+    };
+
+    const profitLines = useMemo(() => {
+        if (!isListed) return [];
+        return scenarios.map(myAmount => {
+            const myCost = calculateCurveValue(currentSupply, myAmount);
+            return xSteps.map(othersBuy => {
+                const futureTotalSupply = currentSupply + myAmount + othersBuy;
+                
+                // 내 지분 가치 (Sell Value)
+                const myValue = calculateCurveValue(futureTotalSupply - myAmount, myAmount);
+                const profit = myValue - myCost;
+                
+                return { profit, cost: myCost }; 
+            });
+        });
+    }, [isListed, currentSupply, estimatedSlope, xSteps]);
+
+    const maxProfitVal = useMemo(() => {
+        if (profitLines.length === 0) return 1;
+        const allProfits = profitLines.flat().map(d => d.profit);
+        return Math.max(...allProfits, 0.001);
+    }, [profitLines]);
+
+
+    // --- 🖱️ Mouse Handlers ---
+    const handlePriceMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const index = Math.min(Math.max(0, Math.floor((x / rect.width) * priceChartData.length)), priceChartData.length - 1);
+        setHoverPrice(priceChartData[index]);
+    };
+
+    const handleSimMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const index = Math.min(Math.max(0, Math.floor((x / rect.width) * xSteps.length)), xSteps.length - 1);
+        
+        const profitsAtX = profitLines.map(line => line[index].profit);
+        const costsAtX = profitLines.map(line => line[index].cost);
+        
+        setSimHoverData({ x: xSteps[index], profits: profitsAtX, costs: costsAtX });
+    };
+
+    const generateLinePath = (dataPoints: {profit: number}[], maxVal: number, height: number, widthScale: number = 100) => {
+         return dataPoints.map((d, idx) => {
+            const x = (idx / (dataPoints.length - 1)) * widthScale;
+            const y = height - ((d.profit / maxVal) * height);
+            return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+        }).join(' ');
+    };
+
+    return (
+        <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 shadow-2xl animate-in slide-in-from-right-4 duration-300 flex flex-col h-full max-h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
+            {/* Header */}
+            <div className="flex justify-between items-start mb-6 shrink-0">
+                <div>
+                    <h2 className="text-2xl font-black mb-1 line-clamp-1">{track.title}</h2>
+                    <p className="text-zinc-400 font-medium">{track.artist?.username}</p>
+                </div>
+                <button onClick={onClose} className="lg:hidden p-2 bg-zinc-800 rounded-full hover:bg-zinc-700"><Lock size={16}/></button>
+            </div>
+
+            {/* Price Display */}
+            <div className="flex items-end gap-2 mb-6 shrink-0">
+                <div className="text-4xl font-black text-white">
+                    {hoverPrice ? hoverPrice.toFixed(4) : price.toFixed(4)} <span className="text-sm font-bold text-zinc-500">MLD</span>
+                </div>
+                {isListed && (
+                    <div className={`text-xs font-bold mb-1.5 px-2 py-0.5 rounded-full ${isChartPositive ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                        {isChartPositive ? '+' : ''}{changePercent.toFixed(2)}% ({chartPeriod})
+                    </div>
+                )}
+            </div>
+
+            {/* 📈 1. Main Price Chart */}
+            <div className="bg-black rounded-2xl p-4 mb-6 border border-zinc-800 relative group shrink-0">
+                <div className="flex justify-between items-center mb-4">
+                    <span className="text-xs font-bold text-zinc-500 flex items-center gap-1"><BarChart2 size={12}/> PRICE HISTORY</span>
+                    <div className="flex bg-zinc-900 rounded-lg p-0.5">
+                        {['24H', '3D', '1W', '1M'].map(p => (
+                            <button 
+                                key={p} 
+                                onClick={() => setChartPeriod(p)}
+                                disabled={!isListed}
+                                className={`text-[9px] font-bold px-2 py-1 rounded transition ${chartPeriod === p ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                {p}
+                            </button>
+                        ))}
                     </div>
                 </div>
-
-                {/* Badges */}
-                <div className="absolute top-3 left-3 flex flex-wrap gap-2 pointer-events-none">
-                    {isHot && (
-                        <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-lg animate-pulse">
-                            <TrendingUp size={10}/> {investorSharePercent}% Yield
-                        </span>
+                
+                <div className="h-40 w-full relative" onMouseLeave={() => setHoverPrice(null)}>
+                    {isListed ? (
+                        <>
+                            <svg 
+                                viewBox="0 0 100 50" 
+                                className="w-full h-full overflow-visible cursor-crosshair" 
+                                preserveAspectRatio="none"
+                                onMouseMove={handlePriceMouseMove}
+                            >
+                                <path 
+                                    d={generateSmoothPath(priceChartData, 100, 50)} 
+                                    fill="none" 
+                                    stroke={isChartPositive ? "#22c55e" : "#ef4444"} 
+                                    strokeWidth="2" 
+                                    vectorEffect="non-scaling-stroke"
+                                />
+                                <defs>
+                                    <linearGradient id="main-chart-grad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={isChartPositive ? "#22c55e" : "#ef4444"} stopOpacity="0.2"/>
+                                        <stop offset="100%" stopColor={isChartPositive ? "#22c55e" : "#ef4444"} stopOpacity="0"/>
+                                    </linearGradient>
+                                </defs>
+                                <path 
+                                    d={`${generateSmoothPath(priceChartData, 100, 50)} V 50 H 0 Z`} 
+                                    fill="url(#main-chart-grad)" 
+                                    stroke="none" 
+                                />
+                            </svg>
+                            {hoverPrice && (
+                                <div className="absolute top-2 right-2 bg-zinc-800/90 text-[10px] px-2 py-1 rounded text-white font-mono pointer-events-none border border-zinc-600">
+                                    {hoverPrice.toFixed(4)} MLD
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center border-t border-b border-zinc-800/50">
+                            <span className="text-xs text-zinc-600 font-bold">Chart will be available after listing</span>
+                        </div>
                     )}
-                    {timeLeft === "Round Ended" && (
-                         <span className="bg-zinc-800 text-zinc-400 text-[10px] font-bold px-2 py-1 rounded-full">Ended</span>
-                    )}
-                </div>
-
-                {/* Price Tag */}
-                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white text-xs font-mono font-bold px-3 py-1.5 rounded-lg border border-white/10 pointer-events-none">
-                    {buyPrice.toFixed(4)} MLD
                 </div>
             </div>
 
-            {/* Info Area (Clicking here opens Trade Modal) */}
-            <div className="p-5 flex-1 flex flex-col" onClick={onTrade}>
-                <div className="mb-4">
-                    <h3 className={`text-xl font-bold mb-1 line-clamp-1 transition ${isCurrent ? 'text-blue-500' : 'text-white group-hover:text-blue-400'}`}>{item.title}</h3>
-                    <p className="text-sm text-zinc-500">{item.artist?.username}</p>
+            {/* 🔮 2. Profit Simulator */}
+            <div className="bg-zinc-950 rounded-2xl p-5 mb-6 border border-zinc-800 shrink-0">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xs font-bold text-zinc-400 flex items-center gap-1">
+                        <TrendingUp size={12}/> PROFIT SIMULATOR (Total)
+                    </h3>
                 </div>
 
-                {/* Jackpot & Timer Box */}
-                <div className="mt-auto bg-zinc-950 rounded-xl p-3 border border-zinc-800 group-hover:border-zinc-700 transition space-y-3">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-500">
-                                <Trophy size={16}/>
+                {isListed ? (
+                    <div className="relative h-48 w-full pl-8 pb-10" onMouseLeave={() => setSimHoverData(null)}>
+                        {/* Y-Axis Label */}
+                        <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-zinc-600 font-mono pb-10">
+                            <span>{maxProfitVal.toFixed(1)}</span>
+                            <span>{(maxProfitVal/2).toFixed(1)}</span>
+                            <span>0.0</span>
+                        </div>
+
+                        {/* Chart Area */}
+                        <svg 
+                            viewBox="0 0 100 80" 
+                            className="w-full h-full overflow-visible cursor-crosshair" 
+                            preserveAspectRatio="none"
+                            onMouseMove={handleSimMouseMove}
+                        >
+                            <line x1="0" y1="0" x2="100" y2="0" stroke="#333" strokeWidth="0.5" strokeDasharray="2"/>
+                            <line x1="0" y1="40" x2="100" y2="40" stroke="#333" strokeWidth="0.5" strokeDasharray="2"/>
+                            <line x1="0" y1="80" x2="100" y2="80" stroke="#333" strokeWidth="0.5"/>
+
+                            {profitLines.map((lineData, idx) => (
+                                <path 
+                                    key={scenarios[idx]}
+                                    d={generateLinePath(lineData, maxProfitVal, 80)}
+                                    fill="none"
+                                    stroke={colors[idx]}
+                                    strokeWidth="2"
+                                    vectorEffect="non-scaling-stroke"
+                                />
+                            ))}
+
+                            {simHoverData && (
+                                <line 
+                                    x1={(simHoverData.x / 1000) * 100} 
+                                    y1="0" 
+                                    x2={(simHoverData.x / 1000) * 100} 
+                                    y2="80" 
+                                    stroke="white" 
+                                    strokeWidth="0.5" 
+                                    strokeDasharray="2" 
+                                />
+                            )}
+                        </svg>
+
+                        {/* ✅ Hover Tooltip Box (Updated with Jackpot) */}
+                        {simHoverData && (
+                             <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-zinc-800/95 border border-zinc-600 p-2.5 rounded-lg shadow-xl z-20 pointer-events-none min-w-[200px]">
+                                <p className="text-[10px] text-zinc-400 font-bold mb-1.5 border-b border-zinc-700 pb-1">
+                                    If +{simHoverData.x} sold later:
+                                </p>
+                                <div className="space-y-1">
+                                    {scenarios.map((amt, idx) => {
+                                        const profit = simHoverData.profits[idx];
+                                        const myCost = simHoverData.costs[idx];
+                                        const percent = myCost > 0 ? (profit / myCost) * 100 : 0;
+                                        const isProfitable = profit >= 0;
+
+                                        // ✅ Jackpot 계산: 미래 Total Supply 기준 누적 가치의 50%
+                                        const futureSupply = currentSupply + amt + simHoverData.x;
+                                        const totalReserve = calculateCurveValue(0, futureSupply);
+                                        const expectedJackpot = totalReserve * 0.5;
+
+                                        return (
+                                            <div key={amt} className="flex flex-col gap-0.5 mb-1.5 border-b border-zinc-700/50 pb-1.5 last:border-0 last:pb-0 last:mb-0">
+                                                <div className="flex justify-between items-center text-[10px]">
+                                                    <span style={{ color: colors[idx] }} className="font-bold whitespace-nowrap">{amt} Shares</span>
+                                                    <span className={`${isProfitable ? 'text-green-400' : 'text-zinc-400'} font-mono whitespace-nowrap`}>
+                                                        {isProfitable ? '+' : ''}{profit.toFixed(2)} MLD ({percent.toFixed(0)}%)
+                                                    </span>
+                                                </div>
+                                                {/* ✅ 잭팟(Last Investor) 표시 */}
+                                                <div className="flex justify-between items-center text-[9px]">
+                                                    <span className="text-yellow-500/80 font-bold flex items-center gap-1"><Trophy size={8}/> Jackpot</span>
+                                                    <span className="text-yellow-500 font-mono">{expectedJackpot.toFixed(2)} MLD</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-[10px] text-zinc-500 font-bold">JACKPOT POOL</p>
-                                <p className="text-sm font-black text-yellow-500">{jackpotBalance.toFixed(2)} MLD</p>
-                            </div>
+                        )}
+
+                        {/* X-Axis Labels */}
+                        <div className="absolute bottom-2 left-8 right-0 flex justify-between text-[9px] text-zinc-600 font-mono pt-2">
+                            <span>0</span>
+                            <span>+500 sold</span>
+                            <span>+1000 sold</span>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="absolute -bottom-8 left-0 right-0 flex justify-center gap-4">
+                            {scenarios.map((amt, idx) => (
+                                <div key={amt} className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 rounded-full" style={{ background: colors[idx] }} />
+                                    <span className="text-[10px] text-zinc-400 font-bold">{amt} Shares</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
-
-                    <div>
-                        <div className="flex justify-between text-[10px] mb-1">
-                            <span className={isEnding ? "text-red-500 font-bold animate-pulse" : "text-zinc-500"}>
-                                {isEnding ? "ENDING SOON!" : "TIME LEFT"}
-                            </span>
-                            <span className="font-mono text-white">{timeLeft}</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                            <div className={`h-full transition-all duration-1000 ${isEnding ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }} />
-                        </div>
+                ) : (
+                     <div className="h-40 flex flex-col items-center justify-center text-zinc-600 gap-2 border border-dashed border-zinc-800 rounded-xl">
+                        <Info size={20}/>
+                        <p className="text-xs text-center">Simulation unavailable<br/>(Asset not listed)</p>
                     </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between text-xs font-bold text-zinc-600 group-hover:text-white transition">
-                    <span>View Details</span>
-                    <ArrowUpRight size={16}/>
-                </div>
+                )}
             </div>
+
+            {/* Action Button */}
+            <button 
+                onClick={() => setIsTradeModalOpen(true)}
+                disabled={!isListed}
+                className={`w-full py-4 rounded-xl font-black text-lg shadow-lg transition-all flex items-center justify-center gap-2 mt-auto
+                    ${isListed 
+                        ? 'bg-white text-black hover:scale-[1.02] hover:bg-zinc-200' 
+                        : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}
+                `}
+            >
+                {isListed ? 'Trade Asset' : 'Wait for Listing'}
+            </button>
+
+            {isTradeModalOpen && (
+                <TradeModal
+                  isOpen={isTradeModalOpen}
+                  onClose={() => setIsTradeModalOpen(false)}
+                  track={{ ...track, token_id: track.token_id ?? null }}
+                />
+            )}
         </div>
     );
 }

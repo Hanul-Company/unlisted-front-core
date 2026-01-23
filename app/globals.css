@@ -8,12 +8,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  
+
   /* ✅ 수정: layout.tsx에서 만든 --font-noto 변수를 Tailwind의 font-sans에 연결 */
-  --font-sans: var(--font-noto); 
-  
+  --font-sans: var(--font-noto);
+
   /* 만약 Geist Mono를 안 쓴다면 지우거나 유지하셔도 됩니다 */
-  --font-mono: var(--font-geist-mono); 
+  --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,6 +34,7 @@ body {
 }
 
 @layer utilities {
+
   /* Chrome, Safari, Opera용 스크롤바 숨김 */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
@@ -41,7 +42,41 @@ body {
 
   /* IE, Edge, Firefox용 스크롤바 숨김 */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
+}
+
+/* Music Visualizer Animation */
+@keyframes music-bar {
+  0% {
+    height: 10%;
+  }
+
+  50% {
+    height: 100%;
+  }
+
+  100% {
+    height: 10%;
+  }
+}
+
+.animate-music-bar {
+  animation: music-bar 0.8s ease-in-out infinite;
+}
+
+/* 딜레이를 주어 파도타기 효과 */
+.animate-music-bar:nth-child(odd) {
+  animation-duration: 0.6s;
+}
+
+.animate-music-bar:nth-child(2n) {
+  animation-duration: 0.9s;
+}
+
+.animate-music-bar:nth-child(3n) {
+  animation-duration: 1.1s;
 }
