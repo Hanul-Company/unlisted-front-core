@@ -13,6 +13,8 @@ import { useActiveAccount } from "thirdweb/react";
 import * as mm from 'music-metadata-browser';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import InfoModal, { HelpToggle } from '../components/ui/InfoModal'; // 경로 확인
+import { UPLOAD_GUIDE_DATA } from '../components/ui/tutorialData'; // 경로 확인
 
 type Contributor = { address: string; share: string; role: string; };
 
@@ -82,6 +84,9 @@ function UploadContent() {
 
   // Computed Values
   const currentTotalShare = contributors.reduce((sum, c) => sum + Number(c.share || 0), 0);
+
+  // Tutorial Modal State
+  const [showGuide, setShowGuide] = useState(false); // 1. 상태 추가
 
   // --- Effects ---
   useEffect(() => {
@@ -369,229 +374,518 @@ function UploadContent() {
   const totalColorClass = currentTotalShare === 100 ? 'text-emerald-400' : currentTotalShare < 100 ? 'text-amber-400' : 'text-red-400';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-white px-4 py-8 sm:px-6 font-sans flex justify-center">
-      <div className="w-full max-w-2xl">
-        <div className="flex items-center gap-3 mb-8">
-          <Link href="/market" className="p-2 bg-zinc-900/80 rounded-full hover:bg-zinc-800 transition border border-zinc-700/70"><ArrowLeft size={18} /></Link>
-          <div>
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">Publish</h1>
-            <p className="text-xs text-zinc-500 mt-1">Upload your master track to the unlisted ecosystem.</p>
-          </div>
+  <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-white px-4 py-8 sm:px-6 font-sans flex justify-center">
+    <div className="w-full max-w-2xl">
+      {/* ✅ Header */}
+      <div className="flex items-center gap-3 mb-8">
+        <Link
+          href="/market"
+          className="p-2 bg-zinc-900/80 rounded-full hover:bg-zinc-800 transition border border-zinc-700/70"
+        >
+          <ArrowLeft size={18} />
+        </Link>
+
+        {/* ✅ title block grows, pushing HelpToggle to the far right */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
+            Publish
+          </h1>
+          <p className="text-xs text-zinc-500 mt-1 truncate">
+            Upload your master track to the unlisted ecosystem.
+          </p>
         </div>
 
-        <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl relative overflow-hidden">
-
-          {/* Loading Overlay */}
-          {isAutoFilling && (
-             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-                 <Loader2 className="animate-spin text-blue-500 mb-2" size={32}/>
-                 <p className="text-sm font-bold animate-pulse">Importing track from AI Studio...</p>
-             </div>
-          )}
-          
-          {/* File Upload Section */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            
-            {/* Image Upload Box (기존 유지) */}
-            <div onClick={() => imageInputRef.current?.click()} className="w-32 h-32 bg-zinc-900 rounded-xl border border-dashed border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500/80 hover:bg-zinc-900/80 overflow-hidden relative shrink-0">
-              <input type="file" ref={imageInputRef} onChange={handleImageChange} accept="image/*" className="hidden"/>
-              {croppedImageBlob ? <img src={URL.createObjectURL(croppedImageBlob)} className="w-full h-full object-cover"/> : <><ImageIcon size={24} className="text-zinc-500 mb-1"/><span className="text-[10px] text-zinc-500 text-center leading-tight">300x300<br/>Cover Art</span></>}
-            </div>
-            {/* Image Remove Button */}
-            {croppedImageBlob && <button onClick={(e) => { e.stopPropagation(); setCroppedImageBlob(null); setIsManualImage(false); if (imageInputRef.current) imageInputRef.current.value = ''; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"><X size={14}/></button>}
-            
-            {/* ✅ [수정 2] Audio Upload Box */}
-            <div 
-                onClick={() => fileInputRef.current?.click()} 
-                // ✨ 'relative' 클래스 추가 (자식 버튼 위치 기준점)
-                className={`relative flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${file ? 'border-blue-500/80 bg-blue-500/10' : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'}`}
-            >
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" className="hidden"/>
-              {file ? (
-                  <>
-                    <Music size={24} className="text-blue-400 mb-2"/>
-                    <p className="text-blue-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">{file.name}</p>
-                    
-                    {/* ✨ 오디오 삭제 버튼 추가 (박스 안쪽 우상단) */}
-                    <button 
-                        onClick={(e) => { 
-                            e.stopPropagation(); // 클릭 시 파일 탐색기 열림 방지
-                            setFile(null); 
-                            if(fileInputRef.current) fileInputRef.current.value = ''; 
-                        }} 
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"
-                    >
-                        <X size={14}/>
-                    </button>
-                  </>
-              ) : (
-                  <>
-                    <UploadCloud size={24} className="text-zinc-400 mb-2"/>
-                    <p className="text-zinc-300 font-medium text-xs sm:text-sm">Upload MP3 / WAV</p>
-                  </>
-              )}
-            </div>
-          </div>
-
-          {/* Creation Type */}
-          <div className="mb-2"><label className="text-xs text-zinc-500 uppercase font-bold">Who created the melody?</label></div>
-          <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4">
-            <button onClick={() => setCreationType('ai')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${creationType === 'ai' ? 'bg-zinc-900 border-cyan-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}><div className={`p-3 rounded-full ${creationType === 'ai' ? 'bg-cyan-500 text-white' : 'bg-zinc-900'}`}><Bot size={22}/></div><div className="font-bold text-sm">Gen AI</div></button>
-            <button onClick={() => setCreationType('human')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${creationType === 'human' ? 'bg-zinc-900 border-blue-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}><div className={`p-3 rounded-full ${creationType === 'human' ? 'bg-blue-500 text-black' : 'bg-zinc-900'}`}><User size={22}/></div><div className="font-bold text-sm">Human</div></button>
-          </div>
-
-          {/* Metadata Inputs */}
-          <div className="space-y-4">
-            <div><label className="text-xs text-zinc-500 uppercase font-bold">Title</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white text-sm focus:outline-none focus:border-cyan-500/80" placeholder="Track Title"/></div>
-            <div><label className="text-xs text-zinc-500 uppercase font-bold">Lyrics</label><textarea value={lyrics} onChange={(e) => setLyrics(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white h-24 resize-none text-sm focus:outline-none focus:border-cyan-500/80" placeholder="Paste full lyrics here (optional)."/></div>
-          </div>
-
-          {/* Dropdown Section */}
-          <div className="mt-8 space-y-6">
-            
-            {/* ✅ 수정 4: Genre Multi-Select UI 적용 */}
-            <div ref={genreInputRef} className="relative z-30">
-                <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
-                   <Disc size={12}/> Primary Genres (Max 3)
-                </label>
-                
-                {/* 선택된 장르 배지 표시 */}
-                <div className="flex flex-wrap gap-2 mb-1"> 
-                    {genres.map(g => (
-                        <span key={g} className="bg-indigo-900/30 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
-                            {g} <button onClick={() => setGenres(genres.filter(sg => sg !== g))} className="ml-1 hover:text-white"><X size={12}/></button>
-                        </span>
-                    ))}
-                </div>
-
-                <div className="relative">
-                    <input 
-                        type="text"
-                        value={genreSearch}
-                        onFocus={() => setIsGenreDropdownOpen(true)}
-                        onChange={(e) => { setGenreSearch(e.target.value); setIsGenreDropdownOpen(true); }}
-                        className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-500"
-                        placeholder="Search Genre..."
-                    />
-                    <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
-                </div>
-
-                {isGenreDropdownOpen && (
-                    <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
-                        {filteredGenres.length > 0 ? filteredGenres.map(g => (
-                            <button key={g} onClick={() => handleGenreSelect(g)} className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center group">
-                                {g} {genres.includes(g) && <CheckCircle size={14} className="text-cyan-500"/>}
-                            </button>
-                        )) : <div className="p-3 text-xs text-zinc-500 text-center">No matching genre</div>}
-                    </div>
-                )}
-            </div>
-
-            {/* Moods & Tags (기존과 동일) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div ref={moodInputRef} className="relative z-20">
-                    <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
-                        <Smile size={12}/> Moods (Max 3)
-                    </label>
-                    <div className="flex flex-wrap gap-2 mb-1"> 
-                        {selectedMoods.map(m => (
-                            <span key={m} className="bg-cyan-900/30 border border-cyan-500/30 text-cyan-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
-                                {m} <button onClick={() => setSelectedMoods(selectedMoods.filter(sm=>sm!==m))} className="ml-1 hover:text-white"><X size={12}/></button>
-                            </span>
-                        ))}
-                    </div>
-                    <div className="relative">
-                        <input 
-                            type="text"
-                            value={moodSearch}
-                            onFocus={() => setIsMoodDropdownOpen(true)}
-                            onChange={(e) => { setMoodSearch(e.target.value); setIsMoodDropdownOpen(true); }}
-                            className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
-                            placeholder="Search Mood..."
-                        />
-                        <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
-                    </div>
-                    {isMoodDropdownOpen && (
-                        <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
-                            {filteredMoods.length > 0 ? filteredMoods.map(m => (
-                                <button key={m} onClick={() => handleMoodSelect(m)} className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center">
-                                    {m} <Plus size={14} className="text-zinc-600"/>
-                                </button>
-                            )) : <div className="p-3 text-xs text-zinc-500 text-center">No matching mood</div>}
-                        </div>
-                    )}
-                </div>
-
-                <div ref={tagInputRef} className="relative z-10">
-                    <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
-                        <Hash size={12}/> Context Tags
-                    </label>
-                    <div className="flex flex-wrap gap-2 mb-1">
-                        {selectedTags.map(t => (
-                            <span key={t} className="bg-blue-900/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200">
-                                {t} <button onClick={() => setSelectedTags(selectedTags.filter(st=>st!==t))} className="ml-1 hover:text-white"><X size={12}/></button>
-                            </span>
-                        ))}
-                    </div>
-                    <div className="relative">
-                        <input 
-                            type="text"
-                            value={tagSearch}
-                            onFocus={() => setIsTagDropdownOpen(true)}
-                            onChange={(e) => { setTagSearch(e.target.value); setIsTagDropdownOpen(true); }}
-                            className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
-                            placeholder="Search Tags..."
-                        />
-                        <Search size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none"/>
-                    </div>
-                    {isTagDropdownOpen && (
-                        <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
-                             {filteredTags.length > 0 ? filteredTags.map(t => (
-                                <button key={t} onClick={() => handleTagAdd(t)} className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center">
-                                    #{t} <Plus size={14} className="text-zinc-600"/>
-                                </button>
-                            )) : <div className="p-3 text-xs text-zinc-500 text-center">No matching tags</div>}
-                        </div>
-                    )}
-                </div>
-            </div>
-          </div>
-          
-          <div className="mt-8 space-y-4 border-t border-zinc-800 pt-6">
-              <div className="flex items-center gap-2 mb-2"><Bot size={16} className="text-purple-400"/><span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">AI Reference (Optional)</span></div>
-              <p className="text-[11px] text-zinc-500 mb-4">Help our AI understand your track better.</p>
-              <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Ref Artist</label><input type="text" value={refArtist} onChange={(e) => setRefArtist(e.target.value)} placeholder="e.g. The Weeknd" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-purple-500/80"/></div>
-                  <div><label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Ref Track</label><input type="text" value={refTrack} onChange={(e) => setRefTrack(e.target.value)} placeholder="e.g. Blinding Lights" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-purple-500/80"/></div>
-              </div>
-          </div>
-
-          <div className="mt-8 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-bold text-white flex items-center gap-2"><TrendingUp size={16} className="text-blue-500"/> Investor Share</label>
-                  <span className={`text-xs font-black px-2 py-0.5 rounded border border-white/10 bg-black/50 ${tier.color}`}>{tier.label}</span>
-              </div>
-              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">Decide how much of the <strong>future revenue</strong> you want to share with investors.<br/>Higher share = Faster funding & Viral potential.</p>
-              <div className="relative h-10 flex items-center mb-6 px-2"><input type="range" min="10" max="50" step="5" value={investorShare} onChange={(e) => setInvestorShare(parseInt(e.target.value))} className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500 z-10 relative"/><div className="absolute top-6 left-0 right-0 flex justify-between text-[10px] text-zinc-600 font-mono px-1"><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span></div></div>
-              <div className="bg-black rounded-xl p-4 border border-zinc-800 flex items-center gap-6">
-                  <div className="w-16 h-16 relative"><svg viewBox="0 0 36 36" className="w-full h-full rotate-[-90deg]"><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#333" strokeWidth="4" /><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" strokeWidth="4" strokeDasharray={`${investorShare}, 100`} /></svg><div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{investorShare}%</div></div>
-                  <div className="flex-1 space-y-2"><div className="flex justify-between text-xs"><span className="text-zinc-500">For Investors</span><span className="text-blue-400 font-bold">{investorShare}% (Revenue)</span></div><div className="flex justify-between text-xs"><span className="text-zinc-500">For You & Team</span><span className="text-white font-bold">{100 - investorShare}% (Retained)</span></div><div className="h-px bg-zinc-800 my-1"/><p className="text-[10px] text-zinc-500 italic">"{tier.desc}"</p></div>
-              </div>
-          </div>
-
-          <div className="mt-8">
-            <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">Revenue Split</label>
-            <p className="text-[11px] text-zinc-500 mb-3">Your share starts at 100%. When you enter other contributors’ shares, your share decreases automatically. Total must remain 100% to publish.</p>
-            <div className="space-y-2">{contributors.map((c, idx) => (<div key={idx} className="flex items-center gap-2"><input type="text" value={idx === 0 ? (address || '') : c.address} onChange={(e) => updateContributor(idx, 'address', e.target.value)} className={`flex-1 border rounded-lg px-3 py-2 text-[11px] sm:text-xs focus:outline-none focus:border-cyan-500/80 ${idx === 0 ? 'bg-zinc-950 text-zinc-500 cursor-not-allowed border-zinc-800' : 'bg-zinc-900 text-white border-zinc-700'}`} disabled={idx === 0} placeholder="0x..."/><div className="flex items-center gap-1"><input type="number" value={c.share} onChange={(e) => updateContributor(idx, 'share', e.target.value)} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-[11px] sm:text-xs text-right focus:outline-none focus:border-cyan-500/80"/><span className="text-[10px] text-zinc-500">% </span></div>{contributors.length > 1 && idx !== 0 && (<button type="button" onClick={() => removeContributor(idx)} className="text-red-400 hover:text-red-300"><Trash2 size={16}/></button>)}</div>))}</div>
-            <div className="mt-2 flex items-center justify-between"><button type="button" onClick={addContributor} className="text-xs text-blue-400 flex items-center gap-1 hover:text-blue-300"><Plus size={14}/> Add contributor</button><div className={`text-[11px] font-mono ${totalColorClass}`}>Total: {currentTotalShare}%</div></div>
-          </div>
-          <button onClick={handleUpload} disabled={!file || !title || uploading} className="w-full mt-8 py-4 bg-white text-black rounded-xl font-bold hover:scale-[1.02] transition disabled:opacity-40 disabled:cursor-not-allowed">{uploading ? <span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={18}/> Publishing...</span> : 'Publish Track'}</button>
+        {/* ✅ push to right */}
+        <div className="ml-auto shrink-0">
+          <HelpToggle onClick={() => setShowGuide(true)} />
         </div>
       </div>
 
-      {showCropModal && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 w-full max-w-md p-6 rounded-2xl relative h-[500px] flex flex-col border border-zinc-700"><h3 className="text-lg font-bold mb-4">Adjust Cover Art</h3><div className="relative flex-1 bg-black rounded-lg overflow-hidden mb-4"><Cropper image={imageSrc!} crop={crop} zoom={zoom} aspect={1} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}/></div><div className="flex gap-4"><button onClick={() => setShowCropModal(false)} className="flex-1 py-3 bg-zinc-800 rounded-lg font-bold hover:bg-zinc-700">Cancel</button><button onClick={handleCropSave} className="flex-1 py-3 bg-white text-black rounded-lg font-bold hover:bg-zinc-200">Save Cover</button></div></div></div>}
+      <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl relative overflow-hidden">
+        {/* Loading Overlay */}
+        {isAutoFilling && (
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+            <Loader2 className="animate-spin text-blue-500 mb-2" size={32} />
+            <p className="text-sm font-bold animate-pulse">Importing track from AI Studio...</p>
+          </div>
+        )}
+
+        {/* File Upload Section */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          {/* Image Upload Box (기존 유지) */}
+          <div
+            onClick={() => imageInputRef.current?.click()}
+            className="w-32 h-32 bg-zinc-900 rounded-xl border border-dashed border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500/80 hover:bg-zinc-900/80 overflow-hidden relative shrink-0"
+          >
+            <input
+              type="file"
+              ref={imageInputRef}
+              onChange={handleImageChange}
+              accept="image/*"
+              className="hidden"
+            />
+            {croppedImageBlob ? (
+              <img src={URL.createObjectURL(croppedImageBlob)} className="w-full h-full object-cover" />
+            ) : (
+              <>
+                <ImageIcon size={24} className="text-zinc-500 mb-1" />
+                <span className="text-[10px] text-zinc-500 text-center leading-tight">
+                  300x300
+                  <br />
+                  Cover Art
+                </span>
+              </>
+            )}
+          </div>
+          {/* Image Remove Button */}
+          {croppedImageBlob && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCroppedImageBlob(null);
+                setIsManualImage(false);
+                if (imageInputRef.current) imageInputRef.current.value = '';
+              }}
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"
+            >
+              <X size={14} />
+            </button>
+          )}
+
+          {/* ✅ [수정 2] Audio Upload Box */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all min-h-[5.5rem] ${
+              file ? 'border-blue-500/80 bg-blue-500/10' : 'border-zinc-700 hover:border-cyan-500/80 hover:bg-zinc-900/60'
+            }`}
+          >
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" className="hidden" />
+            {file ? (
+              <>
+                <Music size={24} className="text-blue-400 mb-2" />
+                <p className="text-blue-300 font-semibold text-xs sm:text-sm truncate max-w-[220px]">{file.name}</p>
+
+                {/* ✨ 오디오 삭제 버튼 추가 (박스 안쪽 우상단) */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition z-10"
+                >
+                  <X size={14} />
+                </button>
+              </>
+            ) : (
+              <>
+                <UploadCloud size={24} className="text-zinc-400 mb-2" />
+                <p className="text-zinc-300 font-medium text-xs sm:text-sm">Upload MP3 / WAV</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Creation Type */}
+        <div className="mb-2">
+          <label className="text-xs text-zinc-500 uppercase font-bold">Who created the melody?</label>
+        </div>
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4">
+          <button
+            onClick={() => setCreationType('ai')}
+            className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${
+              creationType === 'ai'
+                ? 'bg-zinc-900 border-cyan-500 text-white'
+                : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+            }`}
+          >
+            <div className={`p-3 rounded-full ${creationType === 'ai' ? 'bg-cyan-500 text-white' : 'bg-zinc-900'}`}>
+              <Bot size={22} />
+            </div>
+            <div className="font-bold text-sm">Gen AI</div>
+          </button>
+          <button
+            onClick={() => setCreationType('human')}
+            className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 text-center ${
+              creationType === 'human'
+                ? 'bg-zinc-900 border-blue-500 text-white'
+                : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+            }`}
+          >
+            <div className={`p-3 rounded-full ${creationType === 'human' ? 'bg-blue-500 text-black' : 'bg-zinc-900'}`}>
+              <User size={22} />
+            </div>
+            <div className="font-bold text-sm">Human</div>
+          </button>
+        </div>
+
+        {/* Metadata Inputs */}
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-zinc-500 uppercase font-bold">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white text-sm focus:outline-none focus:border-cyan-500/80"
+              placeholder="Track Title"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-zinc-500 uppercase font-bold">Lyrics</label>
+            <textarea
+              value={lyrics}
+              onChange={(e) => setLyrics(e.target.value)}
+              className="w-full bg-black border border-zinc-700 rounded-lg p-3 mt-1 text-white h-24 resize-none text-sm focus:outline-none focus:border-cyan-500/80"
+              placeholder="Paste full lyrics here (optional)."
+            />
+          </div>
+        </div>
+
+        {/* Dropdown Section */}
+        <div className="mt-8 space-y-6">
+          {/* ✅ 수정 4: Genre Multi-Select UI 적용 */}
+          <div ref={genreInputRef} className="relative z-30">
+            <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
+              <Disc size={12} /> Primary Genres (Max 3)
+            </label>
+
+            {/* 선택된 장르 배지 표시 */}
+            <div className="flex flex-wrap gap-2 mb-1">
+              {genres.map((g) => (
+                <span
+                  key={g}
+                  className="bg-indigo-900/30 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200"
+                >
+                  {g}{' '}
+                  <button onClick={() => setGenres(genres.filter((sg) => sg !== g))} className="ml-1 hover:text-white">
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={genreSearch}
+                onFocus={() => setIsGenreDropdownOpen(true)}
+                onChange={(e) => {
+                  setGenreSearch(e.target.value);
+                  setIsGenreDropdownOpen(true);
+                }}
+                className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-500"
+                placeholder="Search Genre..."
+              />
+              <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none" />
+            </div>
+
+            {isGenreDropdownOpen && (
+              <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
+                {filteredGenres.length > 0 ? (
+                  filteredGenres.map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => handleGenreSelect(g)}
+                      className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center group"
+                    >
+                      {g} {genres.includes(g) && <CheckCircle size={14} className="text-cyan-500" />}
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-3 text-xs text-zinc-500 text-center">No matching genre</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Moods & Tags (기존과 동일) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div ref={moodInputRef} className="relative z-20">
+              <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
+                <Smile size={12} /> Moods (Max 3)
+              </label>
+              <div className="flex flex-wrap gap-2 mb-1">
+                {selectedMoods.map((m) => (
+                  <span
+                    key={m}
+                    className="bg-cyan-900/30 border border-cyan-500/30 text-cyan-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200"
+                  >
+                    {m}{' '}
+                    <button onClick={() => setSelectedMoods(selectedMoods.filter((sm) => sm !== m))} className="ml-1 hover:text-white">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={moodSearch}
+                  onFocus={() => setIsMoodDropdownOpen(true)}
+                  onChange={(e) => {
+                    setMoodSearch(e.target.value);
+                    setIsMoodDropdownOpen(true);
+                  }}
+                  className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
+                  placeholder="Search Mood..."
+                />
+                <ChevronDown size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none" />
+              </div>
+              {isMoodDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
+                  {filteredMoods.length > 0 ? (
+                    filteredMoods.map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => handleMoodSelect(m)}
+                        className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center"
+                      >
+                        {m} <Plus size={14} className="text-zinc-600" />
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-xs text-zinc-500 text-center">No matching mood</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div ref={tagInputRef} className="relative z-10">
+              <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-1">
+                <Hash size={12} /> Context Tags
+              </label>
+              <div className="flex flex-wrap gap-2 mb-1">
+                {selectedTags.map((t) => (
+                  <span
+                    key={t}
+                    className="bg-blue-900/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in zoom-in duration-200"
+                  >
+                    {t}{' '}
+                    <button onClick={() => setSelectedTags(selectedTags.filter((st) => st !== t))} className="ml-1 hover:text-white">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={tagSearch}
+                  onFocus={() => setIsTagDropdownOpen(true)}
+                  onChange={(e) => {
+                    setTagSearch(e.target.value);
+                    setIsTagDropdownOpen(true);
+                  }}
+                  className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
+                  placeholder="Search Tags..."
+                />
+                <Search size={16} className="absolute right-3 top-3.5 text-zinc-500 pointer-events-none" />
+              </div>
+              {isTagDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 z-50">
+                  {filteredTags.length > 0 ? (
+                    filteredTags.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => handleTagAdd(t)}
+                        className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-sm text-zinc-300 hover:text-white flex justify-between items-center"
+                      >
+                        #{t} <Plus size={14} className="text-zinc-600" />
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-xs text-zinc-500 text-center">No matching tags</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 space-y-4 border-t border-zinc-800 pt-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Bot size={16} className="text-purple-400" />
+            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">AI Reference (Optional)</span>
+          </div>
+          <p className="text-[11px] text-zinc-500 mb-4">Help our AI understand your track better.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Ref Artist</label>
+              <input
+                type="text"
+                value={refArtist}
+                onChange={(e) => setRefArtist(e.target.value)}
+                placeholder="e.g. The Weeknd"
+                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-purple-500/80"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Ref Track</label>
+              <input
+                type="text"
+                value={refTrack}
+                onChange={(e) => setRefTrack(e.target.value)}
+                placeholder="e.g. Blinding Lights"
+                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-purple-500/80"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-bold text-white flex items-center gap-2">
+              <TrendingUp size={16} className="text-blue-500" /> Investor Share
+            </label>
+            <span className={`text-xs font-black px-2 py-0.5 rounded border border-white/10 bg-black/50 ${tier.color}`}>{tier.label}</span>
+          </div>
+          <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+            Decide how much of the <strong>future revenue</strong> you want to share with investors.
+            <br />
+            Higher share = Faster funding & Viral potential.
+          </p>
+          <div className="relative h-10 flex items-center mb-6 px-2">
+            <input
+              type="range"
+              min="10"
+              max="50"
+              step="5"
+              value={investorShare}
+              onChange={(e) => setInvestorShare(parseInt(e.target.value))}
+              className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500 z-10 relative"
+            />
+            <div className="absolute top-6 left-0 right-0 flex justify-between text-[10px] text-zinc-600 font-mono px-1">
+              <span>10%</span>
+              <span>20%</span>
+              <span>30%</span>
+              <span>40%</span>
+              <span>50%</span>
+            </div>
+          </div>
+          <div className="bg-black rounded-xl p-4 border border-zinc-800 flex items-center gap-6">
+            <div className="w-16 h-16 relative">
+              <svg viewBox="0 0 36 36" className="w-full h-full rotate-[-90deg]">
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#333"
+                  strokeWidth="4"
+                />
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#22c55e"
+                  strokeWidth="4"
+                  strokeDasharray={`${investorShare}, 100`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{investorShare}%</div>
+            </div>
+            <div className="flex-1 space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">For Investors</span>
+                <span className="text-blue-400 font-bold">{investorShare}% (Revenue)</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">For You & Team</span>
+                <span className="text-white font-bold">{100 - investorShare}% (Retained)</span>
+              </div>
+              <div className="h-px bg-zinc-800 my-1" />
+              <p className="text-[10px] text-zinc-500 italic">"{tier.desc}"</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">Revenue Split</label>
+          <p className="text-[11px] text-zinc-500 mb-3">
+            Your share starts at 100%. When you enter other contributors’ shares, your share decreases automatically. Total must remain 100% to publish.
+          </p>
+          <div className="space-y-2">
+            {contributors.map((c, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={idx === 0 ? (address || '') : c.address}
+                  onChange={(e) => updateContributor(idx, 'address', e.target.value)}
+                  className={`flex-1 border rounded-lg px-3 py-2 text-[11px] sm:text-xs focus:outline-none focus:border-cyan-500/80 ${
+                    idx === 0 ? 'bg-zinc-950 text-zinc-500 cursor-not-allowed border-zinc-800' : 'bg-zinc-900 text-white border-zinc-700'
+                  }`}
+                  disabled={idx === 0}
+                  placeholder="0x..."
+                />
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={c.share}
+                    onChange={(e) => updateContributor(idx, 'share', e.target.value)}
+                    className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-[11px] sm:text-xs text-right focus:outline-none focus:border-cyan-500/80"
+                  />
+                  <span className="text-[10px] text-zinc-500">% </span>
+                </div>
+                {contributors.length > 1 && idx !== 0 && (
+                  <button type="button" onClick={() => removeContributor(idx)} className="text-red-400 hover:text-red-300">
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-between">
+            <button type="button" onClick={addContributor} className="text-xs text-blue-400 flex items-center gap-1 hover:text-blue-300">
+              <Plus size={14} /> Add contributor
+            </button>
+            <div className={`text-[11px] font-mono ${totalColorClass}`}>Total: {currentTotalShare}%</div>
+          </div>
+        </div>
+
+        <button
+          onClick={handleUpload}
+          disabled={!file || !title || uploading}
+          className="w-full mt-8 py-4 bg-white text-black rounded-xl font-bold hover:scale-[1.02] transition disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {uploading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="animate-spin" size={18} /> Publishing...
+            </span>
+          ) : (
+            'Publish Track'
+          )}
+        </button>
+      </div>
     </div>
-  );
+
+    {showCropModal && (
+      <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+        <div className="bg-zinc-900 w-full max-w-md p-6 rounded-2xl relative h-[500px] flex flex-col border border-zinc-700">
+          <h3 className="text-lg font-bold mb-4">Adjust Cover Art</h3>
+          <div className="relative flex-1 bg-black rounded-lg overflow-hidden mb-4">
+            <Cropper
+              image={imageSrc!}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
+            />
+          </div>
+          <div className="flex gap-4">
+            <button onClick={() => setShowCropModal(false)} className="flex-1 py-3 bg-zinc-800 rounded-lg font-bold hover:bg-zinc-700">
+              Cancel
+            </button>
+            <button onClick={handleCropSave} className="flex-1 py-3 bg-white text-black rounded-lg font-bold hover:bg-zinc-200">
+              Save Cover
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <InfoModal isOpen={showGuide} onClose={() => setShowGuide(false)} data={UPLOAD_GUIDE_DATA} initialLang="ko" />
+  </div>
+);
 }
 
 // ✅ [수정 3] Suspense로 감싼 새로운 Page 컴포넌트 export

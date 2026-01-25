@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Trophy, Loader2, TrendingUp, Sparkles, ArrowUpRight, Play, Pause, Wallet, Lock, Info, BarChart2 } from 'lucide-react';
+import { X, Trophy, Loader2, TrendingUp, Sparkles, ArrowUpRight, Play, Pause, Wallet, Lock, Info, BarChart2 } from 'lucide-react';
 import { Link } from "@/lib/i18n";
 import { formatEther } from 'viem';
 import TradeModal from '../components/TradeModal';
@@ -239,22 +239,41 @@ export default function InvestingPage() {
                 </>
             )}
           </div>
+        {/* Right: Detail Panel */}
+        <div className="lg:col-span-4"> {/* 트랙 역할을 할 Grid Cell */}
+            <div className={`
+                /* 📱 Mobile: Bottom Sheet Styles */
+                fixed inset-x-0 bottom-0 z-50 
+                w-full h-[85vh] 
+                rounded-t-3xl bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800
+                shadow-[0_-10px_40px_rgba(0,0,0,0.5)] 
+                transition-transform duration-300 ease-in-out
+                ${selectedTrack ? 'translate-y-0' : 'translate-y-[110%]'}
 
-          {/* Right: Detail Panel (Sticky) */}
-          <div className="lg:col-span-4 relative">
-             <div className="sticky top-44">
-                {selectedTrack ? (
-                    <DetailPanel 
-                        track={selectedTrack} 
-                        onClose={() => setSelectedTrack(null)}
-                    />
-                ) : (
-                    <div className="hidden lg:flex h-96 items-center justify-center border border-dashed border-zinc-800 rounded-3xl text-zinc-600 text-sm animate-pulse">
-                        Select an asset to analyze
-                    </div>
-                )}
-             </div>
-          </div>
+                /* 🖥️ Desktop: Sticky Styles (수정됨) */
+                lg:translate-y-0 lg:inset-auto lg:shadow-none lg:bg-transparent lg:border-none
+                lg:w-full lg:rounded-none
+                
+                /* ✨ 핵심 수정: Sticky 위치 잡기 + 높이 제한 */
+                lg:sticky lg:top-28        /* 헤더 아래 적당한 위치에 고정 */
+                lg:h-[calc(100vh-140px)]   /* 패널 높이를 화면 높이만큼만 차지하도록 제한 */
+                lg:block
+            `}>
+                {/* 내부 컨텐츠 영역: 패널 내용이 길면 패널 '안에서' 스크롤 되도록 설정 */}
+                <div className="h-full overflow-y-auto custom-scrollbar p-4 lg:p-0">
+                    {selectedTrack ? (
+                        <DetailPanel 
+                            track={selectedTrack} 
+                            onClose={() => setSelectedTrack(null)}
+                        />
+                    ) : (
+                        <div className="hidden lg:flex h-full items-center justify-center border border-dashed border-zinc-800 rounded-3xl text-zinc-600 text-sm animate-pulse">
+                            Select an asset to analyze
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
       </div>
 
       <InfoModal 
@@ -388,18 +407,6 @@ function InvestCard({ item, isSelected, onClick, onPlay, isPlaying, isCurrent }:
 // ----------------------------------------------------------------------
 // [Component] DetailPanel (Charts with Hover Tooltip)
 // ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
-// [Component] DetailPanel (Price Chart + Profit Simulator)
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
-// [Component] DetailPanel (Price Chart + Profit Simulator)
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
-// [Component] DetailPanel (Price Chart + Profit Simulator)
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
-// [Component] DetailPanel (Price Chart + Profit Simulator)
-// ----------------------------------------------------------------------
 function DetailPanel({ track, onClose }: any) {
     const tokenIdBigInt = track.token_id ? BigInt(track.token_id) : BigInt(0);
     
@@ -505,7 +512,13 @@ function DetailPanel({ track, onClose }: any) {
                     <h2 className="text-2xl font-black mb-1 line-clamp-1">{track.title}</h2>
                     <p className="text-zinc-400 font-medium">{track.artist?.username}</p>
                 </div>
-                <button onClick={onClose} className="lg:hidden p-2 bg-zinc-800 rounded-full hover:bg-zinc-700"><Lock size={16}/></button>
+                {/* 모바일용 닫기 버튼: Lock 아이콘 -> X 아이콘으로 변경 */}
+                <button 
+                    onClick={onClose} 
+                    className="lg:hidden p-2 bg-zinc-800 rounded-full hover:bg-zinc-700 text-zinc-400"
+                >
+                    <X size={20}/> 
+                </button>
             </div>
 
             {/* Price Display */}
@@ -589,96 +602,99 @@ function DetailPanel({ track, onClose }: any) {
                 </div>
 
                 {isListed ? (
-                    <div className="relative h-48 w-full pl-8 pb-10" onMouseLeave={() => setSimHoverData(null)}>
-                        {/* Y-Axis Label */}
-                        <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-zinc-600 font-mono pb-10">
-                            <span>{maxProfitVal.toFixed(1)}</span>
-                            <span>{(maxProfitVal/2).toFixed(1)}</span>
-                            <span>0.0</span>
-                        </div>
-
-                        {/* Chart Area */}
-                        <svg 
-                            viewBox="0 0 100 80" 
-                            className="w-full h-full overflow-visible cursor-crosshair" 
-                            preserveAspectRatio="none"
-                            onMouseMove={handleSimMouseMove}
-                        >
-                            <line x1="0" y1="0" x2="100" y2="0" stroke="#333" strokeWidth="0.5" strokeDasharray="2"/>
-                            <line x1="0" y1="40" x2="100" y2="40" stroke="#333" strokeWidth="0.5" strokeDasharray="2"/>
-                            <line x1="0" y1="80" x2="100" y2="80" stroke="#333" strokeWidth="0.5"/>
-
-                            {profitLines.map((lineData, idx) => (
-                                <path 
-                                    key={scenarios[idx]}
-                                    d={generateLinePath(lineData, maxProfitVal, 80)}
-                                    fill="none"
-                                    stroke={colors[idx]}
-                                    strokeWidth="2"
-                                    vectorEffect="non-scaling-stroke"
-                                />
-                            ))}
-
-                            {simHoverData && (
-                                <line 
-                                    x1={(simHoverData.x / 1000) * 100} 
-                                    y1="0" 
-                                    x2={(simHoverData.x / 1000) * 100} 
-                                    y2="80" 
-                                    stroke="white" 
-                                    strokeWidth="0.5" 
-                                    strokeDasharray="2" 
-                                />
-                            )}
-                        </svg>
-
-                        {/* ✅ Hover Tooltip Box (Updated with Jackpot) */}
-                        {simHoverData && (
-                             <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-zinc-800/95 border border-zinc-600 p-2.5 rounded-lg shadow-xl z-20 pointer-events-none min-w-[200px]">
-                                <p className="text-[10px] text-zinc-400 font-bold mb-1.5 border-b border-zinc-700 pb-1">
-                                    If +{simHoverData.x} sold later:
-                                </p>
-                                <div className="space-y-1">
-                                    {scenarios.map((amt, idx) => {
-                                        const profit = simHoverData.profits[idx];
-                                        const myCost = simHoverData.costs[idx];
-                                        const percent = myCost > 0 ? (profit / myCost) * 100 : 0;
-                                        const isProfitable = profit >= 0;
-
-                                        // ✅ Jackpot 계산: 미래 Total Supply 기준 누적 가치의 50%
-                                        const futureSupply = currentSupply + amt + simHoverData.x;
-                                        const totalReserve = calculateCurveValue(0, futureSupply);
-                                        const expectedJackpot = totalReserve * 0.5;
-
-                                        return (
-                                            <div key={amt} className="flex flex-col gap-0.5 mb-1.5 border-b border-zinc-700/50 pb-1.5 last:border-0 last:pb-0 last:mb-0">
-                                                <div className="flex justify-between items-center text-[10px]">
-                                                    <span style={{ color: colors[idx] }} className="font-bold whitespace-nowrap">{amt} Shares</span>
-                                                    <span className={`${isProfitable ? 'text-green-400' : 'text-zinc-400'} font-mono whitespace-nowrap`}>
-                                                        {isProfitable ? '+' : ''}{profit.toFixed(2)} MLD ({percent.toFixed(0)}%)
-                                                    </span>
-                                                </div>
-                                                {/* ✅ 잭팟(Last Investor) 표시 */}
-                                                <div className="flex justify-between items-center text-[9px]">
-                                                    <span className="text-yellow-500/80 font-bold flex items-center gap-1"><Trophy size={8}/> Jackpot</span>
-                                                    <span className="text-yellow-500 font-mono">{expectedJackpot.toFixed(2)} MLD</span>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                    <div className="w-full"> {/* 컨테이너 래퍼 추가 */}
+                        
+                        {/* 그래프 영역: 높이와 패딩 조정 */}
+                        <div className="relative h-48 w-full pl-8" onMouseLeave={() => setSimHoverData(null)}>
+                            {/* Y-Axis Label */}
+                            <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-zinc-600 font-mono">
+                                <span>{maxProfitVal.toFixed(1)}</span>
+                                <span>{(maxProfitVal/2).toFixed(1)}</span>
+                                <span>0.0</span>
                             </div>
-                        )}
 
-                        {/* X-Axis Labels */}
-                        <div className="absolute bottom-2 left-8 right-0 flex justify-between text-[9px] text-zinc-600 font-mono pt-2">
-                            <span>0</span>
-                            <span>+500 sold</span>
-                            <span>+1000 sold</span>
+                            {/* Chart SVG */}
+                            <svg 
+                                viewBox="0 0 100 80" 
+                                className="w-full h-full overflow-visible cursor-crosshair" 
+                                preserveAspectRatio="none"
+                                onMouseMove={handleSimMouseMove}
+                            >
+                                <line x1="0" y1="0" x2="100" y2="0" stroke="#333" strokeWidth="0.5" strokeDasharray="2"/>
+                                <line x1="0" y1="40" x2="100" y2="40" stroke="#333" strokeWidth="0.5" strokeDasharray="2"/>
+                                <line x1="0" y1="80" x2="100" y2="80" stroke="#333" strokeWidth="0.5"/>
+
+                                {profitLines.map((lineData, idx) => (
+                                    <path 
+                                        key={scenarios[idx]}
+                                        d={generateLinePath(lineData, maxProfitVal, 80)}
+                                        fill="none"
+                                        stroke={colors[idx]}
+                                        strokeWidth="2"
+                                        vectorEffect="non-scaling-stroke"
+                                    />
+                                ))}
+
+                                {simHoverData && (
+                                    <line 
+                                        x1={(simHoverData.x / 1000) * 100} 
+                                        y1="0" 
+                                        x2={(simHoverData.x / 1000) * 100} 
+                                        y2="80" 
+                                        stroke="white" 
+                                        strokeWidth="0.5" 
+                                        strokeDasharray="2" 
+                                    />
+                                )}
+                            </svg>
+
+                            {/* Hover Tooltip (기존 코드 유지) */}
+                            {simHoverData && (
+                                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-zinc-800/95 border border-zinc-600 p-2.5 rounded-lg shadow-xl z-20 pointer-events-none min-w-[200px]">
+                                    {/* ... 툴팁 내용 동일 ... */}
+                                    <p className="text-[10px] text-zinc-400 font-bold mb-1.5 border-b border-zinc-700 pb-1">
+                                        If +{simHoverData.x} sold later:
+                                    </p>
+                                    <div className="space-y-1">
+                                        {scenarios.map((amt, idx) => {
+                                            const profit = simHoverData.profits[idx];
+                                            const myCost = simHoverData.costs[idx];
+                                            const percent = myCost > 0 ? (profit / myCost) * 100 : 0;
+                                            const isProfitable = profit >= 0;
+
+                                            const futureSupply = currentSupply + amt + simHoverData.x;
+                                            const totalReserve = calculateCurveValue(0, futureSupply);
+                                            const expectedJackpot = totalReserve * 0.5;
+
+                                            return (
+                                                <div key={amt} className="flex flex-col gap-0.5 mb-1.5 border-b border-zinc-700/50 pb-1.5 last:border-0 last:pb-0 last:mb-0">
+                                                    <div className="flex justify-between items-center text-[10px]">
+                                                        <span style={{ color: colors[idx] }} className="font-bold whitespace-nowrap">{amt} Shares</span>
+                                                        <span className={`${isProfitable ? 'text-green-400' : 'text-zinc-400'} font-mono whitespace-nowrap`}>
+                                                            {isProfitable ? '+' : ''}{profit.toFixed(2)} MLD ({percent.toFixed(0)}%)
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-[9px]">
+                                                        <span className="text-yellow-500/80 font-bold flex items-center gap-1"><Trophy size={8}/> Jackpot</span>
+                                                        <span className="text-yellow-500 font-mono">{expectedJackpot.toFixed(2)} MLD</span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* X-Axis Labels */}
+                            <div className="absolute -bottom-5 left-8 right-0 flex justify-between text-[9px] text-zinc-600 font-mono">
+                                <span>0</span>
+                                <span>+500 sold</span>
+                                <span>+1000 sold</span>
+                            </div>
                         </div>
 
-                        {/* Legend */}
-                        <div className="absolute -bottom-8 left-0 right-0 flex justify-center gap-4">
+                        {/* ✅ Legend (수정됨): position absolute 제거하고 margin-top으로 분리 */}
+                        <div className="mt-8 flex justify-center gap-4 border-t border-zinc-900 pt-4">
                             {scenarios.map((amt, idx) => (
                                 <div key={amt} className="flex items-center gap-1.5">
                                     <div className="w-2 h-2 rounded-full" style={{ background: colors[idx] }} />
@@ -688,7 +704,7 @@ function DetailPanel({ track, onClose }: any) {
                         </div>
                     </div>
                 ) : (
-                     <div className="h-40 flex flex-col items-center justify-center text-zinc-600 gap-2 border border-dashed border-zinc-800 rounded-xl">
+                        <div className="h-40 flex flex-col items-center justify-center text-zinc-600 gap-2 border border-dashed border-zinc-800 rounded-xl">
                         <Info size={20}/>
                         <p className="text-xs text-center">Simulation unavailable<br/>(Asset not listed)</p>
                     </div>

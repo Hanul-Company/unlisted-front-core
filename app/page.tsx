@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from "@/lib/i18n";
 import { Play, Radio, Download, ArrowRight, Wand2, Headphones, Sparkles, UserPlus, Disc } from 'lucide-react';
 import { usePWA } from './context/PWAContext';
@@ -9,10 +9,10 @@ import HeaderProfile from './components/HeaderProfile';
 import toast from 'react-hot-toast';
 import { useActiveAccount } from "thirdweb/react";
 import { supabase } from '@/utils/supabase';
-import { useRouter } from "@/lib/i18n"; // Use centralized router
-import { useState, useEffect } from 'react';
+import { useRouter } from "@/lib/i18n";
+import Orb from './bg'; // 👈 Orb 컴포넌트 경로에 맞게 수정하세요
 
-// Animations (하단 버튼은 애니메이션 제외)
+// Animations
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -39,13 +39,10 @@ export default function LandingPage() {
   }, []);
 
   const handleArtistClick = () => {
-    // 1. If logged in (wallet connected or email login), go to Market
     if (account?.address || user) {
         router.push('/market');
         return;
     }
-
-    // 2. Otherwise, trigger connect modal
     const headerBtn = document.querySelector('#header-connect-wrapper button') as HTMLElement;
     if (headerBtn) {
         headerBtn.click();
@@ -55,18 +52,23 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-cyan-500/30 overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-black text-white selection:bg-cyan-500/30 overflow-hidden flex flex-col relative">
       
-      {/* Background Gradients */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-          <div className="absolute top-[-20%] left-[20%] w-[60%] h-[60%] rounded-full bg-blue-900/20 blur-[150px] animate-pulse-slow"/>
-          <div className="absolute bottom-[-20%] right-[20%] w-[60%] h-[60%] rounded-full bg-indigo-900/10 blur-[150px] animate-pulse-slow delay-1000"/>
-      </div>
+    {/* ✅ [Background] React Bits - Orb로 교체 */}
+    {/* 기존: <div className="fixed inset-0 z-0 pointer-events-none w-full h-full"> */}
+    <div className="fixed inset-0 z-0 w-full h-full"> 
+       <Orb
+          hoverIntensity={0.5} 
+          rotateOnHover={true}
+          hue={0}
+          forceHoverState={false}
+          backgroundColor="transparent" 
+       />
+    </div>
 
       {/* Header */}
       <header className="fixed top-0 w-full z-50 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2">
-            {/* ✅ 로고 배경/그림자 제거 */}
             <img src="/icon-192.png" alt="logo" className="h-6 w-6 object-contain"/>
             <span className="text-xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500">unlisted</span>
         </div>
@@ -98,7 +100,6 @@ export default function LandingPage() {
                     <Sparkles size={12} className="text-cyan-400"/> The music never existed
                 </motion.div>
                 
-                {/* ✅ 기본 폰트(Layout), 얇은 두께(font-light) 적용 */}
                 <motion.h1 variants={fadeInUp} className="text-5xl md:text-8xl font-light tracking-tight leading-[0.9] text-white">
                     For the music <br/>
                     <span className="font-normal text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500">unlisted.</span>
@@ -110,9 +111,8 @@ export default function LandingPage() {
                 </motion.p>
             </div>
 
-            {/* ✅ 2. 버튼 높이 축소 (500px -> 340px) */}
+            {/* Buttons Area */}
             <motion.div variants={fadeInUp} className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 h-auto md:h-[340px]">
-                
                 {/* [Left] Listener Button */}
                 <Link href="/radio" className="w-full h-full group relative block">
                     <div className="relative min-h-[240px] h-full bg-gradient-to-br from-cyan-900/20 to-blue-900/10 rounded-[2rem] border border-white/10 group-hover:border-cyan-500/50 transition-all duration-500 overflow-hidden">
@@ -166,21 +166,16 @@ export default function LandingPage() {
                 </button>
             </motion.div>
 
-            {/* ✅ 3. 하단 버튼 (애니메이션 제거하여 노출 보장) */}
+            {/* Bottom Button */}
             <div className="pt-4 pb-10 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-1000">
                  <span className="text-zinc-500 text-xs md:text-sm font-medium tracking-wider opacity-80">
                     Let me just
                  </span>
 
                  <Link href="/market">
-                    {/* 그라디언트 테두리 래퍼 */}
                     <button className="relative group rounded-full p-[1px] overflow-hidden transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-cyan-500/20">
-                        {/* 1. 배경 (그라디언트) */}
                         <span className="absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-500 to-indigo-500"></span>
-                        
-                        {/* 2. 내부 (검정 -> 호버시 투명) */}
                         <div className="relative px-10 py-4 bg-black rounded-full group-hover:bg-transparent transition-colors duration-300 flex items-center gap-3">
-                            {/* 텍스트: 기본 밝은 시안색 -> 호버시 흰색 */}
                             <span className="font-bold text-sm md:text-base tracking-wide text-cyan-400 group-hover:text-white transition-colors">
                                 Explore unlisted first
                             </span>

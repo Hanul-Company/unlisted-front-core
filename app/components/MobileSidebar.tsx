@@ -5,7 +5,7 @@ import { Link } from "@/lib/i18n";
 import { useRouter } from 'next/navigation';
 import { useActiveAccount } from "thirdweb/react";
 import toast from 'react-hot-toast';
-import { Wand2, Radius, Book, Disc, PlayCircle, Download, X, UploadCloud, TrendingUp, Coins, Zap, Radio } from 'lucide-react';
+import { Hammer, Wand2, Radius, Book, Disc, PlayCircle, Download, X, UploadCloud, TrendingUp, Coins, Zap, Radio } from 'lucide-react';
 import { usePWA } from '../context/PWAContext';
 
 interface MobileSidebarProps {
@@ -116,6 +116,11 @@ export default function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
             <div>
                 <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-3 px-2">Rewards</h3>
                 <div className="space-y-1">
+                    {/* 🔒 MiningPool */}
+                    <div onClick={() => handleRestricted('/factory')} className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
+                        <Hammer size={18}/> 
+                        <span className="text-sm font-medium">Mining Pool</span>
+                    </div>
                     {/* 🔒 Earnings */}
                     <div onClick={() => handleRestricted('/studio')} className="flex gap-3 p-3 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white cursor-pointer transition">
                         <Coins size={18}/> 

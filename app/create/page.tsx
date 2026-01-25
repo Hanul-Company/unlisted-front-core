@@ -9,6 +9,8 @@ import MobilePlayer from '../components/MobilePlayer';
 import { Link } from "../../lib/i18n";
 import { useAudioCheck } from '@/hooks/useAudioCheck';
 import { fixBucketCors } from '@/app/actions/fix-bucket-cors';
+import InfoModal, { HelpToggle } from '../components/ui/InfoModal'; // 경로 확인
+import { CREATE_GUIDE_DATA } from '../components/ui/tutorialData'; // 경로 확인
 
 import {
   Loader2, Mic2, Disc, UploadCloud, Play, Pause, Trash2,
@@ -208,6 +210,7 @@ export default function CreateDashboard() {
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [isLyricsExpanded, setIsLyricsExpanded] = useState(false);
   const [isUnlimited, setIsUnlimited] = useState(false); // 👈 이거 추가
+  const [showGuide, setShowGuide] = useState(false); // 1. 상태 추가
 
   const formatTime = (sec: number) => {
     if (!sec || Number.isNaN(sec)) return "0:00";
@@ -616,6 +619,7 @@ export default function CreateDashboard() {
           </Link>
         </div>
         <div className="flex items-center gap-4">
+          <HelpToggle onClick={() => setShowGuide(true)} className="mr-2" />
           <button
             onClick={() => setIsKorean(!isKorean)}
             className="flex items-center gap-1 text-xs font-bold text-zinc-500 hover:text-white transition bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800"
@@ -1132,6 +1136,13 @@ export default function CreateDashboard() {
           </div>
         </div>
       )}
+      {/* 3. 모달 컴포넌트 추가 (페이지 최하단) */}
+      <InfoModal 
+          isOpen={showGuide} 
+          onClose={() => setShowGuide(false)} 
+          data={CREATE_GUIDE_DATA} // 위에서 만든 데이터 연결
+          initialLang="ko" 
+      />
     </div>
   );
 }

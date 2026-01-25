@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef} from 'react';
 import { 
-  Plus, Brain, Sparkles, X, PlayCircle, Book, Wand2, AlertTriangle, Radio, Play, TrendingUp, Loader2, UploadCloud, 
+  Hammer, Plus, Brain, Sparkles, X, PlayCircle, Book, Wand2, AlertTriangle, Radio, Play, TrendingUp, Loader2, UploadCloud, 
   Music as MusicIcon, Trash2, Coins, User, Disc, Zap, ArrowRight, Search, Menu, ListMusic, Heart 
 } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
@@ -488,9 +488,12 @@ export default function MarketPage() {
             </div>
             <div> 
                 <h3 className="text-[10px] text-zinc-500 font-bold uppercase mb-2">Rewards</h3> 
+                <div onClick={() => handleRestricted('/factory')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
+                    <Hammer size={18}/> <span className="text-sm font-medium">Mining Pool</span>
+                </div> 
                 <div onClick={() => handleRestricted('/studio')} className="flex gap-3 p-2 hover:bg-zinc-800 rounded text-zinc-300 cursor-pointer transition">
                     <Coins size={18}/> <span className="text-sm font-medium">Earnings</span>
-                </div> 
+                </div>
             </div>
             <div className="pt-6 mt-auto border-t border-zinc-800"> 
                 <button onClick={() => handleRestricted('/upload')} className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white transition group">

@@ -385,7 +385,7 @@ export default function StudioPage() {
       const tracks = { pmld: 0, mld: 0, count: 0 };
       const playlists = { pmld: 0, mld: 0, count: 0 };
       const invest = { mld: 0, count: 0 };
-      const ads = { pmld: 0, mld: 0, count: 0 }; // New Category
+      const mining = { pmld: 0, mld: 0, count: 0 }; // ✅ New: Mining Pool 집계용
 
       // 12개월 차트용 초기 데이터 생성
       const monthlyStats: {[key: string]: any} = {};
@@ -424,11 +424,12 @@ export default function StudioPage() {
               invest.count++;
               if (monthlyStats[monthKey]) monthlyStats[monthKey].invest += amount;
           }
-          // New: Ads / Offerwall / Login Bonus
-          else if (['ad_revenue', 'offerwall', 'daily_checkin', 'watch_to_earn', 'engagement'].includes(rawType)) {
-              if (isMLD) ads.mld += amount; else ads.pmld += amount;
-              ads.count++;
-              if (monthlyStats[monthKey]) monthlyStats[monthKey].ads += amount;
+// ✅ [수정됨] Mining Pool / Factory Reward 집계
+          // 'mld_factory_reward', 'mining_pool_reward', 'ad_revenue' 등을 여기서 잡음
+          else if (['mining_pool_reward', 'mld_factory_reward', 'ad_revenue', 'offerwall', 'daily_checkin'].includes(rawType)) {
+              if (isMLD) mining.mld += amount; else mining.pmld += amount;
+              mining.count++;
+              if (monthlyStats[monthKey]) monthlyStats[monthKey].mining += amount; // 차트 데이터 이름도 변경 (ads -> mining)
           }
 
           // 차트 총합 업데이트
@@ -438,7 +439,7 @@ export default function StudioPage() {
       setTrackRevenue(tracks);
       setPlaylistRevenue(playlists);
       setInvestRevenue(invest);
-      setAdRevenue(ads);
+      setAdRevenue(mining);
       setChartData(Object.values(monthlyStats)); // 객체를 배열로 변환
 
       // --- 2. 최근 로그 ---
@@ -454,8 +455,9 @@ export default function StudioPage() {
             displayType = 'Curator Reward'; icon = ListMusic; color = 'text-purple-400 bg-purple-500/10';
         } else if (type.includes('royalty') || type.includes('invest')) {
             displayType = 'Investment'; icon = BarChart3; color = 'text-emerald-400 bg-emerald-500/10';
-        } else if (type.includes('ad') || type.includes('offer') || type.includes('checkin')) {
-            displayType = 'Engagement'; icon = Smartphone; color = 'text-yellow-400 bg-yellow-500/10';
+        } // ✅ [수정됨] Mining Pool 로그 인식
+        else if (type.includes('mining') || type.includes('factory') || type.includes('ad')) {
+            displayType = 'Mining Pool'; icon = Zap; color = 'text-yellow-400 bg-yellow-500/10';
         }
 
         return {
@@ -599,13 +601,12 @@ export default function StudioPage() {
                             icon={TrendingUp}
                             colorClass="bg-emerald-500"
                         />
-                         {/* Ads/Offerwall */}
-                         <RevenueStreamRow 
-                            title="Engagement & Ads" 
+                        <RevenueStreamRow 
+                            title="Mining Pool"  // ✅ 이름 변경
                             pmldAmount={adRevenue.pmld}
                             mldAmount={adRevenue.mld}
                             count={adRevenue.count}
-                            icon={Smartphone}
+                            icon={Zap}           // ✅ 아이콘 변경 (Smartphone -> Zap)
                             colorClass="bg-yellow-500"
                         />
                     </div>
