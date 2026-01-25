@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Hammer, Search, Image as ImageIcon, Sparkles, Database, 
-  CheckCircle2, Loader2, Plus, X, Zap, History, LayoutGrid, Music, ArrowLeft, ListChecks, PlayCircle 
+  CheckCircle2, Loader2, Plus, X, Zap, History, LayoutGrid, Music, ArrowLeft, ListChecks, PlayCircle, Camera 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -48,9 +48,9 @@ export default function MLDFactoryPage() {
   const [balance, setBalance] = useState({ pmld: 0, mld: '0' });
   const [history, setHistory] = useState<SubmissionHistory[]>([]);
 
-  // Queue & Working State (핵심 변경 부분)
-  const [miningQueue, setMiningQueue] = useState<TrackInfo[]>([]); // 대기열
-  const [workingTrack, setWorkingTrack] = useState<TrackInfo | null>(null); // 현재 작업 중인 곡
+  // Queue & Working State
+  const [miningQueue, setMiningQueue] = useState<TrackInfo[]>([]); 
+  const [workingTrack, setWorkingTrack] = useState<TrackInfo | null>(null);
 
   // Form State
   const [loading, setLoading] = useState(false);
@@ -113,12 +113,9 @@ export default function MLDFactoryPage() {
   // --- Queue Logic ---
   const addToQueue = (track: TrackInfo) => {
       if (miningQueue.length >= 10) return toast.error("Queue is full (Max 10). Please mine existing tracks first.");
-      
-      // 중복 체크
       const isExist = miningQueue.some(t => t.title === track.title && t.artist === track.artist);
       if (isExist) return toast.error("Already in queue.");
-
-      setMiningQueue(prev => [track, ...prev]); // 최신순 추가
+      setMiningQueue(prev => [track, ...prev]); 
       toast.success("Added to Mining Queue!");
   };
 
@@ -126,7 +123,7 @@ export default function MLDFactoryPage() {
       setMiningQueue(prev => prev.filter((_, i) => i !== index));
   };
 
-  // --- Search Handler ---
+  // --- Handlers ---
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -143,13 +140,10 @@ export default function MLDFactoryPage() {
     finally { setLoading(false); }
   };
 
-  // --- Image Scan Handler ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    const previewUrl = URL.createObjectURL(file);
-    setPreviewImage(previewUrl);
+    setPreviewImage(URL.createObjectURL(file));
     setAnalyzing(true);
 
     const formData = new FormData();
@@ -160,20 +154,14 @@ export default function MLDFactoryPage() {
         const foundTracks = result.data.map((t: any) => ({
             title: t.title,
             artist: t.artist,
-            coverUrl: previewUrl 
+            coverUrl: previewImage! 
         }));
-
-        // 큐에 추가 (10개 제한)
         setMiningQueue(prev => {
-            const combined = [...foundTracks, ...prev]; // 새 결과 우선
+            const combined = [...foundTracks, ...prev]; 
             const unique = combined.filter((v, i, a) => a.findIndex(t => t.title === v.title && t.artist === v.artist) === i);
-            if (unique.length > 10) {
-                toast("Queue limited to 10 items.");
-                return unique.slice(0, 10);
-            }
+            if (unique.length > 10) { toast("Queue limited to 10 items."); return unique.slice(0, 10); }
             return unique;
         });
-        
         toast.success(`Scanned ${foundTracks.length} tracks!`);
     } else {
         toast.error("Could not extract info. Try manual search.");
@@ -181,7 +169,6 @@ export default function MLDFactoryPage() {
     setAnalyzing(false);
   };
 
-  // --- Submit Handler (Mining) ---
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     if (loading) return; 
@@ -196,7 +183,6 @@ export default function MLDFactoryPage() {
     const REWARD = 10;
     
     try {
-        // 1. Insert Detailed Record
         const { error: submitErr } = await supabase.from('training_submissions').insert({
             user_address: address,
             track_title: workingTrack.title,
@@ -209,8 +195,8 @@ export default function MLDFactoryPage() {
         
         if (submitErr) throw submitErr;
 
-        // 2. Call RPC
-        const { error: rpcError } = await supabase.rpc('reward_engage', {
+        // ✅ Updated RPC Name: reward_engagement
+        const { error: rpcError } = await supabase.rpc('reward_engagement', {
             p_wallet_address: address,
             p_amount: REWARD,
             p_activity_type: 'mining_pool_reward'
@@ -218,7 +204,6 @@ export default function MLDFactoryPage() {
 
         if (rpcError) throw rpcError;
 
-        // 3. UI Updates
         setBalance(prev => ({ ...prev, pmld: prev.pmld + REWARD }));
         await fetchHistory();
         
@@ -232,18 +217,10 @@ export default function MLDFactoryPage() {
             </div>
         ));
 
-        // 4. Queue Cleaning
-        // 현재 작업 완료된 곡을 큐에서 제거하고 작업창을 닫습니다.
         setMiningQueue(prev => prev.filter(t => t.title !== workingTrack.title));
         setWorkingTrack(null);
-
-        // Reset Inputs
-        setSelectedGenres([]);
-        setSelectedMoods([]);
-        setSelectedTags([]);
-        setGenreSearch('');
-        setMoodSearch('');
-        setTagSearch('');
+        setSelectedGenres([]); setSelectedMoods([]); setSelectedTags([]);
+        setGenreSearch(''); setMoodSearch(''); setTagSearch('');
 
     } catch (error: any) {
         console.error("Submit Error:", error);
@@ -253,7 +230,7 @@ export default function MLDFactoryPage() {
     }
   };
 
-  // --- Filtering & Sorting ---
+  // Logic
   const filteredGenres = useMemo(() => {
       let list = MUSIC_GENRES;
       if (genreSearch) list = list.filter(g => g.toLowerCase().includes(genreSearch.toLowerCase()));
@@ -299,7 +276,7 @@ export default function MLDFactoryPage() {
                     </h1>
                     <div className="h-4 w-px bg-zinc-800 hidden md:block" />
                     <span className="hidden md:block text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                        Provide data for AI and get free MLD.
+                        1 Song from Real World, to 1 Song to AI World.
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
@@ -321,7 +298,7 @@ export default function MLDFactoryPage() {
 
         <main className="max-w-[1600px] mx-auto px-4 md:px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            {/* Left Sidebar (Nav & Balance) */}
+            {/* Left Sidebar */}
             <div className="lg:col-span-3 space-y-6">
                 <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
                     <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 px-2">Mining Zones</h3>
@@ -344,19 +321,34 @@ export default function MLDFactoryPage() {
             <div className="lg:col-span-6 space-y-6">
                 {activeTab === 'share_taste' && (
                     <>
-                        {/* --- 1. Collection Mode (Visible if NOT working on a track) --- */}
+                        {/* --- 1. Collection Mode --- */}
                         {!workingTrack && (
                             <div className="space-y-6 animate-in fade-in">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 relative overflow-hidden">
                                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600"/>
-                                    <div className="flex justify-between items-start mb-6">
+                                    
+                                    {/* ✅ [수정] 모바일에서 레이아웃 깨짐 방지 (flex-col on mobile) */}
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                                         <div>
                                             <h2 className="text-lg font-bold text-white">Share Your Taste</h2>
                                             <p className="text-xs mt-1 font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">1 Song from Real World, 1 Song to AI World.</p>
                                         </div>
-                                        <div className="flex bg-black rounded-lg p-1 border border-zinc-800">
-                                            <button onClick={() => { setInputMode('search'); setSearchResults([]); }} className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${inputMode === 'search' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>Search</button>
-                                            <button onClick={() => { setInputMode('scan'); }} className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${inputMode === 'scan' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>Scan Img</button>
+                                        {/* ✅ [수정] 버튼 텍스트 -> 아이콘으로 변경 */}
+                                        <div className="flex bg-black rounded-lg p-1 border border-zinc-800 self-end md:self-auto">
+                                            <button 
+                                                onClick={() => { setInputMode('search'); setSearchResults([]); }} 
+                                                className={`p-2 rounded-md transition ${inputMode === 'search' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                                title="Search"
+                                            >
+                                                <Search size={18}/>
+                                            </button>
+                                            <button 
+                                                onClick={() => { setInputMode('scan'); }} 
+                                                className={`p-2 rounded-md transition ${inputMode === 'scan' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                                title="Scan Image"
+                                            >
+                                                <Camera size={18}/>
+                                            </button>
                                         </div>
                                     </div>
 
@@ -377,10 +369,7 @@ export default function MLDFactoryPage() {
                                                             <div className="text-sm font-bold text-white truncate">{track.title}</div>
                                                             <div className="text-xs text-zinc-500 truncate">{track.artist}</div>
                                                         </div>
-                                                        <button 
-                                                            onClick={() => addToQueue(track)}
-                                                            className="p-1.5 bg-zinc-800 rounded-lg text-zinc-400 hover:text-cyan-400 hover:bg-zinc-700 transition"
-                                                        >
+                                                        <button onClick={() => addToQueue(track)} className="p-1.5 bg-zinc-800 rounded-lg text-zinc-400 hover:text-cyan-400 hover:bg-zinc-700 transition">
                                                             <Plus size={16}/>
                                                         </button>
                                                     </div>
@@ -424,16 +413,10 @@ export default function MLDFactoryPage() {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-2 flex-shrink-0">
-                                                        <button 
-                                                            onClick={() => setWorkingTrack(track)} 
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition"
-                                                        >
+                                                        <button onClick={() => setWorkingTrack(track)} className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition">
                                                             <PlayCircle size={14}/> Mine
                                                         </button>
-                                                        <button 
-                                                            onClick={() => removeFromQueue(idx)}
-                                                            className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-red-400"
-                                                        >
+                                                        <button onClick={() => removeFromQueue(idx)} className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-red-400">
                                                             <X size={14}/>
                                                         </button>
                                                     </div>
@@ -448,13 +431,7 @@ export default function MLDFactoryPage() {
                         {/* --- 2. Working Mode (Tagging Form) --- */}
                         <AnimatePresence>
                             {workingTrack && (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: 20 }} 
-                                    animate={{ opacity: 1, y: 0 }} 
-                                    exit={{ opacity: 0, y: 20 }}
-                                    className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 relative"
-                                >
-                                    {/* Header */}
+                                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 relative">
                                     <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-800">
                                         <div className="flex items-center gap-4">
                                             <img src={workingTrack.coverUrl} className="w-14 h-14 rounded-xl shadow-lg object-cover"/>
@@ -463,12 +440,9 @@ export default function MLDFactoryPage() {
                                                 <p className="text-sm text-cyan-400">{workingTrack.artist}</p>
                                             </div>
                                         </div>
-                                        <button onClick={() => setWorkingTrack(null)} className="px-4 py-2 bg-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-white transition">
-                                            Cancel
-                                        </button>
+                                        <button onClick={() => setWorkingTrack(null)} className="px-4 py-2 bg-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-white transition">Cancel</button>
                                     </div>
                                     
-                                    {/* Form Content */}
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Genre */}
@@ -478,6 +452,16 @@ export default function MLDFactoryPage() {
                                                     <Search size={14} className="absolute left-3 top-2.5 text-zinc-500"/>
                                                     <input type="text" value={genreSearch} onChange={(e) => setGenreSearch(e.target.value)} placeholder="Search..." className="w-full bg-zinc-900 border border-zinc-700 rounded-lg pl-9 pr-3 py-2 text-xs focus:border-cyan-500 outline-none"/>
                                                 </div>
+                                                {/* ✅ [추가] 선택된 장르 표시 영역 */}
+                                                {selectedGenres.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-zinc-800">
+                                                        {selectedGenres.map(g => (
+                                                            <button key={g} onClick={() => toggleSelection(selectedGenres, setSelectedGenres, g)} className="px-2 py-1 rounded-md bg-blue-600/20 border border-blue-500/50 text-blue-400 text-[10px] font-bold flex items-center gap-1 hover:bg-blue-600/30">
+                                                                {g} <X size={10}/>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                                                     {filteredGenres.map(g => (
                                                         <button key={g} onClick={() => toggleSelection(selectedGenres, setSelectedGenres, g)} className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${selectedGenres.includes(g) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}>
@@ -493,6 +477,16 @@ export default function MLDFactoryPage() {
                                                     <Search size={14} className="absolute left-3 top-2.5 text-zinc-500"/>
                                                     <input type="text" value={moodSearch} onChange={(e) => setMoodSearch(e.target.value)} placeholder="Search..." className="w-full bg-zinc-900 border border-zinc-700 rounded-lg pl-9 pr-3 py-2 text-xs focus:border-cyan-500 outline-none"/>
                                                 </div>
+                                                {/* ✅ [추가] 선택된 무드 표시 영역 */}
+                                                {selectedMoods.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-zinc-800">
+                                                        {selectedMoods.map(m => (
+                                                            <button key={m} onClick={() => toggleSelection(selectedMoods, setSelectedMoods, m)} className="px-2 py-1 rounded-md bg-purple-600/20 border border-purple-500/50 text-purple-400 text-[10px] font-bold flex items-center gap-1 hover:bg-purple-600/30">
+                                                                {m} <X size={10}/>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                                                     {filteredMoods.map(m => (
                                                         <button key={m} onClick={() => toggleSelection(selectedMoods, setSelectedMoods, m)} className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${selectedMoods.includes(m) ? 'bg-purple-600 border-purple-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}>
@@ -513,6 +507,16 @@ export default function MLDFactoryPage() {
                                                 <Search size={14} className="absolute left-3 top-3 text-zinc-500"/>
                                                 <input type="text" value={tagSearch} onChange={(e) => setTagSearch(e.target.value)} placeholder="Search tags..." className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:border-cyan-500 outline-none"/>
                                             </div>
+                                            {/* ✅ [추가] 선택된 태그 표시 영역 */}
+                                            {selectedTags.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 mb-4 pb-3 border-b border-zinc-800">
+                                                    {selectedTags.map(t => (
+                                                        <button key={t} onClick={() => toggleTag(t)} className="px-2 py-1 rounded-md bg-cyan-600/20 border border-cyan-500/50 text-cyan-400 text-[10px] font-bold flex items-center gap-1 hover:bg-cyan-600/30">
+                                                            #{t} <X size={10}/>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                             <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1">
                                                 {filteredTags.map(t => (
                                                     <button key={t} onClick={() => toggleTag(t)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedTags.includes(t) ? 'bg-cyan-900/30 border-cyan-500 text-cyan-300' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}>
