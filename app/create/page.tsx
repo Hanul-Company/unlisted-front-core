@@ -612,8 +612,6 @@ export default function CreateDashboard() {
       {/* Header */}
       <header className="flex justify-between items-center px-6 py-3 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800">
         <div className="flex items-center gap-3">
-          <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white"><Menu /></button>
-
           <Link href="/market" className="text-zinc-500 hover:text-white text-sm font-bold transition inline-flex items-center">
             ← Back
           </Link>
@@ -622,9 +620,9 @@ export default function CreateDashboard() {
           <HelpToggle onClick={() => setShowGuide(true)} className="mr-2" />
           <button
             onClick={() => setIsKorean(!isKorean)}
-            className="flex items-center gap-1 text-xs font-bold text-zinc-500 hover:text-white transition bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800"
+            className="flex items-center gap-1 text-[10px] md:text-xs font-bold text-zinc-500 hover:text-white transition bg-zinc-900 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full border border-zinc-800"
           >
-            <Globe size={14} /> {isKorean ? "KOR" : "ENG"}
+            {isKorean ? "KR" : "EN"}
           </button>
           <HeaderProfile />
         </div>

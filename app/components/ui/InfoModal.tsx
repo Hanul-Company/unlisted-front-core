@@ -174,8 +174,8 @@ export default function InfoModal({ isOpen, onClose, data, initialLang = 'ko' }:
 
 // HelpToggle도 필요하다면 같이 export
 export const HelpToggle = ({ onClick, className="" }: { onClick: () => void, className?: string }) => (
-    <button onClick={onClick} className={`group flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800/50 border border-zinc-700 hover:bg-zinc-700/80 hover:border-zinc-500 transition-all cursor-pointer backdrop-blur-md ${className}`}>
+    <button onClick={onClick} className={`group flex items-center justify-center gap-0 md:gap-2 p-1.5 md:px-3 md:py-1.5 rounded-full bg-zinc-800/50 border border-zinc-700 hover:bg-zinc-700/80 hover:border-zinc-500 transition-all cursor-pointer backdrop-blur-md ${className}`}>
         <div className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors"><HelpCircle size={12} strokeWidth={2.5} /></div>
-        <span className="text-[11px] font-bold text-zinc-400 group-hover:text-white transition-colors">Guide</span>
+        <span className="hidden md:block text-[11px] font-bold text-zinc-400 group-hover:text-white transition-colors">Guide</span>
     </button>
 );

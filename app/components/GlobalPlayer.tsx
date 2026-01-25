@@ -11,7 +11,7 @@ import { parseEther } from 'viem';
 import toast from 'react-hot-toast';
 import { Link } from "@/lib/i18n";
 import { 
-  ChevronUp, Disc, Heart, Pause, Play, Repeat, Repeat1, Shuffle, 
+  ChevronUp, ChevronDown, Disc, Heart, Pause, Play, Repeat, Repeat1, Shuffle, 
   SkipBack, SkipForward, Volume2, VolumeX, Zap, Minimize2, Maximize2, X 
 } from 'lucide-react';
 
@@ -34,15 +34,17 @@ export default function GlobalPlayer() {
   const { mutate: sendTransaction } = useSendTransaction();
 
   // UI States
-  const [mobilePlayerOpen, setMobilePlayerOpen] = useState(false);
+  const [mobilePlayerOpen, setMobilePlayerOpen] = useState(false); // 풀 플레이어 열림 여부
   const [showRentalModal, setShowRentalModal] = useState(false);
   const [trackToInvest, setTrackToInvest] = useState<Track | null>(null);
+  
+  // ✅ [상태 분리] 최소화 모드 (모바일: 동그라미 / PC: 우측 하단 플로팅 바)
   const [isMinimized, setIsMinimized] = useState(false);
 
   // Data States
   const [rentedTracksMap, setRentedTracksMap] = useState<Map<number, string>>(new Map());
 
-  // 1. 유저 렌탈 정보 동기화
+  // ... (기존 데이터 페칭 및 헬퍼 로직 동일) ...
   const fetchUserData = async () => {
       if (!address) { setRentedTracksMap(new Map()); return; }
       
@@ -66,7 +68,6 @@ export default function GlobalPlayer() {
 
   useEffect(() => { fetchUserData(); }, [address, currentTrack]);
 
-  // 2. 미디어 세션 연결
   useMediaSession({
     title: currentTrack?.title || "Unlisted",
     artist: currentTrack?.artist?.username || "Artist",
@@ -80,38 +81,29 @@ export default function GlobalPlayer() {
     seekTo: (time) => { if (audioRef.current) audioRef.current.currentTime = time; }
   });
 
-  // 3. Helper Logic
   const isRented = rentedTracksMap.has(currentTrack?.id || 0);
   const isOwner = address && currentTrack?.uploader_address && (address.toLowerCase() === currentTrack.uploader_address.toLowerCase());
   const expiryDate = currentTrack ? rentedTracksMap.get(currentTrack.id) : null;
 
-  // ✅ [계산] 제한 여부 및 제한 비율 계산 (60초)
   const isRestricted = !isOwner && !isRented;
-  const PREVIEW_LIMIT = 60; // 60초
-  const limitPercent = (duration && duration > PREVIEW_LIMIT && isRestricted) 
-    ? (PREVIEW_LIMIT / duration) * 100 
-    : 100;
+  const PREVIEW_LIMIT = 60; 
+  const limitPercent = (duration && duration > PREVIEW_LIMIT && isRestricted) ? (PREVIEW_LIMIT / duration) * 100 : 100;
 
-  // ✅ [수정] 1분 미리듣기 제한 로직 (자동 정지)
   useEffect(() => {
     if (!currentTrack || !isPlaying) return;
     if (!isRestricted) return; 
 
-    // 60초 넘으면 정지 및 모달
     if (currentTime >= PREVIEW_LIMIT) {
         if(isPlaying) togglePlay(); 
-        if (audioRef.current) audioRef.current.currentTime = 0; // 0초로 되감기
-        
+        if (audioRef.current) audioRef.current.currentTime = 0; 
         toast('Preview ended. Collect to listen full track!', { icon: '🔒' });
         setShowRentalModal(true);
     }
   }, [currentTime, isPlaying, isRestricted, currentTrack]);
 
-  // Handlers
   const handleOpenExtend = () => setShowRentalModal(true);
   
   const handleExtendConfirm = async (months: number, price: number) => {
-    // ... (기존과 동일)
     if (!currentTrack || !address) return;
     const toastId = toast.loading("Processing...");
     try {
@@ -134,20 +126,14 @@ export default function GlobalPlayer() {
 
   const handleInvest = () => setTrackToInvest(currentTrack);
 
-  // ✅ [공통] Seek 핸들러 (1분 제한 적용)
+  // Common Seek Logic
   const handleSeekCommon = (percent: number) => {
       if (!duration) return;
       let targetTime = percent * duration;
-
-      // 제한된 상태에서 60초 넘게 찍으면 60초로 강제 이동
-      if (isRestricted && targetTime > PREVIEW_LIMIT) {
-          targetTime = PREVIEW_LIMIT;
-          toast('Free preview is limited to 1 minute.', { icon: '🔒' });
-      }
+      if (isRestricted && targetTime > PREVIEW_LIMIT) { targetTime = PREVIEW_LIMIT; toast('Free preview is limited to 1 minute.', { icon: '🔒' }); }
       seek(targetTime);
   };
 
-  // 모바일/데스크탑 클릭 이벤트 래퍼
   const handleDesktopSeek = (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
       const percent = (e.clientX - rect.left) / rect.width;
@@ -170,11 +156,14 @@ export default function GlobalPlayer() {
 
   if (!currentTrack) return null;
 
-  // Minimized UI
-  if (isMinimized) {
-    return (
-      <>
-        <div className="fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-5 zoom-in duration-300">
+  return (
+    <>
+      {/* =======================================================
+          1. Desktop UI (Footer & Floating)
+         ======================================================= */}
+      {/* 1-A. Desktop Minimized (Floating) */}
+      {isMinimized && (
+        <div className="hidden md:flex fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-5 zoom-in duration-300">
            <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-md border border-zinc-700 rounded-full p-1.5 pr-4 shadow-2xl hover:scale-105 transition-all group">
               <div onClick={() => setIsMinimized(false)} className="w-10 h-10 rounded-full overflow-hidden border border-zinc-600 cursor-pointer relative">
                  <img src={currentTrack.cover_image_url || "/images/default_cover.jpg"} className={`w-full h-full object-cover ${isPlaying ? 'animate-spin-slow' : ''}`}/>
@@ -190,21 +179,12 @@ export default function GlobalPlayer() {
               <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-blue-400 transition">
                   {isPlaying ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}
               </button>
-              <button onClick={(e) => { e.stopPropagation(); setIsMinimized(false); setMobilePlayerOpen(true); }} className="ml-2 text-zinc-500 hover:text-white md:hidden">
-                  <ChevronUp size={16}/>
-              </button>
            </div>
         </div>
-        {showRentalModal && <RentalModal isOpen={showRentalModal} onClose={() => setShowRentalModal(false)} onConfirm={handleExtendConfirm} isExtension={isRented} currentExpiryDate={expiryDate} targetTitle={currentTrack.title} />}
-        {trackToInvest && <TradeModal isOpen={!!trackToInvest} onClose={() => setTrackToInvest(null)} track={{ ...trackToInvest, token_id: trackToInvest.token_id ?? null }} />}
-      </>
-    );
-  }
+      )}
 
-  return (
-    <>
-      {/* 1. Desktop Footer Player */}
-      {!mobilePlayerOpen && (
+      {/* 1-B. Desktop Full Footer (PC Only) */}
+      {!mobilePlayerOpen && !isMinimized && (
       <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-xl items-center justify-between px-6 z-[9999] shadow-2xl transition-transform duration-300">
           {/* Left */}
           <div className="flex items-center gap-4 w-1/3">
@@ -229,7 +209,6 @@ export default function GlobalPlayer() {
           {/* Center */}
           <div className="flex flex-col items-center gap-2 w-1/3">
               <div className="flex items-center gap-6">
-                  {/* 색상 변경: hover:text-white -> hover:text-blue-400 (Optional) / text-blue-500 -> text-blue-500 */}
                   <button onClick={toggleShuffle} className={`text-zinc-400 hover:text-white transition ${isShuffle ? 'text-blue-500' : ''}`}><Shuffle size={16}/></button>
                   <button onClick={prev} className="text-zinc-400 hover:text-white transition"><SkipBack size={20}/></button>
                   <button onClick={togglePlay} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition shadow-lg shadow-white/10">
@@ -240,33 +219,17 @@ export default function GlobalPlayer() {
                       {repeatMode === 'one' ? <Repeat1 size={16}/> : <Repeat size={16}/>}
                   </button>
               </div>
-
-              {/* ✅ [Desktop Progress Bar] */}
               <div className="w-full max-w-sm flex items-center gap-3">
                   <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{formatTime(currentTime)}</span>
-                  
-                  <div 
-                    className="flex-1 h-1 bg-zinc-900 rounded-full overflow-hidden relative cursor-pointer group" 
-                    onClick={handleDesktopSeek}
-                  >
-                      {/* 1. Playable Zone Highlight (미리듣기 제한 시) */}
+                  <div className="flex-1 h-1 bg-zinc-900 rounded-full overflow-hidden relative cursor-pointer group" onClick={handleDesktopSeek}>
                       {isRestricted && duration && duration > PREVIEW_LIMIT && (
                         <>
-                            {/* 허용된 구간 (밝은 회색) */}
                             <div className="absolute top-0 left-0 h-full bg-zinc-700" style={{ width: `${limitPercent}%` }} />
-                            {/* 제한선 마커 (흰색) */}
                             <div className="absolute top-0 bottom-0 w-0.5 bg-white z-10" style={{ left: `${limitPercent}%` }} />
                         </>
                       )}
-
-                      {/* 2. Actual Progress (Blue) */}
-                      {/* ✅ bg-blue-500 변경 */}
-                      <div 
-                        className="h-full bg-blue-500 rounded-full relative z-20 group-hover:bg-blue-400 transition-colors" 
-                        style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} 
-                      />
+                      <div className="h-full bg-blue-500 rounded-full relative z-20 group-hover:bg-blue-400 transition-colors" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
                   </div>
-                  
                   <span className="text-[10px] text-zinc-500 font-mono w-8">{formatTime(duration)}</span>
               </div>
           </div>
@@ -290,39 +253,58 @@ export default function GlobalPlayer() {
       </div>
       )}
 
-      {/* =======================
-          2. Mobile Mini Player (Fixed Bottom)
-         ======================= */}
-      {!mobilePlayerOpen && (
+      {/* =======================================================
+          2. Mobile UI (Footer vs Mini vs Full)
+         ======================================================= */}
+      
+      {/* 2-A. Mobile Mini Player (Floating Circle) */}
+      {/* 조건: 모바일 + Full 닫힘 + Minimized 상태 */}
+      {!mobilePlayerOpen && isMinimized && (
+          <div 
+            className="md:hidden fixed bottom-24 right-4 z-[90] animate-in zoom-in slide-in-from-bottom-4 duration-300"
+            // 동그라미 클릭 시 풀 플레이어로 확장 (state 리셋)
+            onClick={() => { setMobilePlayerOpen(true); setIsMinimized(false); }}
+          >
+             <div className={`
+                relative w-14 h-14 rounded-full overflow-hidden 
+                border-2 border-zinc-800 shadow-2xl shadow-black/50 bg-black 
+                ${isPlaying ? 'animate-spin-slow' : ''}
+                active:scale-95 transition-transform cursor-pointer
+             `}>
+                 {/* 앨범 아트만 표시 (No Text, No Buttons) */}
+                 {currentTrack.cover_image_url ? (
+                    <img src={currentTrack.cover_image_url} className="w-full h-full object-cover" alt="Mini Player"/>
+                 ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                        <Disc className="text-zinc-600" size={24} />
+                    </div>
+                 )}
+                 {isPlaying && ( <div className="absolute inset-0 rounded-full border-2 border-blue-500/50 pointer-events-none" /> )}
+             </div>
+          </div>
+      )}
+
+      {/* 2-B. Mobile Footer Player (Standard Bar) */}
+      {/* 조건: 모바일 + Full 닫힘 + Minimized 아님 */}
+      {!mobilePlayerOpen && !isMinimized && (
           <div 
             className="md:hidden fixed bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center justify-between shadow-2xl z-[90]" 
+            // 바 자체 클릭 시 풀 플레이어 오픈
             onClick={() => setMobilePlayerOpen(true)}
           >
-             {/* ✅ [Mobile Top Progress Bar] */}
-             <div 
-                className="absolute top-[-2px] left-0 right-0 h-1 bg-zinc-900 cursor-pointer group"
-                onClick={handleMobileSeek}
-             >
-                 {/* 터치 영역 확장 */}
+             {/* Progress Bar (Top) */}
+             <div className="absolute top-[-2px] left-0 right-0 h-1 bg-zinc-900 cursor-pointer group" onClick={handleMobileSeek}>
                  <div className="absolute -top-2 bottom-0 left-0 right-0 bg-transparent" />
-                 
-                 {/* 1. Playable Zone Highlight (모바일) */}
                  {isRestricted && duration && duration > PREVIEW_LIMIT && (
                     <>
                         <div className="absolute top-0 left-0 h-full bg-zinc-700" style={{ width: `${limitPercent}%` }} />
                         <div className="absolute top-0 bottom-0 w-0.5 bg-white z-10" style={{ left: `${limitPercent}%` }} />
                     </>
                  )}
-
-                 {/* 2. Actual Progress (Blue) */}
-                 {/* ✅ bg-blue-500 변경 */}
-                 <div 
-                    className="h-full bg-blue-500 relative transition-all duration-100 ease-linear z-20" 
-                    style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                 >
-                 </div>
+                 <div className="h-full bg-blue-500 relative transition-all duration-100 ease-linear z-20" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}></div>
              </div>
 
+             {/* Info */}
              <div className="flex items-center gap-3 overflow-hidden">
                  <div className="w-10 h-10 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 relative">
                      {currentTrack.cover_image_url ? <img src={currentTrack.cover_image_url} className="w-full h-full object-cover"/> : <Disc className="text-zinc-500 m-auto"/>}
@@ -333,19 +315,23 @@ export default function GlobalPlayer() {
                  </div>
              </div>
              
-             {/* Mobile Controls */}
+             {/* Controls (Play & Minimize) */}
              <div className="flex items-center gap-3">
                  <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white text-black">
                      {isPlaying ? <Pause size={16} fill="black"/> : <Play size={16} fill="black" className="ml-0.5"/>}
                  </button>
-                 <button onClick={(e) => { e.stopPropagation(); setIsMinimized(true); }} className="p-2 text-zinc-500 hover:text-white">
-                    <Minimize2 size={20}/>
+                 {/* 🔻 [NEW] 최소화 버튼 (동그라미 모드로 전환) */}
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); setIsMinimized(true); }} 
+                    className="p-2 text-zinc-500 hover:text-white"
+                 >
+                    <ChevronDown size={20}/>
                  </button>
              </div>
           </div>
       )}
 
-      {/* 3. Mobile Full Modal */}
+      {/* 2-C. Mobile Full Player (Modal) */}
       {mobilePlayerOpen && (
           <MobilePlayer 
               track={currentTrack}

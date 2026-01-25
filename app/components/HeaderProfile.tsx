@@ -193,15 +193,15 @@ export default function HeaderProfile() {
 
   return (
     <div className="relative">
-      <button onClick={() => setShowMenu(!showMenu)} className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 pr-4 pl-2 py-1.5 rounded-full hover:border-zinc-600 transition">
+      <button onClick={() => setShowMenu(!showMenu)} className="flex items-center gap-0 md:gap-3 bg-zinc-900 border border-zinc-800 p-1.5 md:pr-4 md:pl-2 rounded-full hover:border-zinc-600 transition">
         <div className="w-8 h-8 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs border-2 border-zinc-900 overflow-hidden">
           {profile?.avatar_url ? ( <img src={profile.avatar_url} className="w-full h-full object-cover"/> ) : ( (profile?.username || user?.email || account?.address)?.slice(0,2).toUpperCase() )}
         </div>
-        <div className="text-left hidden sm:block">
+        <div className="text-left hidden md:block">
           <div className="text-xs font-bold text-white leading-none mb-0.5">{profile?.username || "Investor"}</div>
           <div className="text-[10px] text-zinc-500 font-mono leading-none">pMLD: {profile?.p_mld_balance ?? 0}</div>
         </div>
-        <ChevronDown size={14} className="text-zinc-500"/>
+        <ChevronDown size={14} className="text-zinc-500 hidden md:block"/>
       </button>
 
       {showMenu && (
@@ -231,8 +231,8 @@ export default function HeaderProfile() {
           
           <div className="bg-zinc-950 rounded-xl p-3 mt-2 mb-2 border border-zinc-800">
             <div className="flex items-center justify-between text-xs text-zinc-500 font-bold uppercase mb-2">
-              <span className="flex items-center gap-1"><Wallet size={12}/> Connection</span>
-              {account && <button onClick={() => { if(wallet) disconnect(wallet); window.location.reload(); }} className="text-[10px] text-red-400 hover:text-red-300 underline">Disconnect</button>}
+              <span className="flex items-center gap-1"><Wallet size={12}/> Wallet Info</span>
+              {/* {account && <button onClick={() => { if(wallet) disconnect(wallet); window.location.reload(); }} className="text-[10px] text-red-400 hover:text-red-300 underline">Disconnect</button>} */}
             </div>
             
             {account ? (
@@ -241,10 +241,10 @@ export default function HeaderProfile() {
                   <ShieldCheck size={14}/> 
                   <span className="truncate flex-1 font-mono">{account.address.slice(0,6)}...{account.address.slice(-4)}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                {/* <div className="grid grid-cols-2 gap-2 mt-2">
                   <button onClick={handleMintTokens} disabled={isPending} className="flex items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-purple-300 text-[10px] font-bold py-2 rounded-lg border border-zinc-700 transition"> {isPending ? <Loader2 size={12} className="animate-spin"/> : <><Coins size={12}/> Get MLD</>} </button>
                   <button onClick={handleApprove} disabled={isPending} className="flex items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-blue-300 text-[10px] font-bold py-2 rounded-lg border border-zinc-700 transition"> {isPending ? <Loader2 size={12} className="animate-spin"/> : <><CheckCircle size={12}/> Initiate</>} </button>
-                </div>
+                </div> */}
                 {profile && !profile.wallet_address && ( <button onClick={handleLinkWallet} className="mt-2 w-full text-xs bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-1 transition"><LinkIcon size={12}/> Link Account</button> )}
               </div>
             ) : (
