@@ -840,15 +840,23 @@ function UploadContent() {
           </div>
         </div>
 
-        <button
+<button
           onClick={handleUpload}
-          disabled={!file || !title || uploading}
-          className="w-full mt-8 py-4 bg-white text-black rounded-xl font-bold hover:scale-[1.02] transition disabled:opacity-40 disabled:cursor-not-allowed"
+          // ✅ [수정] !address 조건을 추가하여 지갑 연결 안 됐을 때 클릭 방지
+          disabled={!file || !title || uploading || !address}
+          className={`w-full mt-8 py-4 rounded-xl font-bold transition flex items-center justify-center gap-2
+            ${(!file || !title || uploading || !address) 
+              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50' 
+              : 'bg-white text-black hover:scale-[1.02]'}
+          `}
         >
           {uploading ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="animate-spin" size={18} /> Publishing...
             </span>
+          ) : !address ? (
+            // ✅ [추가] 지갑 연결 안 됐을 때 문구 변경 (선택사항)
+            'Connect Wallet First'
           ) : (
             'Publish Track'
           )}
