@@ -138,6 +138,7 @@ function ProfileContent() {
                   setRentedTracksExpiry(expiryMap);
               }
           }
+          // likes 테이블 조회 (기존 로직 유지 - 본인 UI 표시용)
           const { data: likes } = await supabase.from('likes').select('track_id').eq('wallet_address', myAddress);
           if (likes) setLikedTrackIds(new Set(likes.map((l:any) => l.track_id)));
       };
@@ -166,8 +167,33 @@ function ProfileContent() {
             const res = await supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)').eq('uploader_address', targetWallet).order('created_at', { ascending: false });
             setTracks(res.data || []);
         } else if (tab === 'likes') {
-            const res = await supabase.from('likes').select('tracks(*)').eq('wallet_address', targetWallet);
-            setTracks(res.data?.map((d:any) => d.tracks) || []);
+            // ✅ [수정됨] likes 테이블 대신 collections 테이블 조회
+            if (profile?.id) {
+                // 1. collections 테이블에서 profile_id로 검색하고 tracks 테이블 조인
+                const { data: collections } = await supabase
+                    .from('collections')
+                    .select('tracks(*, artist:profiles(username,wallet_address,avatar_url))') // tracks 정보와 아티스트 정보까지 가져옴
+                    .eq('profile_id', profile.id)
+                    .order('created_at', { ascending: false }); // 최신 수집 순
+
+                // 2. 데이터 구조 평탄화 (collections -> tracks 추출)
+                const collectedTracks = collections?.map((c: any) => c.tracks) || [];
+                setTracks(collectedTracks);
+            } else {
+                 // 프로필 로딩이 덜 됐거나 없는 경우 (안전장치)
+                 // 만약 profile state가 아직 없다면 DB에서 한번 더 조회
+                 const { data: userProfile } = await supabase.from('profiles').select('id').eq('wallet_address', targetWallet).single();
+                 if (userProfile) {
+                     const { data: collections } = await supabase
+                        .from('collections')
+                        .select('tracks(*, artist:profiles(username,wallet_address,avatar_url))')
+                        .eq('profile_id', userProfile.id)
+                        .order('created_at', { ascending: false });
+                     setTracks(collections?.map((c:any) => c.tracks) || []);
+                 } else {
+                     setTracks([]);
+                 }
+            }
         } else if (tab === 'playlists') {
             if (profile?.id) {
                 const { data } = await supabase.from('playlists').select(`id, name, created_at, is_public, fork_count, playlist_items (tracks (cover_image_url))`).eq('profile_id', profile.id).order('created_at', { ascending: false });
@@ -240,6 +266,7 @@ function ProfileContent() {
           }
 
           if (playlistId !== 'liked') await supabase.from('playlist_items').insert({ playlist_id: parseInt(playlistId), track_id: pendingRentalTrack.id });
+          // likes 테이블 업데이트 (기존 로직 유지 - 호환성)
           await supabase.from('likes').upsert({ wallet_address: myAddress, track_id: pendingRentalTrack.id }, { onConflict: 'wallet_address, track_id' });
 
           setRentedTrackIds(prev => new Set(prev).add(pendingRentalTrack.id));
@@ -334,7 +361,7 @@ function ProfileContent() {
           {/* Tabs */}
           <div className="flex gap-8 border-b border-zinc-800 mb-8 sticky top-0 bg-black/95 backdrop-blur z-20 pt-4">
             <button onClick={() => fetchTabContent('tracks')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='tracks' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Uploaded Tracks</button>
-            <button onClick={() => fetchTabContent('likes')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='likes' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Liked Collection</button>
+            <button onClick={() => fetchTabContent('likes')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='likes' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Collected Tracks</button>
             <button onClick={() => fetchTabContent('playlists')} className={`pb-4 text-sm font-bold border-b-2 transition ${activeTab==='playlists' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>Playlists</button>
           </div>
 
@@ -381,6 +408,7 @@ function ProfileContent() {
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
                     {tracks.length === 0 ? ( <div className="col-span-full py-20 text-center border-2 border-dashed border-zinc-900 rounded-3xl"><p className="text-zinc-500 font-bold">No tracks found.</p></div> ) : (
                         tracks.map(track => {
+                            if (!track) return null; // 데이터 정합성 체크
                             const isThisTrackPlaying = currentTrack?.id === track.id && isPlaying;
                             return (
                                 <div key={track.id} onClick={() => handlePlay(track)} className="group relative bg-zinc-900 rounded-xl overflow-hidden hover:bg-zinc-800 transition cursor-pointer hover:-translate-y-1 duration-300">
