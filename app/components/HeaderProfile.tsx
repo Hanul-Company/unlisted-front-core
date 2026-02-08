@@ -182,8 +182,8 @@ export default function HeaderProfile() {
         chain={chain}
         accountAbstraction={{ chain: chain, sponsorGas: true }}
         connectButton={{
-          label: "Sign in / Connect",
-          style: { backgroundColor: "#18181b", color: "white", border: "1px solid #3f3f46", borderRadius: "99px", fontSize: "14px", fontWeight: "bold", padding: "10px 20px" }
+          label: " Sign in ",
+          style: { backgroundColor: "#18181b", color: "white", border: "1px solid #3f3f46", borderRadius: "99px", fontSize: "14px", fontWeight: "bold", padding: "10px 20px", minWidth: "auto", width: "auto" }
         }}
         connectModal={{ size: "compact", title: "Join Unlisted", welcomeScreen: { title: "Your Music Assets", subtitle: "Login to start collecting & investing" } }}
       />

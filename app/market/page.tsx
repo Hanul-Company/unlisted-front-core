@@ -147,7 +147,7 @@ export default function MarketPage() {
     fetchUserData();
   }, [address]);
 
- // --- 2. Fetch Market Data ---
+  // --- 2. Fetch Market Data ---
   useEffect(() => {
     const fetchPublicData = async () => {
       setLoadingTop(true);
@@ -402,41 +402,37 @@ export default function MarketPage() {
         </nav>
     </aside>
       <main ref={mainRef} className="flex-1 flex flex-col overflow-y-auto pb-24 scroll-smooth relative">
-        <header className="flex justify-between items-center p-6 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800">
+        <header className="sticky top-0 z-50 flex items-center py-6 px-6 border-b bg-zinc-950/80 backdrop-blur-md border-zinc-800 relative">
           
           {/* ✅ [Left] Menu & Title */}
-          <div className="flex items-center gap-4"> 
+          <div className="flex items-center gap-4 z-10"> 
             <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white hover:text-zinc-300 transition">
                 <Menu/>
             </button> 
             <h1 className="text-xl font-bold">Explore</h1> 
           </div>
 
-          {/* ✅ [Right] Search + Balance + Profile */}
-          <div className="flex items-center gap-3 md:gap-4"> 
-            
-            {/* 1. Search Trigger (Moved Here) */}
-            {/* Mobile: Icon Only */}
-            <button 
+          {/* ✅ [Center] Search (Desktop) - ABSOLUTE POSITIONED */}
+          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full justify-center pointer-events-none z-0">
+             <div 
+                onClick={openSearch}
+                className="pointer-events-auto flex items-center gap-3 w-full max-w-2xl px-5 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500 text-sm cursor-text hover:border-zinc-600 transition group shadow-sm bg-opacity-95 backdrop-blur-sm"
+            >
+                <Search size={18} className="group-hover:text-zinc-300 transition"/>
+                <span className="font-medium">Search music...</span>
+                <span className="ml-auto text-xs border border-zinc-700 rounded px-1.5 py-0.5 bg-zinc-800 text-zinc-500">/</span>
+            </div>
+          </div>
+
+          {/* ✅ [Right] Search (Mobile) + Balance + Profile */}
+          <div className="flex items-center justify-end gap-3 md:gap-4 ml-auto z-10"> 
+             <button 
                 onClick={openSearch}
                 className="md:hidden p-2 text-zinc-400 hover:text-white transition"
             >
                 <Search size={24} />
-            </button>
-
-            {/* PC: Fake Input Bar */}
-            <div 
-                onClick={openSearch}
-                className="hidden md:flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 w-64 text-zinc-500 text-sm cursor-text hover:border-zinc-600 transition group"
-            >
-                <Search size={16} className="group-hover:text-zinc-300 transition"/>
-                <span>Search tracks...</span>
-                {/* 단축키 힌트 (선택사항) */}
-                <span className="ml-auto text-xs border border-zinc-700 rounded px-1.5 py-0.5 bg-zinc-800 text-zinc-500">/</span>
-            </div>
-
-            {/* 2. Balance & Profile */}
-            <div className="hidden sm:block"><TokenBalance address={address} /></div> {/* 모바일에서 공간 부족시 숨김 처리 고려 (현재는 유지) */}
+            </button> 
+            <div className="hidden sm:block"><TokenBalance address={address} /></div>
             <HeaderProfile /> 
           </div>
 

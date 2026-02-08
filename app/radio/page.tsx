@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { supabase } from '@/utils/supabase';
-import { LogIn, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, ChevronLeft, Sparkles, Quote, Volume2, VolumeX } from 'lucide-react';
+import { ThumbsDown, LogIn, Loader2, Heart, X, Zap, Play, Pause, Radio, ChevronRight, ChevronLeft, Sparkles, Quote, Volume2, VolumeX } from 'lucide-react';
 import { useActiveAccount } from "thirdweb/react";
 import toast from 'react-hot-toast';
 import { Link } from "@/lib/i18n";
@@ -223,6 +223,37 @@ function RadioContent() {
       setShowPlaylistModal(true);
   };
 
+  // ✅ [NEW] Dislike Handler (싫어요 + 스킵)
+  const handleDislike = async () => {
+      // 1. 현재 트랙 ID 저장 (스킵하면 currentTrack이 바뀌므로 미리 저장)
+      const trackToDislike = currentTrack;
+      
+      // 2. 즉시 다음 곡으로 스킵 (UX 최적화: 기다리지 않음)
+      handleSkip();
+
+      // 3. 백그라운드에서 DB에 '싫어요' 기록
+      if (address && userProfile?.id && trackToDislike) {
+          // 피드백 제공
+          toast("Got it. We won't recommend this track again.", {
+              position: 'bottom-center',
+              style: { background: '#333', color: '#fff', fontSize: '12px' }
+          });
+          try {
+              // ✅ [수정] 직접 insert 대신 RPC 함수 호출 (권한 문제 해결)
+              const { error } = await supabase.rpc('add_track_dislike', {
+                  p_user_id: userProfile.id,
+                  p_track_id: trackToDislike.id
+              });
+              
+              if (error) console.error("Dislike failed:", error);
+              else console.log("Dislike recorded successfully");
+              
+          } catch (err) {
+              console.error(err);
+          }
+      }
+  };
+
   // 📝 기존 결제 로직 유지
   const processCollect = async (playlistId: string | 'liked') => {
     if (!address || !currentTrack || !tempRentalTerms) return;
@@ -354,8 +385,8 @@ function RadioContent() {
 
           <div className="flex items-center justify-center gap-6 pt-2">
             {/* Skip (X) */}
-            <button onClick={handleSkip} className="w-12 h-12 rounded-full bg-zinc-900/50 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition backdrop-blur-md">
-              <X size={20} />
+            <button onClick={handleDislike} className="w-12 h-12 rounded-full bg-zinc-900/50 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition backdrop-blur-md">
+              <ThumbsDown size={20} />
             </button>
             {/* Play/Pause */}
             <button onClick={() => setIsPlaying(!isPlaying)} className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition shadow-[0_0_30px_rgba(255,255,255,0.2)]">
