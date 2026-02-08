@@ -19,24 +19,22 @@ interface ShareButtonProps {
 
 const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareButtonProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false); // 메뉴 열림 상태
-  const [menuView, setMenuView] = useState<'main' | 'insta'>('main'); // 메뉴 단계 (메인 vs 인스타)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuView, setMenuView] = useState<'main' | 'insta'>('main');
   const [progress, setProgress] = useState(0); 
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // 외부 클릭 시 닫기 & 상태 초기화
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setMenuOpen(false);
-        setTimeout(() => setMenuView('main'), 200); // 애니메이션 후 초기화
+        setTimeout(() => setMenuView('main'), 200);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- [로직 유지] Canvas 생성 ---
   const generateCanvas = async (): Promise<HTMLCanvasElement | null> => {
     if (!trackData) return null;
     const calculateFontSize = (text: string) => {
@@ -84,11 +82,10 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
     return canvas;
   };
 
-  // --- [로직 유지] Image Share ---
   const handleImageShare = async () => {
     setIsGenerating(true);
     setProgress(0);
-    setMenuOpen(false); // 메뉴 닫기
+    setMenuOpen(false);
     const toastId = toast.loading("Generating Image...");
 
     try {
@@ -116,20 +113,20 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
     }
   };
 
-  // --- [로직 유지] Video Share (Optimized) ---
+  // --- 🚀 [핵심 수정] Video Share 최적화 ---
   const handleVideoShare = async () => {
     if (!trackData?.audioUrl) return toast.error("Audio source missing.");
     setIsGenerating(true);
     setProgress(0);
     setMenuOpen(false);
 
-    const START_OFFSET = 45;    
+    const START_OFFSET = 0;    
     const RECORD_DURATION = 30; 
     const FADE_DURATION = 2;    
-    const FPS = 24;             
-    const VIDEO_BITRATE = 3000000; 
-    const TARGET_WIDTH = 720;
-    const TARGET_HEIGHT = 1280;
+    const FPS = 30; // 30fps가 모바일 호환성에 더 좋음
+    const VIDEO_BITRATE = 5000000; // 5Mbps (화질 향상)
+    const TARGET_WIDTH = 1080; // FHD 해상도 (인스타 권장)
+    const TARGET_HEIGHT = 1920;
 
     let progressInterval: NodeJS.Timeout;
     const startTimeStamp = Date.now();
@@ -154,11 +151,17 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
         const streamCtx = streamCanvas.getContext('2d');
 
         const drawLoop = () => {
-            if (streamCtx) streamCtx.drawImage(originCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+            if (streamCtx) {
+                // 검은 배경 명시적 채우기 (투명도 이슈 방지)
+                streamCtx.fillStyle = '#000000';
+                streamCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+                streamCtx.drawImage(originCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+            }
             animationId = requestAnimationFrame(drawLoop);
         };
         drawLoop();
 
+        // 오디오 설정
         audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const response = await fetch(trackData.audioUrl);
         const arrayBuffer = await response.arrayBuffer();
@@ -179,13 +182,38 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
         source.connect(gainNode);
         gainNode.connect(dest);
 
+        // 1. 비디오 스트림
         const canvasStream = streamCanvas.captureStream(FPS);
+        // 2. 오디오/비디오 결합
         const combinedStream = new MediaStream([ ...canvasStream.getVideoTracks(), ...dest.stream.getAudioTracks() ]);
-        const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm;codecs=vp9';
-        const recorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: VIDEO_BITRATE });
+
+        // ✅ [수정 1] 호환성 높은 MIME Type 찾기 (Android/Insta 호환성 핵심)
+        const mimeTypes = [
+            'video/mp4;codecs=avc1.4d401f,mp4a.40.2', // H.264 + AAC (가장 이상적)
+            'video/mp4', // 일반 MP4
+            'video/webm;codecs=h264', // WebM 컨테이너에 H.264
+            'video/webm;codecs=vp9,opus', // 최신 Android
+            'video/webm' // 기본 Fallback
+        ];
+        
+        let selectedMimeType = 'video/webm';
+        for (const type of mimeTypes) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                selectedMimeType = type;
+                console.log("Selected MIME:", type);
+                break;
+            }
+        }
+
+        const recorder = new MediaRecorder(combinedStream, { 
+            mimeType: selectedMimeType, 
+            videoBitsPerSecond: VIDEO_BITRATE 
+        });
+        
         const chunks: Blob[] = [];
 
         recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        
         recorder.onstop = async () => {
             clearInterval(progressInterval);
             setProgress(100);
@@ -194,12 +222,13 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
             if (source) try { source.stop(); } catch(e) {}
             if (audioCtx) audioCtx.close();
 
-            const blob = new Blob(chunks, { type: mimeType });
-            const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+            // 파일 확장자 결정 (MP4가 선택되었다면 mp4, 아니면 webm)
+            const isMp4 = selectedMimeType.includes('mp4');
+            const ext = isMp4 ? 'mp4' : 'webm';
+            const blob = new Blob(chunks, { type: selectedMimeType });
             const fileName = `${trackData.title}_clip.${ext}`;
-            const file = new File([blob], fileName, { type: mimeType });
+            const file = new File([blob], fileName, { type: selectedMimeType });
 
-            // ✅ [기능 분리] 다운로드 함수 (공유 실패 시에만 실행)
             const triggerDownload = () => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -209,53 +238,51 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
                 a.click(); 
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                toast.success("Saved to device (Share skipped)", { icon: '💾' });
+                toast.success("Saved to device!", { icon: '💾' });
             };
 
-            // 🚀 [핵심 변경] 저장보다 "공유"를 최우선으로 실행
-            // 모바일에서는 이 코드가 실행되면 즉시 하단에서 공유 시트가 올라옵니다.
             setTimeout(async () => {
                 if (navigator.share && navigator.canShare({ files: [file] })) {
                     try {
                         await navigator.share({
                             files: [file],
                             title: trackData.title,
-                            text: `Check out ${trackData.title} by ${trackData.artist} on Traverse!`,
+                            text: `Check out ${trackData.title} by ${trackData.artist}!`,
                         });
-                        // 공유 성공 시
                         toast.success("Shared successfully!", { icon: '✨' });
                     } catch (err) { 
-                        // 1. 사용자가 공유 창을 닫았거나(AbortError)
-                        // 2. 권한 문제 등으로 실패했을 때 -> 다운로드 실행
-                        console.log('Share canceled or failed, downloading instead...');
+                        console.log('Share canceled/failed, downloading...');
                         triggerDownload();
                     }
                 } else {
-                    // PC이거나 공유 API 미지원 브라우저 -> 바로 다운로드
                     triggerDownload();
                 }
                 
-                // 정리 및 UI 초기화
                 setIsGenerating(false);
                 setProgress(0);
-            }, 500); // 0.5초 딜레이 (UI가 100% 도달한 것을 보여주기 위함)
+            }, 500); 
         };
 
+        // 오디오 시작
         source.start(0, START_OFFSET); 
-        recorder.start();
+        
+        // ✅ [수정 2] recorder.start에 인자 전달 (Time Slice)
+        // 1000ms마다 데이터를 쪼개서 저장 -> 메타데이터 누락 문제 완화 (인스타 1초 문제 해결의 핵심)
+        recorder.start(500); 
+
         setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, RECORD_DURATION * 1000);
 
     } catch (e: any) {
         clearInterval(progressInterval);
         if (animationId) cancelAnimationFrame(animationId);
         if (audioCtx) audioCtx.close();
+        console.error(e);
         toast.error("Generation failed.");
         setIsGenerating(false);
         setProgress(0);
     }
   };
 
-  // --- [로직 유지] Link Share ---
   const handleNativeShare = async () => {
     const shareUrl = `${window.location.origin}/share/${assetId}`;
     await navigator.clipboard.writeText(shareUrl);
@@ -268,7 +295,6 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
   return (
     <>
         <div className="relative" ref={menuRef}>
-            {/* ✅ 통합된 Single Share Button */}
             <button 
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); setMenuView('main'); }}
                 disabled={isGenerating}
@@ -277,37 +303,23 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
                 {isGenerating ? <Loader2 size={size} className="animate-spin text-zinc-400"/> : <Share2 size={size} className="text-white" />}
             </button>
 
-            {/* ✅ 통합 드롭다운 메뉴 */}
             {menuOpen && !isGenerating && (
                 <div className="absolute top-full right-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 z-50 w-40 animate-in fade-in slide-in-from-top-2 origin-top-right">
-                    <div className="absolute -top-1.5 right-3 w-3 h-3 bg-zinc-900 border-t border-l border-zinc-700 rotate-45"></div>
-
-                    {/* View 1: Main Menu */}
                     {menuView === 'main' && (
                         <>
                             <button onClick={(e) => { e.stopPropagation(); handleNativeShare(); }} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-800 text-xs font-bold text-zinc-300 hover:text-white transition w-full text-left">
                                 <LinkIcon size={14} className="text-zinc-500"/> Copy Link
                             </button>
                             <div className="h-px bg-zinc-800 w-full"/>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setMenuView('insta'); }} 
-                                className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-800 text-xs font-bold text-zinc-300 hover:text-white transition w-full text-left group"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <Instagram size={14} className="text-pink-500"/> Create Post
-                                </div>
+                            <button onClick={(e) => { e.stopPropagation(); setMenuView('insta'); }} className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-800 text-xs font-bold text-zinc-300 hover:text-white transition w-full text-left group">
+                                <div className="flex items-center gap-3"><Instagram size={14} className="text-pink-500"/> Create Post</div>
                                 <ChevronRight size={14} className="text-zinc-600 group-hover:text-zinc-400"/>
                             </button>
                         </>
                     )}
-
-                    {/* View 2: Instagram/Media Sub Menu */}
                     {menuView === 'insta' && (
                         <>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setMenuView('main'); }} 
-                                className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-zinc-800 text-[10px] font-bold text-zinc-500 hover:text-zinc-300 transition w-full text-left mb-1"
-                            >
+                            <button onClick={(e) => { e.stopPropagation(); setMenuView('main'); }} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-zinc-800 text-[10px] font-bold text-zinc-500 hover:text-zinc-300 transition w-full text-left mb-1">
                                 <ChevronLeft size={12}/> Back
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); handleImageShare(); }} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-800 text-xs font-bold text-zinc-300 hover:text-white transition w-full text-left">
@@ -322,7 +334,6 @@ const ShareButton = ({ assetId, trackData, className = "", size = 20 }: ShareBut
             )}
         </div>
 
-        {/* Progress Overlay (유지) */}
         {isGenerating && progress > 0 && (
             <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-300" onClick={(e) => e.stopPropagation()}>
                 <div className="w-64 flex flex-col items-center gap-4">
