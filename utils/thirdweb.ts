@@ -12,5 +12,5 @@ export const client = createThirdwebClient({
 });
 
 // Polygon Amoy Testnet 설정
-export const chain = defineChain({id:80002,rpc: "https://polygon-amoy-bor-rpc.publicnode.com"});
+export const chain = defineChain({id:80002,rpc: "https://polygon-amoy.drpc.org"});
 
