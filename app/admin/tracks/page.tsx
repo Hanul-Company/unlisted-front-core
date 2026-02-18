@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
 import {
   Search, Loader2, Edit, Trash2, X, Plus, Save,
-  Music, Disc, Bot, Hash
+  Music, Disc, Bot, Hash, Download, Play, Pause
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
@@ -13,6 +13,7 @@ import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
 type Track = {
   id: number;
   title: string;
+  audio_url: string | null; // ✅ added
   artist_name: string;
   genre: string[]; // ✅ changed
   moods: string[];
@@ -45,6 +46,49 @@ export default function AdminTracksPage() {
 
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Audio Playback State
+  const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  const togglePlay = (track: Track) => {
+    if (!track.audio_url) return;
+
+    if (playingTrackId === track.id) {
+      // Toggle current
+      if (isPlaying) {
+        audioRef.current?.pause();
+        setIsPlaying(false);
+      } else {
+        audioRef.current?.play();
+        setIsPlaying(true);
+      }
+    } else {
+      // Play new
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const audio = new Audio(track.audio_url);
+      audio.onended = () => {
+        setIsPlaying(false);
+        setPlayingTrackId(null);
+      };
+      audioRef.current = audio;
+      audio.play().catch(e => toast.error("Playback failed: " + e.message));
+      setPlayingTrackId(track.id);
+      setIsPlaying(true);
+    }
+  };
 
   // 1. Data Fetching
   const fetchTracks = async () => {
@@ -299,8 +343,22 @@ export default function AdminTracksPage() {
               return (
                 <tr key={track.id} className="hover:bg-zinc-800/50 transition group">
                   <td className="p-4">
-                    <div className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700">
+                    <div 
+                      className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700 relative group cursor-pointer"
+                      onClick={() => togglePlay(track)}
+                    >
                       {track.cover_image_url && <img src={track.cover_image_url} className="w-full h-full object-cover" />}
+                      
+                      {/* Overlay */}
+                      <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
+                        playingTrackId === track.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}>
+                         {playingTrackId === track.id && isPlaying ? (
+                           <Pause size={20} className="text-white fill-white" />
+                         ) : (
+                           <Play size={20} className="text-white fill-white ml-0.5" />
+                         )}
+                      </div>
                     </div>
                   </td>
 
@@ -355,10 +413,22 @@ export default function AdminTracksPage() {
                   </td>
 
                   <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => openEditModal(track)} className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-white transition"><Edit size={16} /></button>
-                      <button onClick={() => handleDelete(track.id)} className="p-2 bg-red-900/20 rounded-lg hover:bg-red-900/40 text-red-500 transition"><Trash2 size={16} /></button>
-                    </div>
+                      <div className="flex items-center justify-end gap-2">
+                        {track.audio_url && (
+                          <a 
+                            href={track.audio_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            download 
+                            className="p-2 bg-blue-900/20 rounded-lg hover:bg-blue-900/40 text-blue-500 transition"
+                            title="Download MP3"
+                          >
+                            <Download size={16} />
+                          </a>
+                        )}
+                        <button onClick={() => openEditModal(track)} className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-white transition"><Edit size={16} /></button>
+                        <button onClick={() => handleDelete(track.id)} className="p-2 bg-red-900/20 rounded-lg hover:bg-red-900/40 text-red-500 transition"><Trash2 size={16} /></button>
+                      </div>
                   </td>
                 </tr>
               );
