@@ -121,6 +121,7 @@ export default function MarketPage() {
 
   const [isAiMode, setIsAiMode] = useState(false);
   const [aiKeywords, setAiKeywords] = useState<string[]>([]);
+  const [exploreClickCount, setExploreClickCount] = useState(0);
 
   // --- 1. Fetch User Data ---
   useEffect(() => {
@@ -350,6 +351,17 @@ export default function MarketPage() {
     router.push(path);
   };
 
+  const handleExploreClick = () => {
+    setExploreClickCount(prev => {
+      const newCount = prev + 1;
+      if (newCount >= 8) {
+        router.push('/admin');
+        return 0;
+      }
+      return newCount;
+    });
+  };
+
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden font-sans">
       <MobileSidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
@@ -409,7 +421,7 @@ export default function MarketPage() {
             <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-white hover:text-zinc-300 transition">
                 <Menu/>
             </button> 
-            <h1 className="text-xl font-bold">Explore</h1> 
+            <h1 className="text-xl font-bold select-none cursor-default" onClick={handleExploreClick}>Explore</h1> 
           </div>
 
           {/* ✅ [Center] Search (Desktop) - ABSOLUTE POSITIONED */}
