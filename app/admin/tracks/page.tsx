@@ -320,121 +320,123 @@ export default function AdminTracksPage() {
       </div>
 
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-950 text-zinc-500 uppercase font-bold border-b border-zinc-800">
-            <tr>
-              <th className="p-4 w-16">Cover</th>
-              <th className="p-4">Track Info</th>
-              <th className="p-4">Genres / Moods</th>
-              <th className="p-4 hidden md:table-cell">AI Tags (Summary)</th>
-              <th className="p-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800">
-            {loading ? (
-              <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-blue-500" /></td></tr>
-            ) : tracks.length === 0 ? (
-              <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No tracks found.</td></tr>
-            ) : tracks.map(track => {
-              const genres = Array.isArray(track.genre) ? track.genre : [];
-              const topGenres = genres.slice(0, 2);
-              const extraGenreCount = Math.max(0, genres.length - topGenres.length);
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm min-w-[800px]">
+            <thead className="bg-zinc-950 text-zinc-500 uppercase font-bold border-b border-zinc-800">
+              <tr>
+                <th className="p-4 w-16">Cover</th>
+                <th className="p-4">Track Info</th>
+                <th className="p-4">Genres / Moods</th>
+                <th className="p-4 hidden md:table-cell">AI Tags (Summary)</th>
+                <th className="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800">
+              {loading ? (
+                <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-blue-500" /></td></tr>
+              ) : tracks.length === 0 ? (
+                <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No tracks found.</td></tr>
+              ) : tracks.map(track => {
+                const genres = Array.isArray(track.genre) ? track.genre : [];
+                const topGenres = genres.slice(0, 2);
+                const extraGenreCount = Math.max(0, genres.length - topGenres.length);
 
-              return (
-                <tr key={track.id} className="hover:bg-zinc-800/50 transition group">
-                  <td className="p-4">
-                    <div 
-                      className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700 relative group cursor-pointer"
-                      onClick={() => togglePlay(track)}
-                    >
-                      {track.cover_image_url && <img src={track.cover_image_url} className="w-full h-full object-cover" />}
-                      
-                      {/* Overlay */}
-                      <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
-                        playingTrackId === track.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}>
-                         {playingTrackId === track.id && isPlaying ? (
-                           <Pause size={20} className="text-white fill-white" />
-                         ) : (
-                           <Play size={20} className="text-white fill-white ml-0.5" />
-                         )}
+                return (
+                  <tr key={track.id} className="hover:bg-zinc-800/50 transition group">
+                    <td className="p-4">
+                      <div 
+                        className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700 relative group cursor-pointer"
+                        onClick={() => togglePlay(track)}
+                      >
+                        {track.cover_image_url && <img src={track.cover_image_url} className="w-full h-full object-cover" />}
+                        
+                        {/* Overlay */}
+                        <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
+                          playingTrackId === track.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}>
+                           {playingTrackId === track.id && isPlaying ? (
+                             <Pause size={20} className="text-white fill-white" />
+                           ) : (
+                             <Play size={20} className="text-white fill-white ml-0.5" />
+                           )}
+                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  <td className="p-4">
-                    <div className="font-bold text-white text-base">{track.title}</div>
-                    <div className="text-zinc-500">{track.artist?.username}</div>
-                  </td>
+                    <td className="p-4">
+                      <div className="font-bold text-white text-base">{track.title}</div>
+                      <div className="text-zinc-500">{track.artist?.username}</div>
+                    </td>
 
-                  <td className="p-4">
-                    {/* ✅ genres chips */}
-                    <div className="flex flex-wrap gap-2 mb-1">
-                      {topGenres.length === 0 ? (
-                        <span className="inline-block px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 text-xs font-bold">No genre</span>
-                      ) : (
-                        <>
-                          {topGenres.map(g => (
-                            <span key={g} className="inline-block px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 text-xs font-bold">
-                              {g}
-                            </span>
-                          ))}
-                          {extraGenreCount > 0 && (
-                            <span className="text-[10px] text-zinc-600 self-center">+{extraGenreCount}</span>
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    {/* moods */}
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {track.moods?.slice(0, 3).map(m => (
-                        <span key={m} className="text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{m}</span>
-                      ))}
-                      {(track.moods?.length || 0) > 3 && (
-                        <span className="text-[10px] text-zinc-600">+{track.moods.length - 3}</span>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="p-4 hidden md:table-cell">
-                    <div className="text-xs text-zinc-400 space-y-1">
-                      {track.ai_metadata?.ref_artists?.length ? (
-                        <div className="flex items-center gap-1">
-                          <Bot size={12} className="text-purple-400" /> {track.ai_metadata.ref_artists[0]}
-                        </div>
-                      ) : <span className="text-zinc-700">-</span>}
-                      {track.ai_metadata?.vibe_tags?.length ? (
-                        <div className="flex items-center gap-1">
-                          <Hash size={12} className="text-blue-400" /> {track.ai_metadata.vibe_tags.slice(0, 2).join(', ')}
-                        </div>
-                      ) : null}
-                    </div>
-                  </td>
-
-                  <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {track.audio_url && (
-                          <a 
-                            href={track.audio_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            download 
-                            className="p-2 bg-blue-900/20 rounded-lg hover:bg-blue-900/40 text-blue-500 transition"
-                            title="Download MP3"
-                          >
-                            <Download size={16} />
-                          </a>
+                    <td className="p-4">
+                      {/* ✅ genres chips */}
+                      <div className="flex flex-wrap gap-2 mb-1">
+                        {topGenres.length === 0 ? (
+                          <span className="inline-block px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 text-xs font-bold">No genre</span>
+                        ) : (
+                          <>
+                            {topGenres.map(g => (
+                              <span key={g} className="inline-block px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 text-xs font-bold">
+                                {g}
+                              </span>
+                            ))}
+                            {extraGenreCount > 0 && (
+                              <span className="text-[10px] text-zinc-600 self-center">+{extraGenreCount}</span>
+                            )}
+                          </>
                         )}
-                        <button onClick={() => openEditModal(track)} className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-white transition"><Edit size={16} /></button>
-                        <button onClick={() => handleDelete(track.id)} className="p-2 bg-red-900/20 rounded-lg hover:bg-red-900/40 text-red-500 transition"><Trash2 size={16} /></button>
                       </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+
+                      {/* moods */}
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {track.moods?.slice(0, 3).map(m => (
+                          <span key={m} className="text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">{m}</span>
+                        ))}
+                        {(track.moods?.length || 0) > 3 && (
+                          <span className="text-[10px] text-zinc-600">+{track.moods.length - 3}</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="p-4 hidden md:table-cell">
+                      <div className="text-xs text-zinc-400 space-y-1">
+                        {track.ai_metadata?.ref_artists?.length ? (
+                          <div className="flex items-center gap-1">
+                            <Bot size={12} className="text-purple-400" /> {track.ai_metadata.ref_artists[0]}
+                          </div>
+                        ) : <span className="text-zinc-700">-</span>}
+                        {track.ai_metadata?.vibe_tags?.length ? (
+                          <div className="flex items-center gap-1">
+                            <Hash size={12} className="text-blue-400" /> {track.ai_metadata.vibe_tags.slice(0, 2).join(', ')}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+
+                    <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {track.audio_url && (
+                            <a 
+                              href={track.audio_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              download 
+                              className="p-2 bg-blue-900/20 rounded-lg hover:bg-blue-900/40 text-blue-500 transition"
+                              title="Download MP3"
+                            >
+                              <Download size={16} />
+                            </a>
+                          )}
+                          <button onClick={() => openEditModal(track)} className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-white transition"><Edit size={16} /></button>
+                          <button onClick={() => handleDelete(track.id)} className="p-2 bg-red-900/20 rounded-lg hover:bg-red-900/40 text-red-500 transition"><Trash2 size={16} /></button>
+                        </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
         <div className="p-4 border-t border-zinc-800 flex justify-center gap-4">
           <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-4 py-2 bg-zinc-800 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-zinc-700">Prev</button>
