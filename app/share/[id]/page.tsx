@@ -14,7 +14,7 @@ const getAssetData = async (id: string) => {
 
   const { data, error } = await supabase
     .from('tracks') 
-    .select('*')
+    .select('*, artist:profiles(username, wallet_address, avatar_url)')
     .eq('id', id)
     .single();
 
@@ -28,7 +28,7 @@ const getAssetData = async (id: string) => {
   return {
     id: data.id.toString(),
     title: data.title || "Untitled",
-    artist: data.artist?.username || "Unknown Artist",
+    artist: data.artist || { username: "Unknown Artist", wallet_address: null, avatar_url: null },
     albumArt: data.cover_image_url || "https://via.placeholder.com/400",
     audioUrl: data.audio_url || "",
     // tracks 테이블에 없는 정보는 임시값
@@ -61,10 +61,10 @@ export async function generateMetadata(
   }
 
   return {
-    title: `🎵 ${data.title} - ${data.artist}`,
+    title: `🎵 ${data.title} - ${data.artist.username}`,
     description: `🚀 Stream for free, Invest for fun!`,
     openGraph: {
-      title: `${data.title} (${data.artist})`,
+      title: `${data.title} (${data.artist.username})`,
       description: `${data.description}`,
       images: [{ url: data.albumArt, width: 800, height: 800, alt: data.title }],
       type: 'music.song',
