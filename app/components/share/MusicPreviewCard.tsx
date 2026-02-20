@@ -232,7 +232,7 @@ const MusicPreviewCard = ({ data }: MusicCardProps) => {
           
           <button 
             onClick={handleCreate} 
-            className="col-span-3 flex items-center justify-center gap-2 py-4 rounded-2xl bg-white text-black hover:bg-zinc-200 transition-all font-bold text-sm active:scale-95 shadow-lg shadow-white/5"
+            className="col-span-3 flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 text-white hover:brightness-110 hover:shadow-lg hover:shadow-cyan-500/20 transition-all font-bold text-sm active:scale-95 active:shadow-none"
           >
             <PlusCircle size={18} />
             <span>Create Your Song</span>
