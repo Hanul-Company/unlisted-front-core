@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function TikTokCallback() {
+function TikTokCallbackContent() {
   const params = useSearchParams();
 
   useEffect(() => {
@@ -32,5 +32,13 @@ export default function TikTokCallback() {
     <div style={{ padding: 40 }}>
       Connecting your TikTok account...
     </div>
+  );
+}
+
+export default function TikTokCallback() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40 }}>Loading...</div>}>
+      <TikTokCallbackContent />
+    </Suspense>
   );
 }
