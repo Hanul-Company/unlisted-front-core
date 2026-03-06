@@ -25,6 +25,8 @@ export type Track = {
     avatar_url: string | null;
   } | null;
   lyrics?: string | null; // ✅ 가사 필드 추가
+  youtube_id?: string | null;
+  youtube_url?: string | null;
 };
 
 interface PlayerContextType {

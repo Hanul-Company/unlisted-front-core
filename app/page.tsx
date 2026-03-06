@@ -189,8 +189,14 @@ export default function LandingPage() {
       </main>
       
       {/* Footer */}
-      <footer className="w-full py-6 text-center text-[10px] text-zinc-700 font-mono uppercase tracking-widest relative z-10">
-        © 2026 UNLISTED. AI-POWERED MUSIC PROTOCOL.
+      <footer className="w-full py-6 flex flex-col md:flex-row justify-center items-center gap-2 md:gap-4 text-[10px] text-zinc-700 font-mono uppercase tracking-widest relative z-10">
+        <span>© 2026 UNLISTED. AI-POWERED MUSIC PROTOCOL.</span>
+        <span className="hidden md:inline text-zinc-800">|</span>
+        <div className="flex gap-4">
+            <Link href="/privacy" className="hover:text-zinc-500 transition-colors">Privacy Policy</Link>
+            <span className="text-zinc-800">|</span>
+            <Link href="/terms" className="hover:text-zinc-500 transition-colors">Terms of Service</Link>
+        </div>
       </footer>
     </div>
   );

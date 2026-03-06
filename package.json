@@ -30,6 +30,7 @@
     "encoding": "^0.1.13",
     "fix-webm-duration": "^1.0.6",
     "framer-motion": "^12.23.25",
+    "googleapis": "^171.4.0",
     "html2canvas": "^1.4.1",
     "lokijs": "^1.5.12",
     "lucide-react": "^0.555.0",
