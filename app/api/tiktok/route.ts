@@ -10,33 +10,41 @@ import { NextResponse } from 'next/server';
  */
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    const tiktokId = searchParams.get('tiktokId');
-    const tiktokUrl = searchParams.get('tiktokUrl');
+    const tiktokId = searchParams.get('tiktokId')?.trim();
+    const tiktokUrl = searchParams.get('tiktokUrl')?.trim();
 
     if (!tiktokId && !tiktokUrl) {
         return NextResponse.json({ error: 'tiktokId or tiktokUrl is required' }, { status: 400 });
     }
 
     try {
-        // Build the video URL for oEmbed lookup
+        // Build the video URL for lookups
         const videoUrl = tiktokUrl || `https://www.tiktok.com/@user/video/${tiktokId}`;
         
-        const oembedRes = await fetch(
-            `https://www.tiktok.com/oembed?url=${encodeURIComponent(videoUrl)}`,
-            { next: { revalidate: 3600 } } // Cache for 1 hour
+        // TikTok's official oEmbed no longer returns view counts publicly. 
+        // We use a free third-party API (tikwm.com) to get basic video stats.
+        const tikwmRes = await fetch(
+            `https://www.tikwm.com/api/?url=${encodeURIComponent(videoUrl)}`,
+            { cache: 'no-store' } // Avoid caching stale data or 0s
         );
 
-        if (!oembedRes.ok) {
-            return NextResponse.json({ error: 'TikTok oEmbed request failed', totalViews: 0 }, { status: 200 });
+        if (!tikwmRes.ok) {
+            return NextResponse.json({ error: 'TikTok API request failed', totalViews: 0 }, { status: 200 });
         }
 
-        const oembedData = await oembedRes.json();
+        const tikwmData = await tikwmRes.json();
         
-        // oEmbed doesn't directly return view_count, but we can get the title and thumbnail
-        // For view counts, we'll try the unofficial endpoint
-        const totalViews = oembedData.view_count || 0;
-        const title = oembedData.title || '';
-        const thumbnailUrl = oembedData.thumbnail_url || '';
+        let totalViews = 0;
+        let title = '';
+        let thumbnailUrl = '';
+
+        if (tikwmData.code === 0 && tikwmData.data) {
+            totalViews = tikwmData.data.play_count || 0;
+            title = tikwmData.data.title || '';
+            thumbnailUrl = tikwmData.data.cover || '';
+        } else {
+             console.error('tikwm API returned error or no data:', tikwmData);
+        }
 
         return NextResponse.json({
             totalViews,
