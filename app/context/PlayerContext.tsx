@@ -27,6 +27,8 @@ export type Track = {
   lyrics?: string | null; // ✅ 가사 필드 추가
   youtube_id?: string | null;
   youtube_url?: string | null;
+  tiktok_id?: string | null;
+  tiktok_url?: string | null;
 };
 
 interface PlayerContextType {

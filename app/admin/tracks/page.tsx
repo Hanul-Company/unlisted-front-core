@@ -4,10 +4,28 @@ import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/utils/supabase';
 import {
   Search, Loader2, Edit, Trash2, X, Plus, Save,
-  Music, Disc, Bot, Hash, Download, Play, Pause
+  Music, Disc, Bot, Hash, Download, Play, Pause,
+  Share2, FileVideo
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
+
+let _ffmpeg: FFmpeg | null = null;
+let _ffmpegLoading: Promise<FFmpeg> | null = null;
+
+async function getFFmpeg() {
+  if (_ffmpeg) return _ffmpeg;
+  if (_ffmpegLoading) return _ffmpegLoading;
+  const ffmpeg = new FFmpeg();
+  _ffmpegLoading = (async () => {
+    await ffmpeg.load();
+    _ffmpeg = ffmpeg;
+    return ffmpeg;
+  })();
+  return _ffmpegLoading;
+}
 
 // ✅ 트랙 타입 정의 (genre: string[] 로 변경)
 type Track = {
@@ -15,6 +33,7 @@ type Track = {
   title: string;
   audio_url: string | null; // ✅ added
   artist_name: string;
+  uploader_address: string;
   genre: string[]; // ✅ changed
   moods: string[];
   context_tags: string[];
@@ -25,8 +44,10 @@ type Track = {
     voice_style?: string[];
     analyzed_genres?: string[];
     analyzed_moods?: string[];
+    similar_artists?: string[];
   } | null;
   cover_image_url: string;
+  high_res_cover_url?: string | null;
   created_at: string;
   artist?: { 
     username: string | null;
@@ -46,6 +67,12 @@ export default function AdminTracksPage() {
 
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // SNS Upload Modal State
+  const [snsModalTrack, setSnsModalTrack] = useState<Track | null>(null);
+  const [customSnsImage, setCustomSnsImage] = useState<File | null>(null);
+  const [videoGenerating, setVideoGenerating] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
 
   // Audio Playback State
   const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
@@ -194,6 +221,113 @@ export default function AdminTracksPage() {
     } catch (e: any) {
       toast.error("실패: " + e.message, { id: toastId });
     }
+  };
+
+  // SNS Generation Logic
+  const handleGenerateSnsVideo = async (track: Track) => {
+    const targetImageUrl = track.high_res_cover_url || track.cover_image_url;
+    if (!track.audio_url || (!targetImageUrl && !customSnsImage)) {
+      toast.error('Missing audio or image.');
+      return;
+    }
+    
+    let ffmpeg: FFmpeg | null = null;
+    const onProgress = ({ progress }: any) => {
+      setVideoProgress(Math.min(100, Math.round(progress * 100)));
+    };
+
+    try {
+      setVideoGenerating(true);
+      setVideoProgress(0);
+      ffmpeg = await getFFmpeg();
+      ffmpeg.on('progress', onProgress);
+
+      const imageExt = customSnsImage ? (customSnsImage.name.split('.').pop() || 'png') : (targetImageUrl.split('.').pop()?.split('?')[0] || 'png');
+      const audioExt = track.audio_url.split('.').pop()?.split('?')[0] || 'mp3';
+
+      const inImage = `image.${imageExt}`;
+      const inAudio = `audio.${audioExt}`;
+      const outVideo = `out.mp4`;
+
+      if (customSnsImage) {
+        await ffmpeg.writeFile(inImage, await fetchFile(customSnsImage));
+      } else {
+        await ffmpeg.writeFile(inImage, await fetchFile(targetImageUrl));
+      }
+      await ffmpeg.writeFile(inAudio, await fetchFile(track.audio_url));
+
+      await ffmpeg.exec([
+        '-loop', '1',
+        '-framerate', '1',
+        '-i', inImage,
+        '-i', inAudio,
+        '-c:v', 'libx264',
+        '-tune', 'stillimage',
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-pix_fmt', 'yuv420p',
+        '-r', '30',
+        '-shortest',
+        outVideo
+      ]);
+
+      const data = await ffmpeg.readFile(outVideo);
+      const blob = new Blob([data as any], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${track.title}_SNS.mp4`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      // cleanup
+      await ffmpeg.deleteFile(inImage).catch(() => {});
+      await ffmpeg.deleteFile(inAudio).catch(() => {});
+      await ffmpeg.deleteFile(outVideo).catch(() => {});
+
+      toast.success("Video successfully generated!");
+    } catch (e: any) {
+      toast.error("Video Generation Failed: " + e.message);
+    } finally {
+      if (ffmpeg) ffmpeg.off('progress', onProgress);
+      setVideoGenerating(false);
+      setVideoProgress(0);
+    }
+  };
+
+  const formatSnsText = (track: Track) => {
+    const dateObj = new Date(track.created_at);
+    // Convert UTC to KST
+    const kstObj = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
+    
+    const yyyy = kstObj.getUTCFullYear();
+    const mm = String(kstObj.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(kstObj.getUTCDate()).padStart(2, '0');
+    let h = kstObj.getUTCHours();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+
+    const dateStr = `${yyyy}-${mm}-${dd} ${h} ${ampm} KST`;
+    const artistName = track.artist_name || 'Anonymous';
+    const uploaderAddress = track.uploader_address || '';
+
+    const similarArtists = (track.ai_metadata?.similar_artists || []).map((v) => `#${v.replace(/\\s+/g, '')}`);
+    const refTracks = (track.ai_metadata?.ref_tracks || []).map((v) => `#${v.replace(/\\s+/g, '')}`);
+    const hashtags = [...similarArtists, ...refTracks].join(' ');
+
+    return `Visit ${artistName} on Unlisted 👀
+
+https://unlisted.music/u?wallet=${uploaderAddress}
+
+RELEASE
+DATE: ${dateStr}
+
+℗ ${yyyy} ${artistName} © ${yyyy} Unlisted Music
+(unlisted.music) All rights reserved. unlisted.music & ${artistName}. The music never existed. ⚡
+
+${hashtags}`.trim();
   };
 
   // ------------------------------------------------------------------
@@ -427,6 +561,7 @@ export default function AdminTracksPage() {
                               <Download size={16} />
                             </a>
                           )}
+                          <button onClick={() => { setSnsModalTrack(track); setCustomSnsImage(null); }} className="p-2 bg-pink-900/20 rounded-lg hover:bg-pink-900/40 text-pink-500 transition" title="SNS 업로드용 생성"><Share2 size={16} /></button>
                           <button onClick={() => openEditModal(track)} className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-white transition"><Edit size={16} /></button>
                           <button onClick={() => handleDelete(track.id)} className="p-2 bg-red-900/20 rounded-lg hover:bg-red-900/40 text-red-500 transition"><Trash2 size={16} /></button>
                         </div>
@@ -539,6 +674,87 @@ export default function AdminTracksPage() {
             <div className="p-6 border-t border-zinc-800 bg-zinc-900 sticky bottom-0 flex justify-end gap-4">
               <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition">Cancel</button>
               <button onClick={handleSave} className="px-8 py-3 bg-blue-500 hover:bg-blue-400 text-black rounded-xl font-black shadow-lg shadow-blue-900/20 flex items-center gap-2 transition"><Save size={18} /> Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SNS Upload Modal */}
+      {snsModalTrack && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center sticky top-0 bg-zinc-900 z-10">
+              <h2 className="text-xl font-bold flex items-center gap-2"><Share2 className="text-pink-500" /> SNS 업로드용 생성</h2>
+              <button disabled={videoGenerating} onClick={() => setSnsModalTrack(null)} className="p-2 hover:bg-zinc-800 rounded-full disabled:opacity-50 transition"><X size={20} /></button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-zinc-500 font-bold uppercase block">Custom Background Image (Optional)</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setCustomSnsImage(e.target.files[0]);
+                      }
+                    }}
+                    className="text-sm text-zinc-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 hover:file:text-white cursor-pointer"
+                  />
+                  {customSnsImage && (
+                    <button 
+                      onClick={() => setCustomSnsImage(null)}
+                      className="text-xs text-red-400 hover:text-red-300 font-bold transition"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-zinc-500">
+                  If not provided, the default track cover image will be used.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Caption Text</label>
+                <div className="relative">
+                  <textarea
+                    readOnly
+                    value={formatSnsText(snsModalTrack)}
+                    className="w-full h-64 bg-black border border-zinc-800 rounded-xl p-4 text-sm font-medium text-zinc-300 resize-none outline-none focus:border-pink-500 transition-colors"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(formatSnsText(snsModalTrack));
+                      toast.success("Copied to clipboard!");
+                    }}
+                    className="absolute bottom-4 right-4 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg"
+                  >
+                    Copy Text
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  disabled={videoGenerating || !snsModalTrack.audio_url || (!snsModalTrack.cover_image_url && !customSnsImage)}
+                  onClick={() => handleGenerateSnsVideo(snsModalTrack)}
+                  className="w-full bg-pink-600 hover:bg-pink-500 text-white py-4 rounded-xl font-black shadow-lg shadow-pink-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition"
+                >
+                  {videoGenerating ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Generating Video... {videoProgress}%
+                    </>
+                  ) : (
+                    <>
+                      <FileVideo size={18} /> 
+                      Download MP4 Video
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

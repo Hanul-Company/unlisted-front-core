@@ -7,7 +7,7 @@ import { supabase } from '@/utils/supabase';
 import { useRouter } from "../../lib/i18n";
 import { Link } from "../../lib/i18n";
 import Cropper from 'react-easy-crop';
-import { getCroppedImg } from '@/utils/image';
+import { getCroppedImg, resizeImageBlob } from '@/utils/image';
 import toast from 'react-hot-toast';
 import { useActiveAccount } from "thirdweb/react";
 import * as mm from 'music-metadata-browser';
@@ -305,12 +305,20 @@ function UploadContent() {
 
       // 3. Cover Upload
       let coverUrl = null;
+      let highResCoverUrl = null;
       if (croppedImageBlob) {
+        // Standard 512x512 image for web lists
+        const standardBlob = await resizeImageBlob(croppedImageBlob, 512);
         const imageName = `${timestamp}_${safeTitle}_cover.jpg`;
-        const { error: imgErr } = await supabase.storage.from('music_assets').upload(imageName, croppedImageBlob);
+        const { error: imgErr } = await supabase.storage.from('music_assets').upload(imageName, standardBlob);
         if (imgErr) throw imgErr;
-        const { data: { publicUrl } } = supabase.storage.from('music_assets').getPublicUrl(imageName);
-        coverUrl = publicUrl;
+        coverUrl = supabase.storage.from('music_assets').getPublicUrl(imageName).data.publicUrl;
+
+        // High Res image for SNS videos (up to 3MB)
+        const hrImageName = `${timestamp}_${safeTitle}_cover_hires.jpg`;
+        const { error: hrErr } = await supabase.storage.from('music_assets').upload(hrImageName, croppedImageBlob);
+        if (hrErr) throw hrErr;
+        highResCoverUrl = supabase.storage.from('music_assets').getPublicUrl(hrImageName).data.publicUrl;
       } else {
         coverUrl = '/images/default_cover.jpg';
       }
@@ -319,7 +327,7 @@ function UploadContent() {
       const { data: newTrack, error: dbError } = await supabase
         .from('tracks')
         .insert([{
-            title, description, lyrics, audio_url: audioUrl, cover_image_url: coverUrl,
+            title, description, lyrics, audio_url: audioUrl, cover_image_url: coverUrl, high_res_cover_url: highResCoverUrl,
             // ✅ 수정 3: genres 배열을 DB 'genre' 컬럼(text[])에 매핑
             genre: genres, 
             moods: selectedMoods, 
@@ -430,7 +438,7 @@ function UploadContent() {
               <>
                 <ImageIcon size={24} className="text-zinc-500 mb-1" />
                 <span className="text-[10px] text-zinc-500 text-center leading-tight">
-                  300x300
+                  High Res
                   <br />
                   Cover Art
                 </span>
