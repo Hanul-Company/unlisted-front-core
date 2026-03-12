@@ -193,9 +193,9 @@ export default function LandingPage() {
         <span>© 2026 UNLISTED. AI-POWERED MUSIC PROTOCOL.</span>
         <span className="hidden md:inline text-zinc-800">|</span>
         <div className="flex gap-4">
-            <Link href="/privacy" className="hover:text-zinc-500 transition-colors">Privacy Policy</Link>
+            <Link href="/privacy" className="text-white hover:text-zinc-300 transition-colors">Privacy Policy</Link>
             <span className="text-zinc-800">|</span>
-            <Link href="/terms" className="hover:text-zinc-500 transition-colors">Terms of Service</Link>
+            <Link href="/terms" className="text-white hover:text-zinc-300 transition-colors">Terms of Service</Link>
         </div>
       </footer>
     </div>
