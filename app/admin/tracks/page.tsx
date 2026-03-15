@@ -5,12 +5,20 @@ import { supabase } from '@/utils/supabase';
 import {
   Search, Loader2, Edit, Trash2, X, Plus, Save,
   Music, Disc, Bot, Hash, Download, Play, Pause,
-  Share2, FileVideo
+  Share2, FileVideo, UploadCloud, RefreshCw, CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
+
+import { Link } from "@/lib/i18n";
+import Cropper from 'react-easy-crop';
+import { getCroppedImg, resizeImageBlob } from '@/utils/image';
+import { useActiveAccount } from "thirdweb/react";
+
+import { generateBulkVariants } from '@/app/actions/generate-bulk-variants';
+import { generateSunoPrompt } from '@/app/actions/generate-suno-prompt';
 
 let _ffmpeg: FFmpeg | null = null;
 let _ffmpegLoading: Promise<FFmpeg> | null = null;
@@ -57,6 +65,7 @@ type Track = {
 };
 
 export default function AdminTracksPage() {
+  const account = useActiveAccount();
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,6 +87,238 @@ export default function AdminTracksPage() {
   const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // --- Bulk Generate State ---
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkRefArtist, setBulkRefArtist] = useState('');
+  const [bulkRefTrack, setBulkRefTrack] = useState('');
+  const [bulkVoiceStyle, setBulkVoiceStyle] = useState('');
+  const [bulkBaseTitle, setBulkBaseTitle] = useState('');
+  const [bulkBaseLyrics, setBulkBaseLyrics] = useState('');
+  const [bulkCoverImage, setBulkCoverImage] = useState<File | null>(null);
+  const [bulkCount, setBulkCount] = useState<number>(3);
+  const [bulkStatusText, setBulkStatusText] = useState('');
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
+  // --- Bulk Queue Tracking ---
+  const [bulkJobsList, setBulkJobsList] = useState<any[]>([]);
+  const [isJobsLoading, setIsJobsLoading] = useState(false);
+
+  const fetchBulkJobs = async () => {
+    setIsJobsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('suno_jobs')
+        .select('*')
+        .is('published_track_id', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+        
+      if (error) throw error;
+
+      // Filter to only 'bulk_batch'
+      const filtered = (data || []).filter(j => {
+        try {
+          const parsed = JSON.parse(j.etc_info || '{}');
+          return parsed.bulk_batch === true;
+        } catch { return false; }
+      });
+
+      setBulkJobsList(filtered);
+    } catch(e) {
+      console.error(e);
+    } finally {
+      setIsJobsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBulkJobs();
+    const interval = setInterval(() => {
+      fetchBulkJobs();
+    }, 120000); // Check every 2 minutes
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // --- Bulk Publish State ---
+  const [bulkPublishStatusText, setBulkPublishStatusText] = useState('');
+  const [isBulkPublishing, setIsBulkPublishing] = useState(false);
+
+  const handleBulkGenerate = async () => {
+    if (!bulkBaseTitle || !bulkBaseLyrics || !bulkCount || !bulkRefArtist || !bulkRefTrack) {
+      return toast.error("Please fill all required fields.");
+    }
+    
+    setIsBulkProcessing(true);
+    try {
+      let coverUrl = '';
+      if (bulkCoverImage) {
+        setBulkStatusText('Uploading cover image...');
+        const ts = Date.now();
+        const ext = bulkCoverImage.name.split('.').pop() || 'jpg';
+        const fname = `bulk_cover_${ts}.${ext}`;
+        const { error: imgErr } = await supabase.storage.from('music_assets').upload(fname, bulkCoverImage);
+        if (imgErr) throw imgErr;
+        coverUrl = supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl;
+      }
+
+      setBulkStatusText('Requesting GPT for variants...');
+      const variantsData = await generateBulkVariants(bulkBaseTitle, bulkBaseLyrics, bulkCount);
+      const variants = variantsData?.variants || [];
+      if (variants.length === 0) throw new Error("No variants generated");
+
+      for (let i = 0; i < variants.length; i++) {
+        setBulkStatusText(`Queueing job ${i + 1} of ${variants.length}...`);
+        const item = variants[i];
+        
+        const promptParams = await generateSunoPrompt(
+          bulkRefTrack,
+          bulkRefArtist,
+          bulkVoiceStyle,
+          item.title,
+          {}, // vocalTags empty
+          item.lyrics,
+          `Bulk Batch Create. Target Voice Strategy: ${bulkVoiceStyle}`,
+        );
+
+        if (!promptParams) throw new Error(`Failed to map prompt parameters for variant ${i+1}.`);
+
+        const jobEtcInfo = JSON.stringify({
+          bulk_batch: true,
+          cover_image_url: coverUrl,
+          ref_artist: bulkRefArtist,
+          ref_track: bulkRefTrack
+        });
+
+        const activeWallet = account?.address || '0xadmin_fallback';
+
+        const { error: jobErr } = await supabase.from('suno_jobs').insert({
+          user_wallet: activeWallet,
+          ref_track: `${bulkRefTrack} - ${bulkRefArtist}`,
+          ref_artist: bulkVoiceStyle || 'AI Custom',
+          target_title: promptParams.title,
+          lyrics: promptParams.lyrics,
+          creation_type: 'custom',
+          etc_info: jobEtcInfo,
+          gpt_prompt: promptParams.prompt,
+          genres: promptParams.genres,
+          moods: promptParams.moods,
+          tags: promptParams.tags,
+          status: 'pending'
+        });
+        if (jobErr) throw jobErr;
+      }
+      toast.success("All jobs queued successfully!");
+      setIsBulkModalOpen(false);
+      fetchBulkJobs();
+    } catch(e:any) {
+      toast.error("Bulk process failed: " + e.message);
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkStatusText('');
+    }
+  };
+
+  const handleBulkPublish = async () => {
+    if (!account?.address) return toast.error("Connect wallet to publish");
+    setIsBulkPublishing(true);
+    setBulkPublishStatusText('Fetching ready bulk jobs...');
+    
+    try {
+      const { data: jobs, error } = await supabase.from('suno_jobs')
+        .select('*')
+        .eq('status', 'done')
+        .is('published_track_id', null)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      
+      const bulkJobs = (jobs || []).filter(j => {
+        try {
+           const parsed = JSON.parse(j.etc_info || '{}');
+           return parsed.bulk_batch === true;
+        } catch(e) { return false; }
+      });
+
+      if (bulkJobs.length === 0) {
+        toast.error("No completed bulk jobs found to publish.");
+        setIsBulkPublishing(false);
+        setBulkPublishStatusText('');
+        return;
+      }
+
+      for (let i = 0; i < bulkJobs.length; i++) {
+        const job = bulkJobs[i];
+        setBulkPublishStatusText(`Publishing ${i+1}/${bulkJobs.length}: ${job.target_title}`);
+
+        const tracks = job.result_data?.tracks || [];
+        if (tracks.length === 0) {
+           console.log("No track outputs for job", job.id);
+           continue; 
+        }
+
+        const selectedTrack = tracks[0]; // 무조건 1번 선택 
+        const parsedEtcInfo = JSON.parse(job.etc_info || '{}');
+        const coverUrl = parsedEtcInfo.cover_image_url || '/images/default_cover.jpg';
+        const refArtist = parsedEtcInfo.ref_artist || job.ref_artist;
+        const refTrack = parsedEtcInfo.ref_track || job.ref_track;
+
+        let audioUrl = selectedTrack.audio_cdn_url;
+        setBulkPublishStatusText(`Downloading audio & re-uploading ${i+1}/${bulkJobs.length}...`);
+        
+        try {
+          const res = await fetch(selectedTrack.audio_cdn_url);
+          const blob = await res.blob();
+          const fname = `${Date.now()}_bulk_${job.id}.mp3`;
+          await supabase.storage.from('music_assets').upload(fname, blob);
+          audioUrl = supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl;
+        } catch(e) {
+          console.warn("Re-upload audio failed, keeping original cdn URL", e);
+        }
+
+        const { data: profile } = await supabase.from('profiles').select('id, username').eq('wallet_address', account.address).single();
+        const artistName = profile?.username || 'Unlisted AI';
+        const artistId = profile?.id;
+
+        const { data: newTrack, error: trackErr } = await supabase.from('tracks').insert({
+           title: job.target_title,
+           lyrics: job.lyrics || selectedTrack.lyrics_from_api,
+           audio_url: audioUrl,
+           cover_image_url: coverUrl,
+           genre: job.genres || [],
+           moods: job.moods || [],
+           context_tags: job.tags || [],
+           uploader_address: account.address,
+           artist_name: artistName,
+           artist_id: artistId,
+           creation_type: 'ai',
+           ai_metadata: {
+              ref_artists: [refArtist],
+              ref_tracks: [refTrack],
+              voice_style: [job.ref_artist]
+           }
+        }).select().single();
+
+        if (trackErr) throw trackErr;
+
+        await supabase.from('suno_jobs').update({
+           status: 'published',
+           published_track_id: newTrack.id,
+           uploaded_track_id: newTrack.id
+        }).eq('id', job.id);
+      }
+
+      toast.success(`Published ${bulkJobs.length} tracks successfully!`);
+      fetchTracks();
+      fetchBulkJobs();
+    } catch(e:any) {
+      toast.error("Publishing error: " + e.message);
+    } finally {
+      setIsBulkPublishing(false);
+      setBulkPublishStatusText('');
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -450,8 +691,60 @@ ${hashtags}`.trim();
             <Search className="absolute left-3 top-2.5 text-zinc-500" size={16} />
           </div>
           <button onClick={fetchTracks} className="bg-zinc-800 px-4 py-2 rounded-lg hover:bg-zinc-700 text-sm font-bold">Search</button>
+          
+          {/* Bulk Action Buttons */}
+          <button onClick={() => setIsBulkModalOpen(true)} className="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-4 py-2 rounded-lg hover:bg-purple-600/40 text-sm font-bold flex items-center gap-2 transition ml-4">
+            <Bot size={16} /> Bulk Queue
+          </button>
+          <button onClick={handleBulkPublish} disabled={isBulkPublishing} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-lg hover:bg-emerald-600/40 text-sm font-bold flex items-center gap-2 transition min-w-[140px] justify-center">
+            {isBulkPublishing ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+            {isBulkPublishing ? 'Publishing...' : 'Bulk Publish'}
+          </button>
         </div>
       </div>
+      
+      {bulkPublishStatusText && (
+        <div className="mb-4 bg-emerald-900/20 text-emerald-400 border border-emerald-500/30 p-3 rounded-lg text-sm flex items-center gap-2 animate-pulse font-mono tracking-wide">
+          <Loader2 size={15} className="animate-spin" /> {bulkPublishStatusText}
+        </div>
+      )}
+
+      {/* Bulk Jobs Queue Info Area */}
+      {bulkJobsList.length > 0 && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold flex items-center gap-2 text-sm text-purple-400">
+              <Bot size={16} /> Bulk Queue Jobs ({bulkJobsList.filter(j=>j.status==='done').length} / {bulkJobsList.length} ready)
+            </h3>
+            <button onClick={fetchBulkJobs} disabled={isJobsLoading} className="text-zinc-500 hover:text-white transition">
+              <RefreshCw size={14} className={isJobsLoading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {bulkJobsList.map(job => (
+              <div key={job.id} className="bg-black border border-zinc-800 rounded-lg p-3 relative overflow-hidden flex flex-col justify-between group">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800 overflow-hidden">
+                    {job.status === 'pending' && <div className="h-full bg-purple-500 w-1/3 animate-pulse"></div>}
+                    {job.status === 'processing' && <div className="h-full bg-blue-500 w-2/3 animate-pulse"></div>}
+                    {job.status === 'done' && <div className="h-full bg-emerald-500 w-full"></div>}
+                 </div>
+                 <div>
+                   <p className="text-xs font-bold text-white truncate mb-1 mt-1">{job.target_title}</p>
+                   <p className="text-[10px] text-zinc-500 truncate">{job.ref_track}</p>
+                 </div>
+                 
+                 <div className="mt-3 flex items-center justify-between">
+                   <div className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase">
+                     {job.status}
+                   </div>
+                   {job.status === 'done' && <CheckCircle size={12} className="text-emerald-500" />}
+                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         <div className="overflow-x-auto">
@@ -755,6 +1048,70 @@ ${hashtags}`.trim();
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Generate Modal */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center sticky top-0 bg-zinc-900 z-10">
+              <h2 className="text-xl font-bold flex items-center gap-2"><Bot className="text-purple-500" /> Bulk Generate Jobs</h2>
+              <button disabled={isBulkProcessing} onClick={() => setIsBulkModalOpen(false)} className="p-2 hover:bg-zinc-800 rounded-full disabled:opacity-50"><X size={20} /></button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-4 border-b border-zinc-800 pb-5">
+                <div>
+                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Reference Artist</label>
+                  <input value={bulkRefArtist} onChange={e => setBulkRefArtist(e.target.value)} placeholder="e.g. Ariana Grande" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Reference Track Name</label>
+                  <input value={bulkRefTrack} onChange={e => setBulkRefTrack(e.target.value)} placeholder="e.g. positions" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Target Voice Style (Description)</label>
+                <input value={bulkVoiceStyle} onChange={e => setBulkVoiceStyle(e.target.value)} placeholder="e.g. Female Vox, Sweet soft R&B" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Album Art (Master)</label>
+                  <input type="file" accept="image/*" onChange={(e) => setBulkCoverImage(e.target.files?.[0] || null)} className="w-full text-sm text-zinc-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 hover:file:text-white cursor-pointer" />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Generate Count (1~8)</label>
+                  <input type="number" min={1} max={8} value={bulkCount} onChange={e => setBulkCount(Number(e.target.value))} className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Baseline Title Idea</label>
+                <input value={bulkBaseTitle} onChange={e => setBulkBaseTitle(e.target.value)} placeholder="e.g. Midnight Whispers" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Baseline Lyrics Concept</label>
+                <textarea value={bulkBaseLyrics} onChange={e => setBulkBaseLyrics(e.target.value)} placeholder="A short concept about driving at night" className="w-full h-24 bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none resize-none" />
+              </div>
+
+              {bulkStatusText && (
+                <div className="bg-purple-900/20 text-purple-300 border border-purple-500/20 rounded-lg p-4 mt-2 font-mono text-xs flex items-center gap-2 animate-pulse">
+                  <Loader2 size={14} className="animate-spin" /> {bulkStatusText}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-zinc-800 bg-zinc-900 sticky bottom-0 flex justify-end gap-4">
+              <button disabled={isBulkProcessing} onClick={handleBulkGenerate} className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black shadow-lg shadow-purple-900/20 disabled:opacity-50 flex items-center justify-center gap-2 transition">
+                {isBulkProcessing ? <Loader2 size={18} className="animate-spin" /> : <Bot size={18} />}
+                Generate & Queue {bulkCount} Variants
+              </button>
             </div>
           </div>
         </div>

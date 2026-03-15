@@ -15,7 +15,7 @@ import {
   Clock, RefreshCw, AlertCircle, Wand2, Quote,
   ChevronDown, ChevronUp, Sparkles,
   SkipBack, SkipForward, Minimize2, Maximize2, X,
-  Music, Settings2, ChevronLeft, User
+  Music, Settings2, ChevronLeft, User, Save, Bookmark
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from "@/lib/i18n";
@@ -174,6 +174,81 @@ export default function CreateDashboard() {
   const [userLyrics, setLyrics] = useState('');
   const [etcInfo, setEtcInfo] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  type CustomVoxPreset = { id: string; name: string; tags: VocalTags; };
+  const [customPresets, setCustomPresets] = useState<CustomVoxPreset[]>([]);
+  const [showPresetSave, setShowPresetSave] = useState(false);
+  const [presetNameInput, setPresetNameInput] = useState('');
+
+  const syncPresetsToDb = async (updated: CustomVoxPreset[]) => {
+    if (!account?.address) return;
+    try {
+      const { data } = await supabase.from('profiles').select('persona_data').eq('wallet_address', account.address).single();
+      const currentData = (data?.persona_data as Record<string, any>) || {};
+      const newData = { ...currentData, custom_vox_presets: updated };
+      await supabase.from('profiles').update({ persona_data: newData }).eq('wallet_address', account.address);
+    } catch (e) {
+      console.error('Failed to sync presets to DB', e);
+    }
+  };
+
+  useEffect(() => {
+    if (account?.address) {
+      const fetchPresets = async () => {
+        try {
+          const { data } = await supabase.from('profiles').select('persona_data').eq('wallet_address', account.address).single();
+          const dbPresets = (data?.persona_data as Record<string, any>)?.custom_vox_presets;
+          if (dbPresets && Array.isArray(dbPresets)) {
+            setCustomPresets(dbPresets);
+          } else {
+            // Migrate from local storage if available
+            const saved = localStorage.getItem(`custom_vox_presets_${account.address}`);
+            if (saved) {
+              try {
+                const parsed = JSON.parse(saved);
+                setCustomPresets(parsed);
+                syncPresetsToDb(parsed);
+              } catch (e) {}
+            }
+          }
+        } catch (e) { console.error(e); }
+      };
+      fetchPresets();
+    }
+  }, [account?.address]);
+
+  const handleSavePreset = async () => {
+    if (!presetNameInput.trim()) return toast.error(isKorean ? "이름을 입력해주세요." : "Please enter a name.");
+    if (customPresets.length >= 3) return toast.error(isKorean ? "최대 3개까지만 저장할 수 있습니다." : "You can save up to 3 presets.");
+    if (!vocalTags.gender && Object.values(vocalTags).filter(Boolean).length === 0) {
+      return toast.error(isKorean ? "저장할 보컬 스타일을 먼저 선택해주세요." : "Please select vocal options first.");
+    }
+    const newPreset = { id: Date.now().toString(), name: presetNameInput.trim(), tags: { ...vocalTags } };
+    const updated = [...customPresets, newPreset];
+    setCustomPresets(updated);
+    
+    // Save locally for quick fallback, and to DB for persistence across devices
+    if (account?.address) localStorage.setItem(`custom_vox_presets_${account.address}`, JSON.stringify(updated));
+    await syncPresetsToDb(updated);
+
+    setPresetNameInput('');
+    setShowPresetSave(false);
+    toast.success(isKorean ? "계정에 커스텀 보컬이 저장되었습니다!" : "Preset saved to account!");
+  };
+
+  const loadPreset = (preset: CustomVoxPreset) => {
+    setVocalTags(preset.tags);
+    toast.success(isKorean ? `${preset.name} 스타일 적용됨!` : `Loaded ${preset.name}!`);
+  };
+
+  const deletePreset = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = customPresets.filter(p => p.id !== id);
+    setCustomPresets(updated);
+    
+    if (account?.address) localStorage.setItem(`custom_vox_presets_${account.address}`, JSON.stringify(updated));
+    await syncPresetsToDb(updated);
+  };
 
   type MusicSearchResult = {
     id: string; title: string; artist: string; album: string; artwork: string; artworkHD: string;
@@ -799,6 +874,53 @@ export default function CreateDashboard() {
                       {vocalTags.accent  && <span className="px-2 py-0.5 rounded-full bg-white/[0.04] text-[10px] font-bold text-orange-300 border border-white/[0.06]">{vocalTags.accent}</span>}
                     </div>
                   )}
+
+                  {/* Custom Presets UI */}
+                  <div className="mt-8 pt-6 border-t border-white/[0.05]">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+                        <Bookmark size={11} className="text-zinc-500" /> {isKorean ? '나의 커스텀 보컬' : 'My Custom Vocals'} <span className="text-indigo-400">({customPresets.length}/3)</span>
+                      </span>
+                      {customPresets.length < 3 && Object.values(vocalTags).some(Boolean) && (
+                        <button onClick={() => setShowPresetSave(!showPresetSave)} className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold tracking-widest uppercase transition-colors flex items-center gap-1">
+                          <Save size={11} /> {isKorean ? '현재 조합 저장' : 'Save Current'}
+                        </button>
+                      )}
+                    </div>
+
+                    {showPresetSave && (
+                      <div className="mb-4 flex items-center gap-2 animate-in fade-in duration-200">
+                        <input value={presetNameInput} onChange={e => setPresetNameInput(e.target.value)}
+                          placeholder={isKorean ? "커스텀 보컬 이름..." : "Custom vocal name..."}
+                          className="flex-1 bg-white/[0.04] border border-white/[0.08] focus:border-indigo-500/50 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 outline-none transition-colors" />
+                        <button onClick={handleSavePreset} className="px-4 py-2 bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 border border-indigo-500/20 rounded-lg text-xs font-bold transition-colors">
+                          {isKorean ? '저장' : 'Save'}
+                        </button>
+                      </div>
+                    )}
+
+                    {customPresets.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {customPresets.map(preset => (
+                          <div key={preset.id} onClick={() => loadPreset(preset)}
+                            className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-500/5 border border-indigo-500/10 hover:bg-indigo-500/10 cursor-pointer transition-colors group">
+                            <div className="flex items-center gap-3">
+                              <User size={12} className="text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+                              <span className="text-xs font-semibold text-indigo-200 group-hover:text-white transition-colors">{preset.name}</span>
+                            </div>
+                            <button onClick={(e) => deletePreset(preset.id, e)} className="p-1 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-zinc-600 italic px-1 pt-1">
+                        {isKorean ? '저장된 커스텀 보컬이 없습니다.' : 'No saved presets yet.'}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </div>
             ) : (
