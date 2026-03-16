@@ -5,7 +5,8 @@ import { supabase } from '@/utils/supabase';
 import {
   Search, Loader2, Edit, Trash2, X, Plus, Save,
   Music, Disc, Bot, Hash, Download, Play, Pause,
-  Share2, FileVideo, UploadCloud, RefreshCw, CheckCircle
+  Share2, FileVideo, UploadCloud, RefreshCw, CheckCircle,
+  Settings2, ChevronDown, User, Sparkles, Mic2, Wand2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
@@ -16,6 +17,7 @@ import { Link } from "@/lib/i18n";
 import Cropper from 'react-easy-crop';
 import { getCroppedImg, resizeImageBlob } from '@/utils/image';
 import { useActiveAccount } from "thirdweb/react";
+import HeaderProfile from '@/app/components/HeaderProfile';
 
 import { generateBulkVariants } from '@/app/actions/generate-bulk-variants';
 import { generateSunoPrompt } from '@/app/actions/generate-suno-prompt';
@@ -64,6 +66,24 @@ type Track = {
   } | null;
 };
 
+type MusicSearchResult = {
+  id: string; title: string; artist: string; album: string; artwork: string; artworkHD: string;
+  genre?: string; releaseYear?: string; country?: string; isExplicit?: boolean; durationMs?: number;
+};
+
+type ArtistSearchResult = { id: string; name: string; artwork?: string; genre?: string; };
+
+const SegTab = ({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (v: string) => void }) => (
+  <div className="flex bg-white/[0.04] rounded-lg p-0.5 gap-0.5 border border-white/[0.05]">
+    {options.map(o => (
+      <button key={o.key} onClick={() => onChange(o.key)}
+        className={`px-3.5 py-1.5 rounded-md text-[10px] font-bold tracking-wide transition-all duration-200 ${value === o.key ? 'bg-white/10 text-white' : 'text-zinc-600 hover:text-zinc-300'}`}>
+        {o.label}
+      </button>
+    ))}
+  </div>
+);
+
 export default function AdminTracksPage() {
   const account = useActiveAccount();
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -90,11 +110,30 @@ export default function AdminTracksPage() {
 
   // --- Bulk Generate State ---
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+
+  // Search
+  const [songQuery, setSongQuery] = useState('');
+  const [songResults, setSongResults] = useState<MusicSearchResult[]>([]);
+  const [isSongSearching, setIsSongSearching] = useState(false);
+  const [selectedSong, setSelectedSong] = useState<MusicSearchResult | null>(null);
+
+  const [artistQuery, setArtistQuery] = useState('');
+  const [artistResults, setArtistResults] = useState<ArtistSearchResult[]>([]);
+  const [isArtistSearching, setIsArtistSearching] = useState(false);
+  const [selectedArtist, setSelectedArtist] = useState<ArtistSearchResult | null>(null);
+
+  const songSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const artistSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [bulkRefTitle, setBulkRefTitle] = useState('');
   const [bulkRefArtist, setBulkRefArtist] = useState('');
-  const [bulkRefTrack, setBulkRefTrack] = useState('');
-  const [bulkVoiceStyle, setBulkVoiceStyle] = useState('');
+  const [bulkTargetVoice, setBulkTargetVoice] = useState('');
+  const [vocalMode, setVocalMode] = useState<'tags' | 'artist'>('tags');
+  const [vocalTags, setVocalTags] = useState<any>({});
+  const [showDetailVox, setShowDetailVox] = useState(false);
   const [bulkBaseTitle, setBulkBaseTitle] = useState('');
   const [bulkBaseLyrics, setBulkBaseLyrics] = useState('');
+  const [etcInfo, setEtcInfo] = useState('');
   const [bulkCoverImage, setBulkCoverImage] = useState<File | null>(null);
   const [bulkCount, setBulkCount] = useState<number>(3);
   const [bulkStatusText, setBulkStatusText] = useState('');
@@ -110,7 +149,8 @@ export default function AdminTracksPage() {
       const { data, error } = await supabase
         .from('suno_jobs')
         .select('*')
-        .is('published_track_id', null)
+        .neq('status', 'published')
+        .eq('discarded', false)
         .order('created_at', { ascending: false })
         .limit(50);
         
@@ -141,12 +181,76 @@ export default function AdminTracksPage() {
     return () => clearInterval(interval);
   }, []);
 
+  const searchSongs = async (query: string) => {
+    if (!query.trim() || query.length < 2) { setSongResults([]); return; }
+    setIsSongSearching(true);
+    try {
+      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=6`);
+      const data = await res.json();
+      setSongResults((data.results ?? []).map((item: any) => ({
+        id: String(item.trackId), title: item.trackName ?? '', artist: item.artistName ?? '', album: item.collectionName ?? '',
+        artwork: (item.artworkUrl100 ?? '').replace('100x100bb', '120x120bb'),
+        artworkHD: (item.artworkUrl100 ?? '').replace('100x100bb', '400x400bb'),
+        genre: item.primaryGenreName ?? undefined,
+        releaseYear: item.releaseDate ? item.releaseDate.slice(0, 4) : undefined,
+        country: item.country ?? undefined, isExplicit: item.trackExplicitness === 'explicit',
+        durationMs: item.trackTimeMillis ?? undefined,
+      })));
+    } catch { setSongResults([]); } finally { setIsSongSearching(false); }
+  };
+
+  const searchArtists = async (query: string) => {
+    if (!query.trim() || query.length < 2) { setArtistResults([]); return; }
+    setIsArtistSearching(true);
+    try {
+      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=musicArtist&limit=5`);
+      const data = await res.json();
+      setArtistResults((data.results ?? []).map((item: any) => ({
+        id: String(item.artistId), name: item.artistName ?? '', artwork: '', genre: item.primaryGenreName ?? undefined,
+      })));
+    } catch { setArtistResults([]); } finally { setIsArtistSearching(false); }
+  };
+
+  const handleSongQueryChange = (val: string) => {
+    setSongQuery(val); setSelectedSong(null);
+    if (songSearchRef.current) clearTimeout(songSearchRef.current);
+    songSearchRef.current = setTimeout(() => searchSongs(val), 350);
+  };
+
+  const handleArtistQueryChange = (val: string) => {
+    setArtistQuery(val); setSelectedArtist(null);
+    if (artistSearchRef.current) clearTimeout(artistSearchRef.current);
+    artistSearchRef.current = setTimeout(() => searchArtists(val), 350);
+  };
+
+  const selectSong = (song: MusicSearchResult) => {
+    setSelectedSong(song); setBulkRefTitle(song.title); setBulkRefArtist(song.artist);
+    setSongQuery(song.title); setSongResults([]);
+  };
+
+  const selectArtist = (artist: ArtistSearchResult) => {
+    setSelectedArtist(artist); setBulkTargetVoice(artist.name);
+    setArtistQuery(artist.name); setArtistResults([]);
+  };
+
   // --- Bulk Publish State ---
   const [bulkPublishStatusText, setBulkPublishStatusText] = useState('');
   const [isBulkPublishing, setIsBulkPublishing] = useState(false);
 
+  const handleDiscardBulkJob = async (id: number) => {
+    if (!confirm("Discard this job from bulk queue?")) return;
+    try {
+      // Just mark it as discarded so it won't be processed or published
+      await supabase.from('suno_jobs').update({ discarded: true }).eq('id', id);
+      toast.success("Job removed from bulk queue");
+      fetchBulkJobs();
+    } catch(e:any) {
+      toast.error("Failed to discard job: " + e.message);
+    }
+  };
+
   const handleBulkGenerate = async () => {
-    if (!bulkBaseTitle || !bulkBaseLyrics || !bulkCount || !bulkRefArtist || !bulkRefTrack) {
+    if (!bulkBaseTitle || !bulkBaseLyrics || !bulkCount || !bulkRefArtist || !bulkRefTitle) {
       return toast.error("Please fill all required fields.");
     }
     
@@ -172,14 +276,25 @@ export default function AdminTracksPage() {
         setBulkStatusText(`Queueing job ${i + 1} of ${variants.length}...`);
         const item = variants[i];
         
+        let voiceDesc = "";
+        if (vocalMode === 'artist') {
+          voiceDesc = `Target Voice Artist: ${bulkTargetVoice}`;
+        } else {
+          voiceDesc = `Target Vox Strategy: ${vocalTags.gender || ''} ${vocalTags.race || ''} ${vocalTags.texture || ''} ${vocalTags.emotion || ''} ${vocalTags.ageFeel || ''} ${vocalTags.accent || ''}`.trim();
+        }
+        
         const promptParams = await generateSunoPrompt(
-          bulkRefTrack,
+          bulkRefTitle,
           bulkRefArtist,
-          bulkVoiceStyle,
+          bulkTargetVoice,
           item.title,
-          {}, // vocalTags empty
+          vocalMode === 'tags' ? vocalTags : {},
           item.lyrics,
-          `Bulk Batch Create. Target Voice Strategy: ${bulkVoiceStyle}`,
+          `${etcInfo} (Bulk Batch Create. ${voiceDesc})`,
+          selectedSong ? {
+            genre: selectedSong.genre, releaseYear: selectedSong.releaseYear,
+            country: selectedSong.country, isExplicit: selectedSong.isExplicit, durationMs: selectedSong.durationMs,
+          } : undefined
         );
 
         if (!promptParams) throw new Error(`Failed to map prompt parameters for variant ${i+1}.`);
@@ -188,18 +303,18 @@ export default function AdminTracksPage() {
           bulk_batch: true,
           cover_image_url: coverUrl,
           ref_artist: bulkRefArtist,
-          ref_track: bulkRefTrack
+          ref_track: bulkRefTitle
         });
 
         const activeWallet = account?.address || '0xadmin_fallback';
 
         const { error: jobErr } = await supabase.from('suno_jobs').insert({
           user_wallet: activeWallet,
-          ref_track: `${bulkRefTrack} - ${bulkRefArtist}`,
-          ref_artist: bulkVoiceStyle || 'AI Custom',
+          ref_track: `${bulkRefTitle} - ${bulkRefArtist}`,
+          ref_artist: vocalMode === 'artist' && bulkTargetVoice ? bulkTargetVoice : voiceDesc || "AI Custom Vocal",
           target_title: promptParams.title,
           lyrics: promptParams.lyrics,
-          creation_type: 'custom',
+          creation_type: 'simple',
           etc_info: jobEtcInfo,
           gpt_prompt: promptParams.prompt,
           genres: promptParams.genres,
@@ -230,6 +345,7 @@ export default function AdminTracksPage() {
         .select('*')
         .eq('status', 'done')
         .is('published_track_id', null)
+        .eq('discarded', false)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -700,6 +816,9 @@ ${hashtags}`.trim();
             {isBulkPublishing ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
             {isBulkPublishing ? 'Publishing...' : 'Bulk Publish'}
           </button>
+          <div className="ml-4 pl-4 border-l border-zinc-800 flex items-center">
+            <HeaderProfile />
+          </div>
         </div>
       </div>
       
@@ -735,10 +854,16 @@ ${hashtags}`.trim();
                  </div>
                  
                  <div className="mt-3 flex items-center justify-between">
-                   <div className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase">
-                     {job.status}
+                   <div className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase flex items-center gap-1">
+                     {job.status} {job.status === 'done' && <CheckCircle size={10} className="text-emerald-500" />}
                    </div>
-                   {job.status === 'done' && <CheckCircle size={12} className="text-emerald-500" />}
+                   <button 
+                     onClick={() => handleDiscardBulkJob(job.id)}
+                     className="text-zinc-500 hover:text-red-500 transition p-1"
+                     title="Discard from queue"
+                   >
+                     <Trash2 size={12} />
+                   </button>
                  </div>
               </div>
             ))}
@@ -1062,46 +1187,253 @@ ${hashtags}`.trim();
               <button disabled={isBulkProcessing} onClick={() => setIsBulkModalOpen(false)} className="p-2 hover:bg-zinc-800 rounded-full disabled:opacity-50"><X size={20} /></button>
             </div>
 
-            <div className="p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-4 border-b border-zinc-800 pb-5">
+            <div className="p-6 space-y-6">
+              
+              <div className="space-y-4">
+                <h3 className="text-sm border-b border-white/[0.05] pb-2 font-bold text-zinc-300">1. Reference Track</h3>
+                
                 <div>
-                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Reference Artist</label>
-                  <input value={bulkRefArtist} onChange={e => setBulkRefArtist(e.target.value)} placeholder="e.g. Ariana Grande" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Search Reference</label>
+                  <div className="relative">
+                    <div className={`flex items-center gap-3 border-b pb-1 transition-colors duration-200 ${selectedSong ? 'border-indigo-500/50' : 'border-zinc-800 focus-within:border-zinc-500'}`}>
+                      {selectedSong?.artwork
+                        ? <img src={selectedSong.artwork} className="w-8 h-8 rounded-md object-cover flex-shrink-0" />
+                        : <Music size={14} className="text-zinc-500 flex-shrink-0" />
+                      }
+                      <input value={songQuery} onChange={e => handleSongQueryChange(e.target.value)}
+                        placeholder={"Search or type song name..."}
+                        className="flex-1 bg-transparent py-2.5 text-sm text-white placeholder-zinc-600 outline-none" />
+                      {isSongSearching && <Loader2 size={13} className="animate-spin text-zinc-500" />}
+                      {selectedSong && !isSongSearching && (
+                        <button onClick={() => { setSelectedSong(null); setSongQuery(''); setBulkRefTitle(''); setBulkRefArtist(''); }}
+                          className="text-zinc-500 hover:text-white transition"><X size={13} /></button>
+                      )}
+                    </div>
+                    {/* Dropdown */}
+                    {songResults.length > 0 && !selectedSong && (
+                      <div className="absolute z-50 top-[calc(100%+8px)] left-0 right-0 bg-[#131313] border border-white/[0.07] rounded-xl overflow-hidden shadow-2xl">
+                        {songResults.map(song => (
+                          <button key={song.id} onClick={() => selectSong(song)}
+                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/[0.04] transition-colors text-left border-b border-white/[0.03] last:border-0 group">
+                            {song.artwork
+                              ? <img src={song.artwork} className="w-8 h-8 rounded-md object-cover flex-shrink-0" />
+                              : <div className="w-8 h-8 rounded-md bg-white/5 flex items-center justify-center flex-shrink-0"><Music size={12} className="text-zinc-500" /></div>
+                            }
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs text-white truncate">{song.title}</div>
+                              <div className="text-[10px] text-zinc-500 truncate">{song.artist}{song.releaseYear && ` · ${song.releaseYear}`}</div>
+                            </div>
+                            {song.genre && <span className="text-[9px] text-zinc-600 uppercase">{song.genre}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Reference Track Name</label>
-                  <input value={bulkRefTrack} onChange={e => setBulkRefTrack(e.target.value)} placeholder="e.g. positions" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+
+                <div className="grid grid-cols-2 gap-4 hidden">
+                  <div>
+                    <input value={bulkRefArtist} onChange={e => setBulkRefArtist(e.target.value)} placeholder="e.g. Ariana Grande" className="hidden" />
+                  </div>
+                  <div>
+                    <input value={bulkRefTitle} onChange={e => setBulkRefTitle(e.target.value)} placeholder="e.g. positions" className="hidden" />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Target Voice Style (Description)</label>
-                <input value={bulkVoiceStyle} onChange={e => setBulkVoiceStyle(e.target.value)} placeholder="e.g. Female Vox, Sweet soft R&B" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Album Art (Master)</label>
-                  <input type="file" accept="image/*" onChange={(e) => setBulkCoverImage(e.target.files?.[0] || null)} className="w-full text-sm text-zinc-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 hover:file:text-white cursor-pointer" />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-white/[0.05] pb-2">
+                  <h3 className="text-sm font-bold text-zinc-300">2. Vocal Persona</h3>
+                  <SegTab
+                    options={[{ key: 'tags', label: 'Tags' }, { key: 'artist', label: 'Artist' }]}
+                    value={vocalMode} onChange={v => setVocalMode(v as 'tags' | 'artist')}
+                  />
                 </div>
-                <div>
-                  <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Generate Count (1~8)</label>
-                  <input type="number" min={1} max={8} value={bulkCount} onChange={e => setBulkCount(Number(e.target.value))} className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+
+                {vocalMode === 'tags' ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Gender *</label>
+                      <div className="flex gap-2">
+                        {(['Male', 'Female'] as const).map(g => (
+                          <button key={g}
+                            onClick={() => setVocalTags((prev: any) => ({ ...prev, gender: prev.gender === g ? undefined : g }))}
+                            className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${
+                              vocalTags.gender === g
+                                ? g === 'Male' ? 'bg-blue-500/10 text-blue-300 border-blue-500/35' : 'bg-pink-500/10 text-pink-300 border-pink-500/35'
+                                : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                            }`}>
+                            {g === 'Male' ? '♂ Male' : '♀ Female'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <button onClick={() => setShowDetailVox(!showDetailVox)}
+                        className="w-full flex items-center justify-between group py-1">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2">
+                          <Settings2 size={11} /> Detail Vox Options
+                        </span>
+                        <ChevronDown size={13} className={`text-zinc-500 transition-transform ${showDetailVox ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {showDetailVox && (
+                        <div className="space-y-4 pt-4 border-l border-zinc-700 pl-2 mt-2 ml-1">
+                          
+                          {/* Race */}
+                          <div>
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase block mb-1">Race</label>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {(['Asian', 'Black', 'White'] as const).map(r => (
+                                <button key={r} onClick={() => setVocalTags((prev:any) => ({ ...prev, race: prev.race === r ? undefined : r }))}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold border ${vocalTags.race === r ? 'bg-violet-500/20 text-violet-300 border-violet-500/50' : 'bg-transparent border-zinc-700 text-zinc-400'}`}>
+                                  {r}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Texture */}
+                          <div>
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase block mb-1">Texture</label>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {(['Clean', 'Raspy', 'Breathy', 'Belting', 'Whisper'] as const).map(tex => (
+                                <button key={tex} onClick={() => setVocalTags((prev:any) => ({ ...prev, texture: prev.texture === tex ? undefined : tex }))}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold border ${vocalTags.texture === tex ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' : 'bg-transparent border-zinc-700 text-zinc-400'}`}>
+                                  {tex}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Emotion */}
+                          <div>
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase block mb-1">Emotion</label>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {(['Sexy', 'Cute', 'Sad', 'Energetic'] as const).map(val => (
+                                <button key={val} onClick={() => setVocalTags((prev:any) => ({ ...prev, emotion: prev.emotion === val ? undefined : val }))}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold border ${vocalTags.emotion === val ? 'bg-amber-500/20 text-amber-300 border-amber-500/50' : 'bg-transparent border-zinc-700 text-zinc-400'}`}>
+                                  {val}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Age Feel */}
+                          <div>
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase block mb-1">Age Feel</label>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {(['Youthful', 'Mature', 'Aged'] as const).map(val => (
+                                <button key={val} onClick={() => setVocalTags((prev:any) => ({ ...prev, ageFeel: prev.ageFeel === val ? undefined : val }))}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold border ${vocalTags.ageFeel === val ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-transparent border-zinc-700 text-zinc-400'}`}>
+                                  {val}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Accent */}
+                          <div>
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase block mb-1">Accent</label>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {(['American', 'British', 'Korean', 'Japanese', 'Spanish', 'African'] as const).map(val => (
+                                <button key={val} onClick={() => setVocalTags((prev:any) => ({ ...prev, accent: prev.accent === val ? undefined : val }))}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold border ${vocalTags.accent === val ? 'bg-orange-500/20 text-orange-300 border-orange-500/50' : 'bg-transparent border-zinc-700 text-zinc-400'}`}>
+                                  {val}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Selected tag preview pills */}
+                    {Object.values(vocalTags).some(Boolean) && (
+                      <div className="flex flex-wrap gap-1.5 pt-2 animate-in fade-in duration-200">
+                        {vocalTags.gender && (
+                          <span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-[10px] font-bold text-white border border-white/[0.08]">
+                            {vocalTags.gender === 'Male' ? '♂' : '♀'} {vocalTags.gender} Vox
+                          </span>
+                        )}
+                        {vocalTags.race    && <span className="px-2 py-0.5 rounded-full bg-white/[0.04] text-[10px] font-bold text-violet-300 border border-white/[0.06]">{vocalTags.race}</span>}
+                        {vocalTags.texture && <span className="px-2 py-0.5 rounded-full bg-white/[0.04] text-[10px] font-bold text-cyan-300 border border-white/[0.06]">{vocalTags.texture}</span>}
+                        {vocalTags.emotion && <span className="px-2 py-0.5 rounded-full bg-white/[0.04] text-[10px] font-bold text-amber-300 border border-white/[0.06]">{vocalTags.emotion}</span>}
+                        {vocalTags.ageFeel && <span className="px-2 py-0.5 rounded-full bg-white/[0.04] text-[10px] font-bold text-emerald-300 border border-white/[0.06]">{vocalTags.ageFeel}</span>}
+                        {vocalTags.accent  && <span className="px-2 py-0.5 rounded-full bg-white/[0.04] text-[10px] font-bold text-orange-300 border border-white/[0.06]">{vocalTags.accent}</span>}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Target Voice (Artist)</label>
+                    <div className="relative">
+                      <div className={`flex items-center gap-3 border-b pb-1 transition-colors duration-200 ${selectedArtist ? 'border-pink-500/50' : 'border-zinc-800 focus-within:border-zinc-500'}`}>
+                        <Mic2 size={14} className="text-zinc-500 flex-shrink-0" />
+                        <input value={artistQuery} onChange={e => handleArtistQueryChange(e.target.value)}
+                          placeholder={"Search artist..."}
+                          className="flex-1 bg-transparent py-2.5 text-sm text-white placeholder-zinc-600 outline-none" />
+                        {isArtistSearching && <Loader2 size={13} className="animate-spin text-zinc-500" />}
+                        {selectedArtist && !isArtistSearching && (
+                          <button onClick={() => { setSelectedArtist(null); setArtistQuery(''); setBulkTargetVoice(''); }}
+                            className="text-zinc-500 hover:text-white transition"><X size={13} /></button>
+                        )}
+                      </div>
+
+                      {artistResults.length > 0 && !selectedArtist && (
+                        <div className="absolute z-50 top-[calc(100%+8px)] left-0 right-0 bg-[#131313] border border-white/[0.07] rounded-xl overflow-hidden shadow-2xl">
+                          {artistResults.map(artist => (
+                            <button key={artist.id} onClick={() => selectArtist(artist)}
+                              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/[0.04] transition-colors text-left border-b border-white/[0.03] last:border-0">
+                              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
+                                <User size={12} className="text-zinc-500" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs text-white truncate">{artist.name}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-sm border-b border-white/[0.05] pb-2 font-bold text-zinc-300">3. Generation Info</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Album Art Master</label>
+                    <input type="file" accept="image/*" onChange={(e) => setBulkCoverImage(e.target.files?.[0] || null)} className="w-full text-xs text-zinc-300 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 cursor-pointer" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Count (1-8)</label>
+                    <input type="number" min={1} max={8} value={bulkCount} onChange={e => setBulkCount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Baseline Title Idea</label>
-                <input value={bulkBaseTitle} onChange={e => setBulkBaseTitle(e.target.value)} placeholder="e.g. Midnight Whispers" className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
-              </div>
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Baseline Title</label>
+                  <input value={bulkBaseTitle} onChange={e => setBulkBaseTitle(e.target.value)} placeholder="e.g. Midnight Whispers" className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                </div>
 
-              <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase mb-1 block">Baseline Lyrics Concept</label>
-                <textarea value={bulkBaseLyrics} onChange={e => setBulkBaseLyrics(e.target.value)} placeholder="A short concept about driving at night" className="w-full h-24 bg-black border border-zinc-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none resize-none" />
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Baseline Lyrics Concept</label>
+                  <textarea value={bulkBaseLyrics} onChange={e => setBulkBaseLyrics(e.target.value)} placeholder="Concept for lyrics generation via GPT..." className="w-full h-24 bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-purple-500 outline-none resize-none" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Vibe & Info (etcInfo)</label>
+                  <input value={etcInfo} onChange={e => setEtcInfo(e.target.value)} placeholder="e.g. Dreamy, Reverb heavy" className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                </div>
               </div>
 
               {bulkStatusText && (
-                <div className="bg-purple-900/20 text-purple-300 border border-purple-500/20 rounded-lg p-4 mt-2 font-mono text-xs flex items-center gap-2 animate-pulse">
+                <div className="bg-purple-900/20 text-purple-300 border border-purple-500/20 rounded-lg p-4 font-mono text-xs flex items-center gap-2 animate-pulse">
                   <Loader2 size={14} className="animate-spin" /> {bulkStatusText}
                 </div>
               )}
