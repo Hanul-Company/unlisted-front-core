@@ -92,7 +92,12 @@ export default function AdminTracksPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [sortOrder, setSortOrder] = useState<'created_at_desc' | 'created_at_asc' | 'title_asc' | 'title_desc'>('created_at_desc');
+
+  // --- Multi-select ---
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -478,16 +483,24 @@ export default function AdminTracksPage() {
   const fetchTracks = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('tracks').select('*,artist:profiles (username,wallet_address,avatar_url)', { count: 'exact' }).order('created_at', { ascending: false });
+      const [sortCol, sortDir] = sortOrder === 'created_at_desc' ? ['created_at', false]
+        : sortOrder === 'created_at_asc' ? ['created_at', true]
+        : sortOrder === 'title_asc' ? ['title', true]
+        : ['title', false];
+
+      let query = supabase
+        .from('tracks')
+        .select('*,artist:profiles (username,wallet_address,avatar_url)', { count: 'exact' })
+        .order(sortCol as string, { ascending: sortDir as boolean });
+
       if (search) query = query.or(`title.ilike.%${search}%,artist_name.ilike.%${search}%`);
 
-      const from = (page - 1) * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
+      const from = (page - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
       const { data, count, error } = await query.range(from, to);
 
       if (error) throw error;
 
-      // ✅ 혹시 마이그레이션 전 데이터/타입 섞임 대비: genre normalize
       const normalized = (data || []).map((t: any) => ({
         ...t,
         genre: Array.isArray(t.genre) ? t.genre : (typeof t.genre === 'string' && t.genre.trim() ? [t.genre.trim()] : []),
@@ -496,7 +509,8 @@ export default function AdminTracksPage() {
       }));
 
       setTracks(normalized as Track[]);
-      if (count) setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
+      setSelectedIds(new Set()); // clear selection on fetch
+      if (count !== null) setTotalPages(Math.ceil(count / itemsPerPage));
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -504,18 +518,91 @@ export default function AdminTracksPage() {
     }
   };
 
-  useEffect(() => { fetchTracks(); }, [page]);
+  useEffect(() => { fetchTracks(); }, [page, itemsPerPage, sortOrder]);
 
   const handleSearchKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { setPage(1); fetchTracks(); }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedIds.size}개 트랙을 모두 삭제하시겠습니까?\n\n연계된 revenue_logs, suno_jobs, storage 파일도 모두 삭제됩니다.`)) return;
+    setIsBulkDeleting(true);
+    let succeeded = 0;
+    for (const id of Array.from(selectedIds)) {
+      try {
+        const { data: track } = await supabase.from('tracks').select('audio_url, cover_image_url, high_res_cover_url').eq('id', id).single();
+        await supabase.from('revenue_logs').delete().eq('track_id', id);
+        await supabase.from('suno_jobs').delete().or(`published_track_id.eq.${id},uploaded_track_id.eq.${id}`);
+        const extractPath = (url: string | null | undefined) => {
+          if (!url) return null;
+          const m = url.match(/\/music_assets\/(.+?)(\?.*)?$/);
+          return m ? m[1] : null;
+        };
+        const files = [extractPath(track?.audio_url), extractPath(track?.cover_image_url), extractPath(track?.high_res_cover_url)].filter(Boolean) as string[];
+        if (files.length > 0) await supabase.storage.from('music_assets').remove(files);
+        await supabase.from('tracks').delete().eq('id', id);
+        succeeded++;
+      } catch (e: any) {
+        console.error(`Failed to delete track ${id}:`, e.message);
+      }
+    }
+    toast.success(`${succeeded}개 트랙 삭제 완료`);
+    setSelectedIds(new Set());
+    setIsBulkDeleting(false);
+    fetchTracks();
+  };
+
   // 2. Actions
   const handleDelete = async (id: number) => {
-    if (!confirm("정말 삭제하시겠습니까?")) return;
-    const { error } = await supabase.from('tracks').delete().eq('id', id);
-    if (error) toast.error(error.message);
-    else { toast.success("삭제됨"); fetchTracks(); }
+    if (!confirm("정말 삭제하시겠습니까?\n\n연계된 revenue_logs, suno_jobs, storage 파일도 모두 삭제됩니다.")) return;
+
+    try {
+      // 1) Fetch track data first so we can delete storage files
+      const { data: track } = await supabase
+        .from('tracks')
+        .select('audio_url, cover_image_url, high_res_cover_url')
+        .eq('id', id)
+        .single();
+
+      // 2) Delete revenue_logs (FK constraint on tracks.id)
+      await supabase.from('revenue_logs').delete().eq('track_id', id);
+
+      // 3) Delete suno_jobs referencing this track
+      await supabase.from('suno_jobs')
+        .delete()
+        .or(`published_track_id.eq.${id},uploaded_track_id.eq.${id}`);
+
+      // 4) Delete storage files
+      const extractStoragePath = (url: string | null | undefined): string | null => {
+        if (!url) return null;
+        // Extract path after /music_assets/ from public URL
+        const match = url.match(/\/music_assets\/(.+?)(\?.*)?$/);
+        return match ? match[1] : null;
+      };
+
+      const filesToDelete = [
+        extractStoragePath(track?.audio_url),
+        extractStoragePath(track?.cover_image_url),
+        extractStoragePath(track?.high_res_cover_url),
+      ].filter(Boolean) as string[];
+
+      if (filesToDelete.length > 0) {
+        const { error: storageErr } = await supabase.storage
+          .from('music_assets')
+          .remove(filesToDelete);
+        if (storageErr) console.warn('Storage delete warning:', storageErr.message);
+      }
+
+      // 5) Finally delete the track row
+      const { error: trackErr } = await supabase.from('tracks').delete().eq('id', id);
+      if (trackErr) throw trackErr;
+
+      toast.success("트랙 및 연계 데이터가 모두 삭제되었습니다.");
+      fetchTracks();
+    } catch (e: any) {
+      toast.error("삭제 실패: " + e.message);
+    }
   };
 
   const openEditModal = (track: Track) => {
@@ -807,8 +894,39 @@ ${hashtags}`.trim();
             <Search className="absolute left-3 top-2.5 text-zinc-500" size={16} />
           </div>
           <button onClick={fetchTracks} className="bg-zinc-800 px-4 py-2 rounded-lg hover:bg-zinc-700 text-sm font-bold">Search</button>
+
+          {/* Sort */}
+          <select
+            value={sortOrder}
+            onChange={e => { setSortOrder(e.target.value as any); setPage(1); }}
+            className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none focus:border-blue-500"
+          >
+            <option value="created_at_desc">최신순</option>
+            <option value="created_at_asc">오래된순</option>
+            <option value="title_asc">제목 A→Z</option>
+            <option value="title_desc">제목 Z→A</option>
+          </select>
+
+          {/* Items per page */}
+          <select
+            value={itemsPerPage}
+            onChange={e => { setItemsPerPage(Number(e.target.value)); setPage(1); }}
+            className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none focus:border-blue-500"
+          >
+            {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}개씩</option>)}
+          </select>
           
           {/* Bulk Action Buttons */}
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="bg-red-600/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg hover:bg-red-600/40 text-sm font-bold flex items-center gap-2 transition"
+            >
+              {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {isBulkDeleting ? '삭제 중...' : `${selectedIds.size}개 삭제`}
+            </button>
+          )}
           <button onClick={() => setIsBulkModalOpen(true)} className="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-4 py-2 rounded-lg hover:bg-purple-600/40 text-sm font-bold flex items-center gap-2 transition ml-4">
             <Bot size={16} /> Bulk Queue
           </button>
@@ -876,6 +994,17 @@ ${hashtags}`.trim();
           <table className="w-full text-left text-sm min-w-[800px]">
             <thead className="bg-zinc-950 text-zinc-500 uppercase font-bold border-b border-zinc-800">
               <tr>
+                <th className="p-4 w-10">
+                  <input
+                    type="checkbox"
+                    className="accent-blue-500 w-4 h-4 cursor-pointer"
+                    checked={tracks.length > 0 && selectedIds.size === tracks.length}
+                    onChange={e => {
+                      if (e.target.checked) setSelectedIds(new Set(tracks.map(t => t.id)));
+                      else setSelectedIds(new Set());
+                    }}
+                  />
+                </th>
                 <th className="p-4 w-16">Cover</th>
                 <th className="p-4">Track Info</th>
                 <th className="p-4">Genres / Moods</th>
@@ -885,16 +1014,29 @@ ${hashtags}`.trim();
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {loading ? (
-                <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-blue-500" /></td></tr>
+                <tr><td colSpan={6} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-blue-500" /></td></tr>
               ) : tracks.length === 0 ? (
-                <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No tracks found.</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-zinc-500">No tracks found.</td></tr>
               ) : tracks.map(track => {
                 const genres = Array.isArray(track.genre) ? track.genre : [];
                 const topGenres = genres.slice(0, 2);
                 const extraGenreCount = Math.max(0, genres.length - topGenres.length);
 
                 return (
-                  <tr key={track.id} className="hover:bg-zinc-800/50 transition group">
+                  <tr key={track.id} className={`hover:bg-zinc-800/50 transition group ${selectedIds.has(track.id) ? 'bg-blue-900/10' : ''}`}>
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        className="accent-blue-500 w-4 h-4 cursor-pointer"
+                        checked={selectedIds.has(track.id)}
+                        onChange={e => {
+                          const next = new Set(selectedIds);
+                          if (e.target.checked) next.add(track.id);
+                          else next.delete(track.id);
+                          setSelectedIds(next);
+                        }}
+                      />
+                    </td>
                     <td className="p-4">
                       <div 
                         className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700 relative group cursor-pointer"
@@ -991,10 +1133,15 @@ ${hashtags}`.trim();
           </table>
         </div>
 
-        <div className="p-4 border-t border-zinc-800 flex justify-center gap-4">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-4 py-2 bg-zinc-800 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-zinc-700">Prev</button>
-          <span className="text-sm self-center text-zinc-500">Page {page} of {totalPages}</span>
-          <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-zinc-800 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-zinc-700">Next</button>
+        <div className="p-4 border-t border-zinc-800 flex justify-between items-center gap-4">
+          <span className="text-xs text-zinc-500">
+            {selectedIds.size > 0 ? `${selectedIds.size}개 선택됨` : `총 ${totalPages * itemsPerPage > 0 ? totalPages : 0} 페이지`}
+          </span>
+          <div className="flex items-center gap-4">
+            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-4 py-2 bg-zinc-800 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-zinc-700">Prev</button>
+            <span className="text-sm self-center text-zinc-500">Page {page} of {totalPages}</span>
+            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-zinc-800 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-zinc-700">Next</button>
+          </div>
         </div>
       </div>
 
