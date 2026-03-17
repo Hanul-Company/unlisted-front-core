@@ -759,12 +759,13 @@ export default function AdminTracksPage() {
         '-i', inImage,
         '-i', inAudio,
         '-c:v', 'libx264',
+        '-preset', 'ultrafast', // 추가: 인코딩 속도 극대화
         '-tune', 'stillimage',
         '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
         '-c:a', 'aac',
         '-b:a', '192k',
         '-pix_fmt', 'yuv420p',
-        '-r', '30',
+        '-r', '15', // 기존 30fps에서 15fps로 낮춰 렌더링 프레임 절반 감소
         '-shortest',
         outVideo
       ]);
