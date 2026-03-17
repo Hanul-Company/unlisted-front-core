@@ -140,6 +140,8 @@ export default function AdminTracksPage() {
   const [bulkBaseLyrics, setBulkBaseLyrics] = useState('');
   const [etcInfo, setEtcInfo] = useState('');
   const [bulkCoverImage, setBulkCoverImage] = useState<File | null>(null);
+  const [coverImageMode, setCoverImageMode] = useState<'single' | 'individual'>('single');
+  const [bulkIndividualCovers, setBulkIndividualCovers] = useState<(File | null)[]>([]);
   const [bulkCount, setBulkCount] = useState<number>(3);
   const [bulkStatusText, setBulkStatusText] = useState('');
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
@@ -259,17 +261,45 @@ export default function AdminTracksPage() {
       return toast.error("Please fill all required fields.");
     }
     
+    // Validate individual covers
+    if (coverImageMode === 'individual') {
+      const missingCount = Array.from({ length: bulkCount }).filter((_, i) => !bulkIndividualCovers[i]).length;
+      if (missingCount > 0) {
+        return toast.error(`개별 커버 모드: ${missingCount}개 이미지가 누락되었습니다.`);
+      }
+    }
+
     setIsBulkProcessing(true);
     try {
-      let coverUrl = '';
-      if (bulkCoverImage) {
+      // Upload single cover if needed
+      let sharedCoverUrl = '';
+      if (coverImageMode === 'single' && bulkCoverImage) {
         setBulkStatusText('Uploading cover image...');
         const ts = Date.now();
         const ext = bulkCoverImage.name.split('.').pop() || 'jpg';
         const fname = `bulk_cover_${ts}.${ext}`;
         const { error: imgErr } = await supabase.storage.from('music_assets').upload(fname, bulkCoverImage);
         if (imgErr) throw imgErr;
-        coverUrl = supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl;
+        sharedCoverUrl = supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl;
+      }
+
+      // Upload all individual covers up-front
+      const individualCoverUrls: string[] = [];
+      if (coverImageMode === 'individual') {
+        for (let i = 0; i < bulkCount; i++) {
+          setBulkStatusText(`Uploading cover ${i + 1} of ${bulkCount}...`);
+          const file = bulkIndividualCovers[i];
+          if (file) {
+            const ts = Date.now();
+            const ext = file.name.split('.').pop() || 'jpg';
+            const fname = `bulk_cover_${ts}_${i}.${ext}`;
+            const { error: imgErr } = await supabase.storage.from('music_assets').upload(fname, file);
+            if (imgErr) throw imgErr;
+            individualCoverUrls.push(supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl);
+          } else {
+            individualCoverUrls.push('');
+          }
+        }
       }
 
       setBulkStatusText('Requesting GPT for variants...');
@@ -304,9 +334,14 @@ export default function AdminTracksPage() {
 
         if (!promptParams) throw new Error(`Failed to map prompt parameters for variant ${i+1}.`);
 
+        const coverUrl = coverImageMode === 'individual'
+          ? (individualCoverUrls[i] || '')
+          : sharedCoverUrl;
+
         const jobEtcInfo = JSON.stringify({
           bulk_batch: true,
           cover_image_url: coverUrl,
+          cover_mode: coverImageMode,
           ref_artist: bulkRefArtist,
           ref_track: bulkRefTitle
         });
@@ -1551,17 +1586,132 @@ ${hashtags}`.trim();
 
               <div className="space-y-4">
                 <h3 className="text-sm border-b border-white/[0.05] pb-2 font-bold text-zinc-300">3. Generation Info</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Album Art Master</label>
-                    <input type="file" accept="image/*" onChange={(e) => setBulkCoverImage(e.target.files?.[0] || null)} className="w-full text-xs text-zinc-300 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 cursor-pointer" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Count (1-8)</label>
-                    <input type="number" min={1} max={8} value={bulkCount} onChange={e => setBulkCount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+
+                {/* Count row */}
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Count (1-8)</label>
+                  <input type="number" min={1} max={8} value={bulkCount} onChange={e => {
+                    const n = Math.max(1, Math.min(8, Number(e.target.value)));
+                    setBulkCount(n);
+                    setBulkIndividualCovers(prev => Array.from({ length: n }, (_, i) => prev[i] ?? null));
+                  }} className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
+                </div>
+
+                {/* Cover mode toggle */}
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Cover Image Mode</label>
+                  <div className="flex bg-white/[0.04] rounded-lg p-0.5 gap-0.5 border border-white/[0.05] w-fit">
+                    {([{ key: 'single', label: '🖼 단일 커버' }, { key: 'individual', label: '🎨 개별 커버' }] as const).map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => {
+                          setCoverImageMode(opt.key);
+                          if (opt.key === 'individual') {
+                            setBulkIndividualCovers(Array.from({ length: bulkCount }, (_, i) => bulkIndividualCovers[i] ?? null));
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-md text-xs font-bold tracking-wide transition-all duration-200 ${
+                          coverImageMode === opt.key
+                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                            : 'text-zinc-500 hover:text-zinc-300'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
+
+                {/* Single cover upload */}
+                {coverImageMode === 'single' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Album Art (공통 커버)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setBulkCoverImage(e.target.files?.[0] || null)}
+                      className="w-full text-xs text-zinc-300 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 cursor-pointer"
+                    />
+                    {bulkCoverImage && (
+                      <div className="mt-2 flex items-center gap-3">
+                        <img
+                          src={URL.createObjectURL(bulkCoverImage)}
+                          className="w-14 h-14 rounded-lg object-cover border border-zinc-700"
+                          alt="preview"
+                        />
+                        <div>
+                          <p className="text-xs text-zinc-300 font-bold truncate max-w-[180px]">{bulkCoverImage.name}</p>
+                          <button onClick={() => setBulkCoverImage(null)} className="text-[10px] text-red-400 hover:text-red-300 mt-1">Remove</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Individual cover uploads */}
+                {coverImageMode === 'individual' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-3 block">
+                      개별 커버 이미지 ({bulkCount}개)
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {Array.from({ length: bulkCount }).map((_, i) => {
+                        const file = bulkIndividualCovers[i] ?? null;
+                        const previewUrl = file ? URL.createObjectURL(file) : null;
+                        return (
+                          <label
+                            key={i}
+                            className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 overflow-hidden aspect-square ${
+                              file
+                                ? 'border-purple-500/50 bg-purple-900/10'
+                                : 'border-zinc-700 bg-zinc-900 hover:border-zinc-500 hover:bg-zinc-800/50'
+                            }`}
+                          >
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="sr-only"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0] ?? null;
+                                setBulkIndividualCovers(prev => {
+                                  const next = [...prev];
+                                  next[i] = f;
+                                  return next;
+                                });
+                              }}
+                            />
+                            {previewUrl ? (
+                              <>
+                                <img src={previewUrl} className="absolute inset-0 w-full h-full object-cover" alt={`cover ${i+1}`} />
+                                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                  <span className="text-[10px] text-white font-bold">변경</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault(); e.stopPropagation();
+                                    setBulkIndividualCovers(prev => { const next = [...prev]; next[i] = null; return next; });
+                                  }}
+                                  className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 text-white hover:text-red-400 z-10"
+                                >
+                                  <X size={10} />
+                                </button>
+                                <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] font-bold text-white bg-black/50 py-0.5">#{i+1}</span>
+                              </>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1 p-2">
+                                <span className="text-xl">🖼</span>
+                                <span className="text-[9px] text-zinc-500 font-bold">#{i+1} 커버</span>
+                                <span className="text-[8px] text-zinc-600">클릭하여 업로드</span>
+                              </div>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-zinc-600 mt-2">각 트랙에 서로 다른 커버 이미지가 적용됩니다.</p>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Baseline Title</label>
