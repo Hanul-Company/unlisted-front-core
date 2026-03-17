@@ -156,7 +156,8 @@ export default function AdminTracksPage() {
       const { data, error } = await supabase
         .from('suno_jobs')
         .select('*')
-        .neq('status', 'published')
+        .neq('status', 'published')   // status가 published이면 제외
+        .is('published_track_id', null) // published_track_id가 있으면 이미 퍼블리시 완료 → 제외
         .eq('discarded', false)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -404,17 +405,22 @@ export default function AdminTracksPage() {
         return;
       }
 
+      let publishedCount = 0;
+      let skippedCount = 0;
+
       for (let i = 0; i < bulkJobs.length; i++) {
         const job = bulkJobs[i];
         setBulkPublishStatusText(`Publishing ${i+1}/${bulkJobs.length}: ${job.target_title}`);
 
         const tracks = job.result_data?.tracks || [];
         if (tracks.length === 0) {
-           console.log("No track outputs for job", job.id);
-           continue; 
+          // Suno 결과가 아직 없는 job — 건너뜀 (큐에 계속 표시)
+          console.log("No track outputs for job", job.id, "— skipped");
+          skippedCount++;
+          continue;
         }
 
-        const selectedTrack = tracks[0]; // 무조건 1번 선택 
+        const selectedTrack = tracks[0]; // 무조건 1번 선택
         const parsedEtcInfo = JSON.parse(job.etc_info || '{}');
         const coverUrl = parsedEtcInfo.cover_image_url || '/images/default_cover.jpg';
         const refArtist = parsedEtcInfo.ref_artist || job.ref_artist;
@@ -422,7 +428,7 @@ export default function AdminTracksPage() {
 
         let audioUrl = selectedTrack.audio_cdn_url;
         setBulkPublishStatusText(`Downloading audio & re-uploading ${i+1}/${bulkJobs.length}...`);
-        
+
         try {
           const res = await fetch(selectedTrack.audio_cdn_url);
           const blob = await res.blob();
@@ -438,34 +444,45 @@ export default function AdminTracksPage() {
         const artistId = profile?.id;
 
         const { data: newTrack, error: trackErr } = await supabase.from('tracks').insert({
-           title: job.target_title,
-           lyrics: job.lyrics || selectedTrack.lyrics_from_api,
-           audio_url: audioUrl,
-           cover_image_url: coverUrl,
-           genre: job.genres || [],
-           moods: job.moods || [],
-           context_tags: job.tags || [],
-           uploader_address: account.address,
-           artist_name: artistName,
-           artist_id: artistId,
-           creation_type: 'ai',
-           ai_metadata: {
-              ref_artists: [refArtist],
-              ref_tracks: [refTrack],
-              voice_style: [job.ref_artist]
-           }
+          title: job.target_title,
+          lyrics: job.lyrics || selectedTrack.lyrics_from_api,
+          audio_url: audioUrl,
+          cover_image_url: coverUrl,
+          genre: job.genres || [],
+          moods: job.moods || [],
+          context_tags: job.tags || [],
+          uploader_address: account.address,
+          artist_name: artistName,
+          artist_id: artistId,
+          creation_type: 'ai',
+          ai_metadata: {
+            ref_artists: [refArtist],
+            ref_tracks: [refTrack],
+            voice_style: [job.ref_artist]
+          }
         }).select().single();
 
         if (trackErr) throw trackErr;
 
-        await supabase.from('suno_jobs').update({
-           status: 'published',
-           published_track_id: newTrack.id,
-           uploaded_track_id: newTrack.id
+        // ✅ 퍼블리시 후 반드시 status 업데이트 — 실패 시 에러 로그
+        const { error: updateErr } = await supabase.from('suno_jobs').update({
+          status: 'published',
+          published_track_id: newTrack.id,
+          uploaded_track_id: newTrack.id
         }).eq('id', job.id);
+
+        if (updateErr) {
+          console.error(`suno_jobs status update failed for job ${job.id}:`, updateErr.message);
+          // 실패해도 트랙은 생성됐으므로 계속 진행
+        }
+
+        publishedCount++;
       }
 
-      toast.success(`Published ${bulkJobs.length} tracks successfully!`);
+      const msg = skippedCount > 0
+        ? `${publishedCount}개 퍼블리시 완료 (${skippedCount}개는 Suno 처리 미완료로 건너뜀)`
+        : `${publishedCount}개 트랙이 성공적으로 퍼블리시되었습니다!`;
+      toast.success(msg);
       fetchTracks();
       fetchBulkJobs();
     } catch(e:any) {
