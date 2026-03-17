@@ -58,6 +58,7 @@ type Track = {
   } | null;
   cover_image_url: string;
   high_res_cover_url?: string | null;
+  lyrics?: string | null;
   created_at: string;
   artist?: { 
     username: string | null;
@@ -797,7 +798,7 @@ export default function AdminTracksPage() {
     const dateObj = new Date(track.created_at);
     // Convert UTC to KST
     const kstObj = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
-    
+
     const yyyy = kstObj.getUTCFullYear();
     const mm = String(kstObj.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(kstObj.getUTCDate()).padStart(2, '0');
@@ -806,15 +807,49 @@ export default function AdminTracksPage() {
     h = h % 12 || 12;
 
     const dateStr = `${yyyy}-${mm}-${dd} ${h} ${ampm} KST`;
+    const songTitle = track.title || 'Untitled';
     const artistName = track.artist_name || 'Anonymous';
     const uploaderAddress = track.uploader_address || '';
 
-    const similarArtists = (track.ai_metadata?.similar_artists || []).map((v) => `#${v.replace(/\\s+/g, '')}`);
-    const refTracks = (track.ai_metadata?.ref_tracks || []).map((v) => `#${v.replace(/\\s+/g, '')}`);
-    const hashtags = [...similarArtists, ...refTracks].join(' ');
+    // 가사 첫 줄 추출 (비어있거나 공백만인 줄은 건너뜀)
+    const firstLyricLine = track.lyrics
+      ? track.lyrics.split('\n').map(l => l.trim()).find(l => l.length > 0 && !l.startsWith('['))
+      : null;
 
-    return `Visit ${artistName} on Unlisted 👀
+    // ── 해시태그 풍부화 ──
+    const toTag = (v: string) => `#${v.replace(/[^\w가-힣]/g, '').replace(/\s+/g, '')}`;
 
+    const titleTag = toTag(songTitle.replace(/\s+/g, ''));
+    const artistTag = toTag(artistName.replace(/\s+/g, ''));
+
+    const refArtistTags = (track.ai_metadata?.ref_artists || []).map(toTag);
+    const similarArtistTags = (track.ai_metadata?.similar_artists || []).map(toTag);
+    const refTrackTags = (track.ai_metadata?.ref_tracks || []).map(toTag);
+    const vibeTags = (track.ai_metadata?.vibe_tags || []).map(toTag);
+    const genreTags = (track.genre || []).map(toTag);
+    const moodTags = (track.moods || []).slice(0, 4).map(toTag);
+
+    const baseTags = ['#UnlistedMusic', '#AIMusic', '#NewMusic', '#IndieMusic', '#StreamNow'];
+
+    // 중복 제거 후 합치기
+    const allTags = [
+      titleTag,
+      artistTag,
+      ...refArtistTags,
+      ...similarArtistTags,
+      ...refTrackTags,
+      ...vibeTags,
+      ...genreTags,
+      ...moodTags,
+      ...baseTags,
+    ].filter((t, i, arr) => t !== '#' && arr.indexOf(t) === i);
+
+    const hashtagLine = allTags.join(' ');
+
+    const lyricQuote = firstLyricLine ? `\n"${firstLyricLine}"\n` : '';
+
+    return `🎵 Listen to '${songTitle}'
+Visit ${artistName} on Unlisted 👀${lyricQuote}
 https://unlisted.music/u?wallet=${uploaderAddress}
 
 RELEASE
@@ -823,7 +858,7 @@ DATE: ${dateStr}
 ℗ ${yyyy} ${artistName} © ${yyyy} Unlisted Music
 (unlisted.music) All rights reserved. unlisted.music & ${artistName}. The music never existed. ⚡
 
-${hashtags}`.trim();
+${hashtagLine}`.trim();
   };
 
   // ------------------------------------------------------------------
