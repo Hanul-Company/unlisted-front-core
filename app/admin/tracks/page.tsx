@@ -268,18 +268,18 @@ export default function AdminTracksPage() {
       selectedTracksForPlaylist = data as any[];
     }
     
-    const hashtags = '#playlist #kpop #rnb #cafe #bts #tws #twice';
+    // tracklist는 worker가 실제 타임스탬프로 교체 — 트랙명만 플레이스홀더로 넣음
     let trackListStr = '';
     selectedTracksForPlaylist.forEach((t) => {
-      // 타임스탬프 로케이션은 00:00 고정 (향후 worker에서 오디오 길이 기반으로 계산할 목적)
       const trackName = t.title || 'Untitled';
       const artistName = t.artist_name || 'Anonymous';
       trackListStr += `00:00 ${artistName} - ${trackName}\n`;
     });
 
-    const defaultDesc = `${hashtags}\n\n[Tracklist]\n${trackListStr}\nEnjoy the music! 🎵`;
-    
-    setPlaylistTitle(`My Playlist - ${new Date().toLocaleDateString()}`);
+    const defaultDesc = `🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n#emotionalhiphop #rnb #playlist #popmusic #chillmusic #emotional #hiphop #lofi #lofimusic #chillvibes #moodmusic #koreanrnb #chillplaylist #studywithme #플레이리스트 #카페음악`;
+
+    const defaultTitle = `[Playlist] ${selectedTracksForPlaylist.map(t => t.artist_name).filter((v, i, a) => a.indexOf(v) === i).slice(0, 2).join(' & ')} | Emotional HipHop・Pop R&B | (Ultimate BGM)`;
+    setPlaylistTitle(defaultTitle);
     setPlaylistDescription(defaultDesc);
     setIsPlaylistModalOpen(true);
   };
