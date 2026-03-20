@@ -6,7 +6,7 @@ import {
   Search, Loader2, Edit, Trash2, X, Plus, Save,
   Music, Disc, Bot, Hash, Download, Play, Pause,
   Share2, FileVideo, UploadCloud, RefreshCw, CheckCircle,
-  Settings2, ChevronDown, User, Sparkles, Mic2, Wand2
+  Settings2, ChevronDown, User, Sparkles, Mic2, Wand2, Youtube, ListPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
@@ -151,6 +151,12 @@ export default function AdminTracksPage() {
   const [bulkJobsList, setBulkJobsList] = useState<any[]>([]);
   const [isJobsLoading, setIsJobsLoading] = useState(false);
 
+  // --- Playlist Modal State ---
+  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [playlistTitle, setPlaylistTitle] = useState('');
+  const [playlistDescription, setPlaylistDescription] = useState('');
+  const [isSubmittingPlaylist, setIsSubmittingPlaylist] = useState(false);
+
   const fetchBulkJobs = async () => {
     setIsJobsLoading(true);
     try {
@@ -240,6 +246,78 @@ export default function AdminTracksPage() {
   const selectArtist = (artist: ArtistSearchResult) => {
     setSelectedArtist(artist); setBulkTargetVoice(artist.name);
     setArtistQuery(artist.name); setArtistResults([]);
+  };
+
+  // --- Playlist ---
+  const handleOpenPlaylistModal = async () => {
+    if (selectedIds.size === 0) return;
+    if (selectedIds.size > 20) {
+      toast.error('최대 20개의 트랙만 선택 가능합니다.');
+      return;
+    }
+
+    let selectedTracksForPlaylist = tracks.filter(t => selectedIds.has(t.id));
+    if (selectedTracksForPlaylist.length !== selectedIds.size) {
+      const toastId = toast.loading('선택된 트랙을 확인 중...');
+      const { data, error } = await supabase.from('tracks').select('id, title, artist_name, audio_url, cover_image_url').in('id', Array.from(selectedIds));
+      toast.dismiss(toastId);
+      if (error) {
+         toast.error('정보 확인 실패');
+         return;
+      }
+      selectedTracksForPlaylist = data as any[];
+    }
+    
+    const hashtags = '#playlist #kpop #rnb #cafe #bts #tws #twice';
+    let trackListStr = '';
+    selectedTracksForPlaylist.forEach((t) => {
+      // 타임스탬프 로케이션은 00:00 고정 (향후 worker에서 오디오 길이 기반으로 계산할 목적)
+      const trackName = t.title || 'Untitled';
+      const artistName = t.artist_name || 'Anonymous';
+      trackListStr += `00:00 ${artistName} - ${trackName}\n`;
+    });
+
+    const defaultDesc = `${hashtags}\n\n[Tracklist]\n${trackListStr}\nEnjoy the music! 🎵`;
+    
+    setPlaylistTitle(`My Playlist - ${new Date().toLocaleDateString()}`);
+    setPlaylistDescription(defaultDesc);
+    setIsPlaylistModalOpen(true);
+  };
+
+  const handleSubmitPlaylist = async () => {
+    if (!playlistTitle.trim() || !playlistDescription.trim()) {
+      return toast.error('제목과 설명을 입력해주세요.');
+    }
+    
+    setIsSubmittingPlaylist(true);
+    try {
+      let selectedTracksForPlaylist = tracks.filter(t => selectedIds.has(t.id));
+      if (selectedTracksForPlaylist.length !== selectedIds.size) {
+        const { data } = await supabase.from('tracks').select('id, title, artist_name, audio_url, cover_image_url').in('id', Array.from(selectedIds));
+        selectedTracksForPlaylist = (data || []) as any[];
+      }
+
+      const trackIds = selectedTracksForPlaylist.map(t => t.id);
+      const trackData = selectedTracksForPlaylist.map(t => ({ id: t.id, title: t.title, artist: t.artist_name, audio_url: t.audio_url, cover_image_url: t.cover_image_url }));
+
+      const { error } = await supabase.from('playlist_jobs').insert({
+        title: playlistTitle,
+        description: playlistDescription,
+        track_ids: trackIds,
+        tracks_data: trackData,
+        status: 'pending'
+      });
+
+      if (error) throw error;
+      
+      toast.success('플레이리스트 업로드 요청이 등록되었습니다.');
+      setIsPlaylistModalOpen(false);
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      toast.error('요청 실패: ' + err.message);
+    } finally {
+      setIsSubmittingPlaylist(false);
+    }
   };
 
   // --- Bulk Publish State ---
@@ -562,7 +640,7 @@ export default function AdminTracksPage() {
       }));
 
       setTracks(normalized as Track[]);
-      setSelectedIds(new Set()); // clear selection on fetch
+      // setSelectedIds(new Set()); // Removed to persist selection on fetch
       if (count !== null) setTotalPages(Math.ceil(count / itemsPerPage));
     } catch (e: any) {
       toast.error(e.message);
@@ -1006,14 +1084,23 @@ ${hashtagLine}`.trim();
           
           {/* Bulk Action Buttons */}
           {selectedIds.size > 0 && (
-            <button
-              onClick={handleBulkDelete}
-              disabled={isBulkDeleting}
-              className="bg-red-600/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg hover:bg-red-600/40 text-sm font-bold flex items-center gap-2 transition"
-            >
-              {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-              {isBulkDeleting ? '삭제 중...' : `${selectedIds.size}개 삭제`}
-            </button>
+            <>
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting}
+                className="bg-red-600/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg hover:bg-red-600/40 text-sm font-bold flex items-center gap-2 transition"
+              >
+                {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                {isBulkDeleting ? '삭제 중...' : `${selectedIds.size}개 삭제`}
+              </button>
+
+              <button
+                onClick={handleOpenPlaylistModal}
+                className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-lg hover:bg-blue-600/40 text-sm font-bold flex items-center gap-2 transition ml-4"
+              >
+                <Youtube size={16} /> Playlist
+              </button>
+            </>
           )}
           <button onClick={() => setIsBulkModalOpen(true)} className="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-4 py-2 rounded-lg hover:bg-purple-600/40 text-sm font-bold flex items-center gap-2 transition ml-4">
             <Bot size={16} /> Bulk Queue
@@ -1086,10 +1173,15 @@ ${hashtagLine}`.trim();
                   <input
                     type="checkbox"
                     className="accent-blue-500 w-4 h-4 cursor-pointer"
-                    checked={tracks.length > 0 && selectedIds.size === tracks.length}
+                    checked={tracks.length > 0 && tracks.every(t => selectedIds.has(t.id))}
                     onChange={e => {
-                      if (e.target.checked) setSelectedIds(new Set(tracks.map(t => t.id)));
-                      else setSelectedIds(new Set());
+                      const next = new Set(selectedIds);
+                      if (e.target.checked) {
+                        tracks.forEach(t => next.add(t.id));
+                      } else {
+                        tracks.forEach(t => next.delete(t.id));
+                      }
+                      setSelectedIds(next);
                     }}
                   />
                 </th>
@@ -1793,6 +1885,54 @@ ${hashtagLine}`.trim();
               <button disabled={isBulkProcessing} onClick={handleBulkGenerate} className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black shadow-lg shadow-purple-900/20 disabled:opacity-50 flex items-center justify-center gap-2 transition">
                 {isBulkProcessing ? <Loader2 size={18} className="animate-spin" /> : <Bot size={18} />}
                 Generate & Queue {bulkCount} Variants
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Playlist Modal */}
+      {isPlaylistModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center sticky top-0 bg-zinc-900 z-10">
+              <h2 className="text-xl font-bold flex items-center gap-2"><Youtube className="text-red-500" /> Create YouTube Playlist</h2>
+              <button disabled={isSubmittingPlaylist} onClick={() => setIsPlaylistModalOpen(false)} className="p-2 hover:bg-zinc-800 rounded-full disabled:opacity-50 transition"><X size={20} /></button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Playlist Title</label>
+                <input
+                  value={playlistTitle}
+                  onChange={e => setPlaylistTitle(e.target.value)}
+                  placeholder="e.g. My Awesome Playlist"
+                  className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-red-500 outline-none transition"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Caption & Timestamps (Description)</label>
+                <textarea
+                  value={playlistDescription}
+                  onChange={e => setPlaylistDescription(e.target.value)}
+                  className="w-full h-64 bg-black border border-zinc-800 rounded-lg p-4 text-sm font-medium text-zinc-300 resize-none outline-none focus:border-red-500 transition-colors"
+                />
+                <p className="text-[10px] text-zinc-500 mt-2">
+                  (Note: The '00:00' placeholders will act as starting markers. The background AI worker can adjust timestamps if needed, or just use these as is.)
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-zinc-800 bg-zinc-900 sticky bottom-0 flex justify-end gap-4">
+              <button onClick={() => setIsPlaylistModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition">Cancel</button>
+              <button
+                disabled={isSubmittingPlaylist}
+                onClick={handleSubmitPlaylist}
+                className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black shadow-lg shadow-red-900/20 flex items-center gap-2 transition disabled:opacity-50"
+              >
+                {isSubmittingPlaylist ? <Loader2 size={18} className="animate-spin" /> : <ListPlus size={18} />}
+                Submit to Worker
               </button>
             </div>
           </div>
