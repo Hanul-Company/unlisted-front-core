@@ -336,6 +336,21 @@ export default function AdminTracksPage() {
     }
   };
 
+  const handleDiscardAllBulkJobs = async () => {
+    if (bulkJobsList.length === 0) return;
+    if (!confirm("현재 리스트에 보이는 모든 작업을 큐에서 삭제하시겠습니까? (이미 발행/완료된 트랙들엔 영향이 없습니다)")) return;
+    
+    try {
+      const ids = bulkJobsList.map(j => j.id);
+      await supabase.from('suno_jobs').update({ discarded: true }).in('id', ids);
+      toast.success("모든 잡이 목록에서 지워졌습니다.");
+      fetchBulkJobs();
+    } catch(e:any) {
+      toast.error("Failed to discard all jobs: " + e.message);
+    }
+  };
+
+
   const handleBulkGenerate = async () => {
     if (!bulkBaseTitle || !bulkBaseLyrics || !bulkCount || !bulkRefArtist || !bulkRefTitle) {
       return toast.error("Please fill all required fields.");
@@ -1128,9 +1143,14 @@ ${hashtagLine}`.trim();
             <h3 className="font-bold flex items-center gap-2 text-sm text-purple-400">
               <Bot size={16} /> Bulk Queue Jobs ({bulkJobsList.filter(j=>j.status==='done').length} / {bulkJobsList.length} ready)
             </h3>
-            <button onClick={fetchBulkJobs} disabled={isJobsLoading} className="text-zinc-500 hover:text-white transition">
-              <RefreshCw size={14} className={isJobsLoading ? 'animate-spin' : ''} />
-            </button>
+            <div className="flex items-center gap-4">
+              <button onClick={handleDiscardAllBulkJobs} disabled={isJobsLoading || bulkJobsList.length === 0} className="text-xs flex items-center gap-1.5 text-zinc-500 hover:text-red-400 transition font-bold uppercase tracking-wider">
+                <Trash2 size={13} /> Clear All
+              </button>
+              <button onClick={fetchBulkJobs} disabled={isJobsLoading} className="text-zinc-500 hover:text-white transition">
+                <RefreshCw size={14} className={isJobsLoading ? 'animate-spin' : ''} />
+              </button>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
