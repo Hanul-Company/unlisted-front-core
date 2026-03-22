@@ -155,6 +155,8 @@ export default function AdminTracksPage() {
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [playlistTitle, setPlaylistTitle] = useState('');
   const [playlistDescription, setPlaylistDescription] = useState('');
+  const [playlistIdInput, setPlaylistIdInput] = useState('');
+  const [existingPlaylistIds, setExistingPlaylistIds] = useState<string[]>([]);
   const [isSubmittingPlaylist, setIsSubmittingPlaylist] = useState(false);
 
   const fetchBulkJobs = async () => {
@@ -256,6 +258,18 @@ export default function AdminTracksPage() {
       return;
     }
 
+    try {
+      const { data, error } = await supabase.from('playlist_jobs')
+        .select('playlist_id')
+        .not('playlist_id', 'is', null);
+      if (!error && data) {
+        const ids = Array.from(new Set(data.map(d => d.playlist_id).filter(Boolean)));
+        setExistingPlaylistIds(ids as string[]);
+      }
+    } catch(e) {
+      console.warn('Failed to fetch existing playlist ids', e);
+    }
+
     let selectedTracksForPlaylist = tracks.filter(t => selectedIds.has(t.id));
     if (selectedTracksForPlaylist.length !== selectedIds.size) {
       const toastId = toast.loading('선택된 트랙을 확인 중...');
@@ -281,6 +295,7 @@ export default function AdminTracksPage() {
     const defaultTitle = `𝐏𝐥𝐚𝐲𝐥𝐢𝐬𝐭 ${selectedTracksForPlaylist.map(t => t.artist_name).filter((v, i, a) => a.indexOf(v) === i).slice(0, 2).join(' & ')} | Emotional HipHop・Pop R&B | Ultimate BGM | Chill Groove Vibe`;
     setPlaylistTitle(defaultTitle);
     setPlaylistDescription(defaultDesc);
+    setPlaylistIdInput('');
     setIsPlaylistModalOpen(true);
   };
 
@@ -305,6 +320,7 @@ export default function AdminTracksPage() {
         description: playlistDescription,
         track_ids: trackIds,
         tracks_data: trackData,
+        playlist_id: playlistIdInput.trim() || null,
         status: 'pending'
       });
 
@@ -1921,6 +1937,32 @@ ${hashtagLine}`.trim();
             </div>
 
             <div className="p-6 space-y-6">
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Playlist ID (Optional)</label>
+                <div className="space-y-3">
+                  <input
+                    value={playlistIdInput}
+                    onChange={e => setPlaylistIdInput(e.target.value)}
+                    placeholder="Enter or paste Playlist ID..."
+                    className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-red-500 outline-none transition"
+                  />
+                  {existingPlaylistIds.length > 0 && (
+                     <div className="flex flex-wrap gap-2">
+                       <span className="text-[10px] text-zinc-500 self-center font-bold">Existing:</span>
+                       {existingPlaylistIds.map(id => (
+                         <button
+                           key={id}
+                           onClick={() => setPlaylistIdInput(id)}
+                           className={`text-[10px] px-2 py-1 rounded-md border transition-colors ${playlistIdInput === id ? 'bg-red-500/20 border-red-500/50 text-red-300' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}
+                         >
+                           {id}
+                         </button>
+                       ))}
+                     </div>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Playlist Title</label>
                 <input
