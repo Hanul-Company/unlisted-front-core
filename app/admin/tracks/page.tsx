@@ -6,7 +6,8 @@ import {
   Search, Loader2, Edit, Trash2, X, Plus, Save,
   Music, Disc, Bot, Hash, Download, Play, Pause,
   Share2, FileVideo, UploadCloud, RefreshCw, CheckCircle,
-  Settings2, ChevronDown, User, Sparkles, Mic2, Wand2, Youtube, ListPlus
+  Settings2, ChevronDown, User, Sparkles, Mic2, Wand2, Youtube, ListPlus,
+  ArrowUp, ArrowDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
@@ -21,6 +22,7 @@ import HeaderProfile from '@/app/components/HeaderProfile';
 
 import { generateBulkVariants } from '@/app/actions/generate-bulk-variants';
 import { generateSunoPrompt } from '@/app/actions/generate-suno-prompt';
+import { analyzeTrackMetadata } from '@/app/actions/analyze-music';
 
 let _ffmpeg: FFmpeg | null = null;
 let _ffmpegLoading: Promise<FFmpeg> | null = null;
@@ -158,6 +160,7 @@ export default function AdminTracksPage() {
   const [playlistIdInput, setPlaylistIdInput] = useState('');
   const [existingPlaylistIds, setExistingPlaylistIds] = useState<string[]>([]);
   const [isSubmittingPlaylist, setIsSubmittingPlaylist] = useState(false);
+  const [playlistTracks, setPlaylistTracks] = useState<any[]>([]);
 
   const fetchBulkJobs = async () => {
     setIsJobsLoading(true);
@@ -282,6 +285,8 @@ export default function AdminTracksPage() {
       selectedTracksForPlaylist = data as any[];
     }
     
+    setPlaylistTracks(selectedTracksForPlaylist);
+    
     // tracklist는 worker가 실제 타임스탬프로 교체 — 트랙명만 플레이스홀더로 넣음
     let trackListStr = '';
     selectedTracksForPlaylist.forEach((t) => {
@@ -299,21 +304,48 @@ export default function AdminTracksPage() {
     setIsPlaylistModalOpen(true);
   };
 
+  const updateDescriptionTracklist = (newTracks: any[]) => {
+    let newTrackListStr = '';
+    newTracks.forEach((t) => {
+      newTrackListStr += `00:00 ${t.artist_name || 'Anonymous'} - ${t.title || 'Untitled'}\n`;
+    });
+    setPlaylistDescription(prev => {
+      const parts = prev.split('[Tracklist]\n');
+      if (parts.length === 2) {
+         const bottomParts = parts[1].split('\nThe songs in this playlist');
+         if (bottomParts.length === 2) {
+            return `${parts[0]}[Tracklist]\n${newTrackListStr}The songs in this playlist${bottomParts[1]}`;
+         }
+      }
+      return prev;
+    });
+  };
+
+  const movePlaylistTrack = (index: number, direction: 'up' | 'down') => {
+    const newTracks = [...playlistTracks];
+    if (direction === 'up' && index > 0) {
+      [newTracks[index - 1], newTracks[index]] = [newTracks[index], newTracks[index - 1]];
+    } else if (direction === 'down' && index < newTracks.length - 1) {
+      [newTracks[index + 1], newTracks[index]] = [newTracks[index], newTracks[index + 1]];
+    } else {
+      return;
+    }
+    setPlaylistTracks(newTracks);
+    updateDescriptionTracklist(newTracks);
+  };
+
   const handleSubmitPlaylist = async () => {
     if (!playlistTitle.trim() || !playlistDescription.trim()) {
       return toast.error('제목과 설명을 입력해주세요.');
     }
+    if (playlistTracks.length === 0) {
+      return toast.error('선택된 트랙이 없습니다.');
+    }
     
     setIsSubmittingPlaylist(true);
     try {
-      let selectedTracksForPlaylist = tracks.filter(t => selectedIds.has(t.id));
-      if (selectedTracksForPlaylist.length !== selectedIds.size) {
-        const { data } = await supabase.from('tracks').select('id, title, artist_name, audio_url, cover_image_url').in('id', Array.from(selectedIds));
-        selectedTracksForPlaylist = (data || []) as any[];
-      }
-
-      const trackIds = selectedTracksForPlaylist.map(t => t.id);
-      const trackData = selectedTracksForPlaylist.map(t => ({ id: t.id, title: t.title, artist: t.artist_name, audio_url: t.audio_url, cover_image_url: t.cover_image_url }));
+      const trackIds = playlistTracks.map(t => t.id);
+      const trackData = playlistTracks.map(t => ({ id: t.id, title: t.title, artist: t.artist_name, audio_url: t.audio_url, cover_image_url: t.cover_image_url }));
 
       const { error } = await supabase.from('playlist_jobs').insert({
         title: playlistTitle,
@@ -418,6 +450,30 @@ export default function AdminTracksPage() {
       const variants = variantsData?.variants || [];
       if (variants.length === 0) throw new Error("No variants generated");
 
+      setBulkStatusText('Extracting AI Metadata...');
+      let aiMetadataResult = {
+        ref_artists: bulkRefArtist ? [bulkRefArtist] : [],
+        ref_tracks: bulkRefTitle ? [bulkRefTitle] : [],
+        similar_artists: [] as string[],
+        voice_style: bulkTargetVoice ? [bulkTargetVoice] : [] as string[],
+        vibe_tags: [] as string[],
+        analyzed_genres: [] as string[],
+        analyzed_moods: [] as string[]
+      };
+
+      try {
+        const analysis = await analyzeTrackMetadata(bulkRefArtist, bulkRefTitle, selectedSong?.genre ? [selectedSong.genre] : [], []);
+        if (analysis) {
+          aiMetadataResult = { ...aiMetadataResult, ...analysis };
+          // Keep target voice if provided, append AI suggestions
+          if (bulkTargetVoice) {
+            aiMetadataResult.voice_style = [...new Set([bulkTargetVoice, ...(analysis.voice_style || [])])];
+          }
+        }
+      } catch (err) {
+        console.warn("AI Metadata extraction failed, using defaults", err);
+      }
+
       for (let i = 0; i < variants.length; i++) {
         setBulkStatusText(`Queueing job ${i + 1} of ${variants.length}...`);
         const item = variants[i];
@@ -454,7 +510,8 @@ export default function AdminTracksPage() {
           cover_image_url: coverUrl,
           cover_mode: coverImageMode,
           ref_artist: bulkRefArtist,
-          ref_track: bulkRefTitle
+          ref_track: bulkRefTitle,
+          ai_metadata_result: aiMetadataResult
         });
 
         const activeWallet = account?.address || '0xadmin_fallback';
@@ -565,7 +622,7 @@ export default function AdminTracksPage() {
           artist_name: artistName,
           artist_id: artistId,
           creation_type: 'ai',
-          ai_metadata: {
+          ai_metadata: parsedEtcInfo.ai_metadata_result || {
             ref_artists: [refArtist],
             ref_tracks: [refTrack],
             voice_style: [job.ref_artist]
@@ -1971,6 +2028,32 @@ ${hashtagLine}`.trim();
                   placeholder="e.g. My Awesome Playlist"
                   className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-red-500 outline-none transition"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Track Order ({playlistTracks.length})</label>
+                <div className="bg-black border border-zinc-800 rounded-lg p-2 max-h-60 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-zinc-700">
+                  {playlistTracks.map((t, idx) => (
+                    <div key={t.id} className="flex items-center justify-between bg-zinc-900/50 p-2 rounded-md border border-zinc-800/50 group hover:border-zinc-700 transition">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <span className="text-[10px] text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
+                        {t.cover_image_url && <img src={t.cover_image_url} alt="" className="w-8 h-8 rounded-sm object-cover" />}
+                        <div className="flex flex-col truncate">
+                          <span className="text-xs font-bold text-zinc-200 truncate">{t.title || 'Untitled'}</span>
+                          <span className="text-[10px] text-zinc-500 truncate">{t.artist_name || 'Anonymous'}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+                        <button onClick={() => movePlaylistTrack(idx, 'up')} disabled={idx === 0} className="text-zinc-500 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500 p-0.5">
+                           <ArrowUp size={14} />
+                        </button>
+                        <button onClick={() => movePlaylistTrack(idx, 'down')} disabled={idx === playlistTracks.length - 1} className="text-zinc-500 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500 p-0.5">
+                           <ArrowDown size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div>
