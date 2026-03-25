@@ -7,7 +7,7 @@ import {
   Music, Disc, Bot, Hash, Download, Play, Pause,
   Share2, FileVideo, UploadCloud, RefreshCw, CheckCircle,
   Settings2, ChevronDown, User, Sparkles, Mic2, Wand2, Youtube, ListPlus,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, GripVertical
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
@@ -161,6 +161,9 @@ export default function AdminTracksPage() {
   const [existingPlaylistIds, setExistingPlaylistIds] = useState<string[]>([]);
   const [isSubmittingPlaylist, setIsSubmittingPlaylist] = useState(false);
   const [playlistTracks, setPlaylistTracks] = useState<any[]>([]);
+  const [draggedTrackIdx, setDraggedTrackIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [playlistThumbnail, setPlaylistThumbnail] = useState<File | null>(null);
 
   const fetchBulkJobs = async () => {
     setIsJobsLoading(true);
@@ -295,12 +298,13 @@ export default function AdminTracksPage() {
       trackListStr += `00:00 ${artistName} - ${trackName}\n`;
     });
 
-    const defaultDesc = `🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n#emotionalhiphop #rnb #playlist #popmusic #chillmusic #emotional #hiphop #lofi #lofimusic #chillvibes #moodmusic #koreanrnb #chillplaylist #studywithme #플레이리스트 #카페음악 #aestheticmusic #backgroundmusic #bedroomrnb #cafemusic #cafévibes #cafeplaylist #calmflow #calmrnb #calmvibes #changeyourmood #chillatmosphere #chillbgm #chillhop #chillplaylist #chillvibes #cozymusic #cozynight #cozycafe #dailyplaylist #dailymusic #deeprnb #dreamyrnb #drivingmusic #easylistening #emotionalmusic #emotionalpop #emotionalrnb #eveningchill #eveningplaylist #focusbeats #focusmusic #focusplaylist #focusstudy #gentlernb #goodvibes #groovemusic #healingmusic #hiphopmusic #hiphopplaylist #hiphoppop #hiphoprnb #hiphoprnbemotions #kplaylist #koreanhiphop #koreanplaylist #koreanrb #koreanrnb #latenightvibes #lofibeats #lofimusic #lovesongs #moodmusic #morningplaylist #musicforyou #musicplaylist #musicrecommendation #nightplaylist #nightvibe #officemusic #peacefulmusic #quietbeats #quieteveningmusic #rbmusic #rbplaylist #rbpop #recommendplaylist #relaxbeats #relaxingbgm #relaxingmusic #relaxmusic #relaxplaylist #rhythmandblues #rnbchill #rnbfocus #rnbmix #rnbplaylist #rnbvibes #shareplaylist #slowjam #smoothmix #smoothrnb #softbeats #softlove #softmood #softrnb #softvibes #songoftheday #soulmusic #studybeats #studybgm #studyhiphop #studymusic #studyplaylist #studyvibes #studywithme #therapymusic #travelmusic #urbanmusic #vibesplaylist #warmrnb #workmusic #workplaylist #감성플리 #감성힙합 #나만의플리 #달달한플리 #노래 #느좋 #느좋플리 #알앤비 #짝사랑 #짝사랑플리 #플리 #플레이리스트`;
+    const defaultDesc = `🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n#playlist #chill #hiphop #rnb #emotional #study #work #cafemusic #focus #storemusic #latenight #作業用BGM #플리 #노동요 #플레이리스트 #느좋 #광고없음 #광고없는`;
 
     const defaultTitle = `𝐏𝐥𝐚𝐲𝐥𝐢𝐬𝐭 ${selectedTracksForPlaylist.map(t => t.artist_name).filter((v, i, a) => a.indexOf(v) === i).slice(0, 2).join(' & ')} | Emotional HipHop・Pop R&B | Ultimate BGM | Chill Groove Vibe`;
     setPlaylistTitle(defaultTitle);
     setPlaylistDescription(defaultDesc);
     setPlaylistIdInput('');
+    setPlaylistThumbnail(null);
     setIsPlaylistModalOpen(true);
   };
 
@@ -334,6 +338,27 @@ export default function AdminTracksPage() {
     updateDescriptionTracklist(newTracks);
   };
 
+  const handlePlaylistDragStart = (idx: number) => {
+    setDraggedTrackIdx(idx);
+  };
+
+  const handlePlaylistDragEnter = (idx: number) => {
+    setDragOverIdx(idx);
+  };
+
+  const handlePlaylistDragEnd = () => {
+    if (draggedTrackIdx !== null && dragOverIdx !== null && draggedTrackIdx !== dragOverIdx) {
+      const newTracks = [...playlistTracks];
+      const draggedItem = newTracks[draggedTrackIdx];
+      newTracks.splice(draggedTrackIdx, 1);
+      newTracks.splice(dragOverIdx, 0, draggedItem);
+      setPlaylistTracks(newTracks);
+      updateDescriptionTracklist(newTracks);
+    }
+    setDraggedTrackIdx(null);
+    setDragOverIdx(null);
+  };
+
   const handleSubmitPlaylist = async () => {
     if (!playlistTitle.trim() || !playlistDescription.trim()) {
       return toast.error('제목과 설명을 입력해주세요.');
@@ -347,12 +372,24 @@ export default function AdminTracksPage() {
       const trackIds = playlistTracks.map(t => t.id);
       const trackData = playlistTracks.map(t => ({ id: t.id, title: t.title, artist: t.artist_name, audio_url: t.audio_url, cover_image_url: t.cover_image_url }));
 
+      let thumbnailUrl = null;
+      if (playlistThumbnail) {
+        toast.success("썸네일 이미지 업로드 중...", { duration: 2000 });
+        const ts = Date.now();
+        const ext = playlistThumbnail.name.split('.').pop() || 'jpg';
+        const fname = `playlist_thumb_${ts}.${ext}`;
+        const { error: imgErr } = await supabase.storage.from('music_assets').upload(fname, playlistThumbnail);
+        if (imgErr) throw imgErr;
+        thumbnailUrl = supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl;
+      }
+
       const { error } = await supabase.from('playlist_jobs').insert({
         title: playlistTitle,
         description: playlistDescription,
         track_ids: trackIds,
         tracks_data: trackData,
         playlist_id: playlistIdInput.trim() || null,
+        thumbnail_url: thumbnailUrl,
         status: 'pending'
       });
 
@@ -2031,14 +2068,54 @@ ${hashtagLine}`.trim();
               </div>
 
               <div>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Custom Thumbnail (Optional)</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setPlaylistThumbnail(e.target.files[0]);
+                      }
+                    }}
+                    className="text-sm text-zinc-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 hover:file:text-white cursor-pointer"
+                  />
+                  {playlistThumbnail && (
+                    <button 
+                      onClick={() => setPlaylistThumbnail(null)}
+                      className="text-xs text-red-400 hover:text-red-300 font-bold transition"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-2">
+                  서버에서 이 이미지를 다운로드하여 유튜브 영상 썸네일로 설정합니다. 지정하지 않으면 트랙의 커버 이미지 등이 사용됩니다.<br/>
+                  (주의: <code>playlist_jobs</code> 테이블에 <code>thumbnail_url</code> 컬럼이 필요합니다.)
+                </p>
+              </div>
+
+              <div>
                 <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Track Order ({playlistTracks.length})</label>
                 <div className="bg-black border border-zinc-800 rounded-lg p-2 max-h-60 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-zinc-700">
                   {playlistTracks.map((t, idx) => (
-                    <div key={t.id} className="flex items-center justify-between bg-zinc-900/50 p-2 rounded-md border border-zinc-800/50 group hover:border-zinc-700 transition">
+                    <div 
+                      key={t.id} 
+                      draggable
+                      onDragStart={() => handlePlaylistDragStart(idx)}
+                      onDragEnter={() => handlePlaylistDragEnter(idx)}
+                      onDragEnd={handlePlaylistDragEnd}
+                      onDragOver={(e) => e.preventDefault()}
+                      className={`flex items-center justify-between p-2 rounded-md border group transition cursor-grab active:cursor-grabbing
+                        ${draggedTrackIdx === idx ? 'opacity-50 bg-zinc-800/50' : 'opacity-100 bg-zinc-900/50'} 
+                        ${dragOverIdx === idx && draggedTrackIdx !== idx ? 'border-t-2 border-t-red-500' : 'border-zinc-800/50 hover:border-zinc-700'}
+                      `}
+                    >
                       <div className="flex items-center gap-3 overflow-hidden">
+                        <GripVertical size={14} className="text-zinc-600 hover:text-white transition-colors" />
                         <span className="text-[10px] text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
-                        {t.cover_image_url && <img src={t.cover_image_url} alt="" className="w-8 h-8 rounded-sm object-cover" />}
-                        <div className="flex flex-col truncate">
+                        {t.cover_image_url && <img src={t.cover_image_url} alt="" className="w-8 h-8 rounded-sm object-cover pointer-events-none" />}
+                        <div className="flex flex-col truncate pointer-events-none">
                           <span className="text-xs font-bold text-zinc-200 truncate">{t.title || 'Untitled'}</span>
                           <span className="text-[10px] text-zinc-500 truncate">{t.artist_name || 'Anonymous'}</span>
                         </div>
