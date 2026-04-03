@@ -164,6 +164,44 @@ export default function AdminTracksPage() {
   const [draggedTrackIdx, setDraggedTrackIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [playlistThumbnail, setPlaylistThumbnail] = useState<File | null>(null);
+  
+  const [playlistOverlayConfig, setPlaylistOverlayConfig] = useState(JSON.stringify({ text: "Chillin", font_size: 128, color: "white" }, null, 2));
+  const [thumbnailGallery, setThumbnailGallery] = useState<{name: string, url: string}[]>([]);
+  const [selectedGalleryThumb, setSelectedGalleryThumb] = useState<string | null>(null);
+  const [isUploadingThumbnails, setIsUploadingThumbnails] = useState(false);
+
+  const loadThumbnailGallery = async () => {
+    try {
+      const { data, error } = await supabase.storage.from('music_assets').list('playlist_thumbnails', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+      if (data) {
+        const urls = data.filter(f => f.name !== '.emptyFolderPlaceholder').map(f => ({
+          name: f.name,
+          url: supabase.storage.from('music_assets').getPublicUrl(`playlist_thumbnails/${f.name}`).data.publicUrl
+        }));
+        setThumbnailGallery(urls);
+      }
+    } catch(e) {
+      console.warn("Failed to load thumbnails", e);
+    }
+  };
+
+  const handleBulkUploadThumbnails = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    setIsUploadingThumbnails(true);
+    const files = Array.from(e.target.files);
+    let success = 0;
+    toast.loading(`Uploading ${files.length} thumbnails...`, { id: 'thumb-upload' });
+    for (const file of files) {
+      const ts = Date.now();
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fname = `playlist_thumbnails/${ts}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('music_assets').upload(fname, file);
+      if (!error) success++;
+    }
+    setIsUploadingThumbnails(false);
+    toast.success(`${success} thumbnails uploaded!`, { id: 'thumb-upload' });
+    loadThumbnailGallery();
+  };
 
   const fetchBulkJobs = async () => {
     setIsJobsLoading(true);
@@ -305,6 +343,9 @@ export default function AdminTracksPage() {
     setPlaylistDescription(defaultDesc);
     setPlaylistIdInput('');
     setPlaylistThumbnail(null);
+    setSelectedGalleryThumb(null);
+    setPlaylistOverlayConfig(JSON.stringify({ text: "Chillin", font_size: 128, color: "white" }, null, 2));
+    loadThumbnailGallery();
     setIsPlaylistModalOpen(true);
   };
 
@@ -372,15 +413,26 @@ export default function AdminTracksPage() {
       const trackIds = playlistTracks.map(t => t.id);
       const trackData = playlistTracks.map(t => ({ id: t.id, title: t.title, artist: t.artist_name, audio_url: t.audio_url, cover_image_url: t.cover_image_url }));
 
-      let thumbnailUrl = null;
+      let thumbnailUrl = selectedGalleryThumb;
       if (playlistThumbnail) {
         toast.success("썸네일 이미지 업로드 중...", { duration: 2000 });
         const ts = Date.now();
         const ext = playlistThumbnail.name.split('.').pop() || 'jpg';
-        const fname = `playlist_thumb_${ts}.${ext}`;
+        const fname = `playlist_thumbnails/thumb_${ts}.${ext}`;
         const { error: imgErr } = await supabase.storage.from('music_assets').upload(fname, playlistThumbnail);
         if (imgErr) throw imgErr;
         thumbnailUrl = supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl;
+      }
+
+      if (!thumbnailUrl) {
+        return toast.error("썸네일 이미지를 선택하거나 업로드해주세요.");
+      }
+
+      let parsedConfig = null;
+      try {
+        parsedConfig = JSON.parse(playlistOverlayConfig);
+      } catch (e) {
+        return toast.error("Overlay Config가 유효한 JSON 형식이 아닙니다.");
       }
 
       const { error } = await supabase.from('playlist_jobs').insert({
@@ -390,6 +442,7 @@ export default function AdminTracksPage() {
         tracks_data: trackData,
         playlist_id: playlistIdInput.trim() || null,
         thumbnail_url: thumbnailUrl,
+        overlay_config: parsedConfig,
         status: 'pending'
       });
 
@@ -2068,7 +2121,43 @@ ${hashtagLine}`.trim();
               </div>
 
               <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Custom Thumbnail (Optional)</label>
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Overlay Config (Video Render JSON)</label>
+                <textarea
+                  value={playlistOverlayConfig}
+                  onChange={e => setPlaylistOverlayConfig(e.target.value)}
+                  className="w-full h-32 bg-black border border-zinc-800 rounded-lg p-3 text-sm font-mono text-zinc-300 focus:border-red-500 outline-none transition mb-6 resize-none"
+                />
+
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block flex justify-between items-end">
+                   <span>Thumbnail Image (16:9 Required)</span>
+                   <label className="bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded text-[10px] font-bold text-white cursor-pointer transition">
+                      {isUploadingThumbnails ? <Loader2 size={12} className="animate-spin inline mr-1" /> : <UploadCloud size={12} className="inline mr-1" />}
+                      Bulk Upload Thumbnails
+                      <input type="file" multiple accept="image/*" className="hidden" onChange={handleBulkUploadThumbnails} disabled={isUploadingThumbnails} />
+                   </label>
+                </label>
+                
+                {/* Thumbnail Gallery Selection */}
+                {thumbnailGallery.length > 0 && (
+                   <div className="mb-4">
+                      <p className="text-[10px] text-zinc-500 mb-2">Select an uploaded thumbnail from the gallery:</p>
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-700">
+                         {thumbnailGallery.map(img => (
+                            <div 
+                              key={img.url} 
+                              onClick={() => { setSelectedGalleryThumb(img.url); setPlaylistThumbnail(null); }}
+                              className={`flex-shrink-0 cursor-pointer relative rounded-lg border-2 overflow-hidden transition-all duration-200 ${selectedGalleryThumb === img.url ? 'border-red-500 opacity-100 ring-2 ring-red-500/30' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                            >
+                               <img src={img.url} className="w-32 h-18 object-cover aspect-video" />
+                               {selectedGalleryThumb === img.url && (
+                                  <div className="absolute top-1 right-1 bg-red-500 rounded-full pb-0.5"><CheckCircle size={12} className="text-white fill-transparent" /></div>
+                               )}
+                            </div>
+                         ))}
+                      </div>
+                   </div>
+                )}
+                
                 <div className="flex items-center gap-4">
                   <input
                     type="file"
@@ -2076,6 +2165,7 @@ ${hashtagLine}`.trim();
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setPlaylistThumbnail(e.target.files[0]);
+                        setSelectedGalleryThumb(null);
                       }
                     }}
                     className="text-sm text-zinc-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 hover:file:text-white cursor-pointer"
@@ -2085,13 +2175,13 @@ ${hashtagLine}`.trim();
                       onClick={() => setPlaylistThumbnail(null)}
                       className="text-xs text-red-400 hover:text-red-300 font-bold transition"
                     >
-                      Remove
+                      Remove New Upload
                     </button>
                   )}
                 </div>
                 <p className="text-[10px] text-zinc-500 mt-2">
-                  서버에서 이 이미지를 다운로드하여 유튜브 영상 썸네일로 설정합니다. 지정하지 않으면 트랙의 커버 이미지 등이 사용됩니다.<br/>
-                  (주의: <code>playlist_jobs</code> 테이블에 <code>thumbnail_url</code> 컬럼이 필요합니다.)
+                  서버에서 이 이미지를 다운로드하여 영상을 생성할 때 썸네일로 사용합니다. (16:9 렌더링)<br/>
+                  (주의: <code>playlist_jobs</code> 테이블에 <code>thumbnail_url</code> 및 <code>overlay_text</code> 컬럼이 필요합니다.)
                 </p>
               </div>
 
