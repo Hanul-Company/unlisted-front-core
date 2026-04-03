@@ -14,11 +14,17 @@ export async function generateBulkVariants(baselineTitle: string, baselineLyrics
     The user will provide a "Baseline Title" and a "Baseline Lyrics Idea".
     Your task is to generate exactly ${count} distinct variants of the title and lyrics ideas that share the same theme but have slightly different angles, vibes, or perspectives.
 
+    CRITICAL TITLE INSTRUCTIONS:
+    1. DO NOT use generic, cliché AI-sounding titles with "Noun of Noun" or "Adjective Noun" structures (e.g., "Silent Skies", "Waves of Quiet", "Echoes of Time"). 
+    2. Prefer exactly ONE-WORD titles (especially if the baseline is one word).
+    3. If not one word, use a SHORT CLAUSE or a natural conversational phrase (e.g., "I left early", "Don't say it", "Falling behind") rather than a poetic noun phrase.
+    4. The titles must feel very modern, human, and indie-pop/R&B style.
+
     Return the result strictly as a JSON object with a "variants" array:
     {
       "variants": [
         {
-          "title": "A highly catchy, slightly different title",
+          "title": "A highly catchy, single-word or short-clause title",
           "lyrics": "A short lyrics idea or paragraph based on the baseline but varied."
         }
       ]

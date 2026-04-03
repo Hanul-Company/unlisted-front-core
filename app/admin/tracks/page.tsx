@@ -540,6 +540,8 @@ export default function AdminTracksPage() {
       const variants = variantsData?.variants || [];
       if (variants.length === 0) throw new Error("No variants generated");
 
+      const batchId = Date.now().toString();
+
       setBulkStatusText('Extracting AI Metadata...');
       let aiMetadataResult = {
         ref_artists: bulkRefArtist ? [bulkRefArtist] : [],
@@ -597,6 +599,7 @@ export default function AdminTracksPage() {
 
         const jobEtcInfo = JSON.stringify({
           bulk_batch: true,
+          batch_id: batchId,
           cover_image_url: coverUrl,
           cover_mode: coverImageMode,
           ref_artist: bulkRefArtist,
@@ -664,6 +667,7 @@ export default function AdminTracksPage() {
 
       let publishedCount = 0;
       let skippedCount = 0;
+      let batchFirstCoverUrls: Record<string, string> = {};
 
       for (let i = 0; i < bulkJobs.length; i++) {
         const job = bulkJobs[i];
@@ -679,9 +683,28 @@ export default function AdminTracksPage() {
 
         const selectedTrack = tracks[0]; // 무조건 1번 선택
         const parsedEtcInfo = JSON.parse(job.etc_info || '{}');
-        const coverUrl = parsedEtcInfo.cover_image_url || '/images/default_cover.jpg';
         const refArtist = parsedEtcInfo.ref_artist || job.ref_artist;
         const refTrack = parsedEtcInfo.ref_track || job.ref_track;
+        const batchId = parsedEtcInfo.batch_id || job.id.toString();
+
+        let coverUrl = parsedEtcInfo.cover_image_url || '';
+
+        // 첨부된 이미지가 없는 경우 suno_jobs 결과물 활용
+        if (!coverUrl) {
+          const trackCoverCdn = selectedTrack.cover_cdn_url || selectedTrack.image_url || selectedTrack.image_large_url || '';
+          if (parsedEtcInfo.cover_mode === 'single') {
+            if (batchFirstCoverUrls[batchId]) {
+              coverUrl = batchFirstCoverUrls[batchId];
+            } else {
+              coverUrl = trackCoverCdn;
+              if (coverUrl) batchFirstCoverUrls[batchId] = coverUrl;
+            }
+          } else {
+            coverUrl = trackCoverCdn;
+          }
+        }
+        
+        if (!coverUrl) coverUrl = '/images/default_cover.jpg';
 
         let audioUrl = selectedTrack.audio_cdn_url;
         setBulkPublishStatusText(`Downloading audio & re-uploading ${i+1}/${bulkJobs.length}...`);
@@ -724,8 +747,7 @@ export default function AdminTracksPage() {
         // ✅ 퍼블리시 후 반드시 status 업데이트 — 실패 시 에러 로그
         const { error: updateErr } = await supabase.from('suno_jobs').update({
           status: 'published',
-          published_track_id: newTrack.id,
-          uploaded_track_id: newTrack.id
+          published_track_id: newTrack.id
         }).eq('id', job.id);
 
         if (updateErr) {
