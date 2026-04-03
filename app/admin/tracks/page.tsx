@@ -7,7 +7,7 @@ import {
   Music, Disc, Bot, Hash, Download, Play, Pause,
   Share2, FileVideo, UploadCloud, RefreshCw, CheckCircle,
   Settings2, ChevronDown, User, Sparkles, Mic2, Wand2, Youtube, ListPlus,
-  ArrowUp, ArrowDown, GripVertical
+  ArrowUp, ArrowDown, GripVertical, Shuffle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MUSIC_GENRES, MUSIC_MOODS, MUSIC_TAGS } from '@/app/constants';
@@ -170,6 +170,12 @@ export default function AdminTracksPage() {
   const [selectedGalleryThumb, setSelectedGalleryThumb] = useState<string | null>(null);
   const [isUploadingThumbnails, setIsUploadingThumbnails] = useState(false);
 
+  // Random Playlist Settings
+  const [randomCount, setRandomCount] = useState<number>(10);
+  const [randomGenre, setRandomGenre] = useState('');
+  const [randomMood, setRandomMood] = useState('');
+  const [randomRefArtist, setRandomRefArtist] = useState('');
+
   const loadThumbnailGallery = async () => {
     try {
       const { data, error } = await supabase.storage.from('music_assets').list('playlist_thumbnails', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
@@ -296,7 +302,7 @@ export default function AdminTracksPage() {
 
   // --- Playlist ---
   const handleOpenPlaylistModal = async () => {
-    if (selectedIds.size === 0) return;
+    // allow to open without selected tracks
     if (selectedIds.size > 20) {
       toast.error('최대 20개의 트랙만 선택 가능합니다.');
       return;
@@ -315,7 +321,7 @@ export default function AdminTracksPage() {
     }
 
     let selectedTracksForPlaylist = tracks.filter(t => selectedIds.has(t.id));
-    if (selectedTracksForPlaylist.length !== selectedIds.size) {
+    if (selectedTracksForPlaylist.length !== selectedIds.size && selectedIds.size > 0) {
       const toastId = toast.loading('선택된 트랙을 확인 중...');
       const { data, error } = await supabase.from('tracks').select('id, title, artist_name, audio_url, cover_image_url').in('id', Array.from(selectedIds));
       toast.dismiss(toastId);
@@ -328,7 +334,6 @@ export default function AdminTracksPage() {
     
     setPlaylistTracks(selectedTracksForPlaylist);
     
-    // tracklist는 worker가 실제 타임스탬프로 교체 — 트랙명만 플레이스홀더로 넣음
     let trackListStr = '';
     selectedTracksForPlaylist.forEach((t) => {
       const trackName = t.title || 'Untitled';
@@ -338,7 +343,19 @@ export default function AdminTracksPage() {
 
     const defaultDesc = `🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n#playlist #chill #hiphop #rnb #emotional #study #work #cafemusic #focus #storemusic #latenight #作業用BGM #플리 #노동요 #플레이리스트 #느좋 #광고없음 #광고없는`;
 
-    const defaultTitle = `𝐏𝐥𝐚𝐲𝐥𝐢𝐬𝐭 ${selectedTracksForPlaylist.map(t => t.artist_name).filter((v, i, a) => a.indexOf(v) === i).slice(0, 2).join(' & ')} | Emotional HipHop・Pop R&B | Ultimate BGM | Chill Groove Vibe`;
+    const d = new Date();
+    const hours = d.getHours();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    const hour12 = hours % 12 || 12;
+    const timeStr = `${hour12}${ampm}`;
+    const date = d.getDate();
+    const suffix = (date === 1 || date === 21 || date === 31) ? 'st' :
+                   (date === 2 || date === 22) ? 'nd' :
+                   (date === 3 || date === 23) ? 'rd' : 'th';
+    const dayStr = `${date}${suffix}`;
+    const monthStr = d.toLocaleString('en-US', { month: 'long' });
+    const defaultTitle = `𝐏𝐥𝐚𝐲𝐥𝐢𝐬𝐭 Chillin' ${timeStr} ${dayStr}, ${monthStr} | Emotional HipHop・Pop R&B | Ultimate BGM | Chill Groove Vibe`;
+
     setPlaylistTitle(defaultTitle);
     setPlaylistDescription(defaultDesc);
     setPlaylistIdInput('');
@@ -347,6 +364,40 @@ export default function AdminTracksPage() {
     setPlaylistOverlayConfig(JSON.stringify({ text: "Chillin", font_size: 128, color: "white" }, null, 2));
     loadThumbnailGallery();
     setIsPlaylistModalOpen(true);
+  };
+
+  const handleRandomMix = async () => {
+    const toastId = toast.loading('랜덤 트랙 불러오는 중...');
+    try {
+      let query = supabase.from('tracks').select('id, title, artist_name, audio_url, cover_image_url').order('created_at', { ascending: false }).limit(200);
+      
+      if (randomGenre) {
+        query = query.contains('genre', [randomGenre]);
+      }
+      if (randomMood) {
+        query = query.contains('moods', [randomMood]);
+      }
+      if (randomRefArtist) {
+        // Filter inside jsonb column
+        query = query.contains('ai_metadata', { ref_artists: [randomRefArtist] });
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.dismiss(toastId);
+        return toast.error('조건에 맞는 트랙이 없습니다.');
+      }
+      
+      const shuffled = [...data].sort(() => 0.5 - Math.random());
+      const picked = shuffled.slice(0, randomCount);
+      
+      setPlaylistTracks(picked);
+      updateDescriptionTracklist(picked);
+      toast.success(`${picked.length}곡이 랜덤으로 선택되었습니다.`, { id: toastId });
+    } catch (e: any) {
+      toast.error('랜덤 선곡 실패: ' + e.message, { id: toastId });
+    }
   };
 
   const updateDescriptionTracklist = (newTracks: any[]) => {
@@ -375,6 +426,13 @@ export default function AdminTracksPage() {
     } else {
       return;
     }
+    setPlaylistTracks(newTracks);
+    updateDescriptionTracklist(newTracks);
+  };
+
+  const removePlaylistTrack = (index: number) => {
+    const newTracks = [...playlistTracks];
+    newTracks.splice(index, 1);
     setPlaylistTracks(newTracks);
     updateDescriptionTracklist(newTracks);
   };
@@ -1284,24 +1342,23 @@ ${hashtagLine}`.trim();
           
           {/* Bulk Action Buttons */}
           {selectedIds.size > 0 && (
-            <>
-              <button
-                onClick={handleBulkDelete}
-                disabled={isBulkDeleting}
-                className="bg-red-600/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg hover:bg-red-600/40 text-sm font-bold flex items-center gap-2 transition"
-              >
-                {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                {isBulkDeleting ? '삭제 중...' : `${selectedIds.size}개 삭제`}
-              </button>
-
-              <button
-                onClick={handleOpenPlaylistModal}
-                className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-lg hover:bg-blue-600/40 text-sm font-bold flex items-center gap-2 transition ml-4"
-              >
-                <Youtube size={16} /> Playlist
-              </button>
-            </>
+            <button
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="bg-red-600/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg hover:bg-red-600/40 text-sm font-bold flex items-center gap-2 transition"
+            >
+              {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {isBulkDeleting ? '삭제 중...' : `${selectedIds.size}개 삭제`}
+            </button>
           )}
+
+          <button
+            onClick={handleOpenPlaylistModal}
+            className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-lg hover:bg-blue-600/40 text-sm font-bold flex items-center gap-2 transition ml-4"
+          >
+            <Youtube size={16} /> Playlist
+          </button>
+
           <button onClick={() => setIsBulkModalOpen(true)} className="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-4 py-2 rounded-lg hover:bg-purple-600/40 text-sm font-bold flex items-center gap-2 transition ml-4">
             <Bot size={16} /> Bulk Queue
           </button>
@@ -1939,9 +1996,9 @@ ${hashtagLine}`.trim();
 
                 {/* Count row */}
                 <div>
-                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Count (1-8)</label>
-                  <input type="number" min={1} max={8} value={bulkCount} onChange={e => {
-                    const n = Math.max(1, Math.min(8, Number(e.target.value)));
+                  <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2 block">Count (1-15)</label>
+                  <input type="number" min={1} max={15} value={bulkCount} onChange={e => {
+                    const n = Math.max(1, Math.min(15, Number(e.target.value)));
                     setBulkCount(n);
                     setBulkIndividualCovers(prev => Array.from({ length: n }, (_, i) => prev[i] ?? null));
                   }} className="w-full bg-black border border-zinc-800 rounded-lg p-3 text-sm focus:border-purple-500 outline-none" />
@@ -2208,7 +2265,42 @@ ${hashtagLine}`.trim();
               </div>
 
               <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Track Order ({playlistTracks.length})</label>
+                {/* Random Mix Controls */}
+                <div className="mb-6 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700/50">
+                  <label className="text-xs text-zinc-500 font-bold uppercase mb-3 block flex items-center gap-2"><Disc size={14} className="text-red-500" /> Random Mix</label>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex-1 min-w-[70px]">
+                      <label className="text-[10px] text-zinc-400 mb-1 block font-bold">Count</label>
+                      <input type="number" min={1} max={50} value={randomCount} onChange={e => setRandomCount(Number(e.target.value))} className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:border-red-500 outline-none transition" />
+                    </div>
+                    <div className="flex-1 min-w-[100px]">
+                      <label className="text-[10px] text-zinc-400 mb-1 block font-bold">Genre(Opt)</label>
+                      <input type="text" list="random-genres-list" placeholder="e.g. Pop" value={randomGenre} onChange={e => setRandomGenre(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:border-red-500 outline-none transition" />
+                      <datalist id="random-genres-list">
+                        {MUSIC_GENRES.map(g => <option key={g} value={g} />)}
+                      </datalist>
+                    </div>
+                    <div className="flex-1 min-w-[100px]">
+                      <label className="text-[10px] text-zinc-400 mb-1 block font-bold">Mood(Opt)</label>
+                      <input type="text" list="random-moods-list" placeholder="e.g. Chill" value={randomMood} onChange={e => setRandomMood(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:border-red-500 outline-none transition" />
+                      <datalist id="random-moods-list">
+                        {MUSIC_MOODS.map(m => <option key={m} value={m} />)}
+                      </datalist>
+                    </div>
+                    <div className="flex-1 min-w-[120px]">
+                      <label className="text-[10px] text-zinc-400 mb-1 block font-bold">Ref Artist(Opt)</label>
+                      <input type="text" placeholder="e.g. Drake" value={randomRefArtist} onChange={e => setRandomRefArtist(e.target.value)} className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:border-red-500 outline-none transition" />
+                    </div>
+                    <button onClick={handleRandomMix} className="bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg font-bold text-sm transition h-[38px] flex items-center gap-2">
+                       <Shuffle size={14}/> Mix
+                    </button>
+                  </div>
+                </div>
+
+                <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block flex items-center justify-between">
+                  <span>Track Order ({playlistTracks.length})</span>
+                  {playlistTracks.length > 0 && <button onClick={() => {setPlaylistTracks([]); updateDescriptionTracklist([]);}} className="text-[10px] text-red-500 hover:text-red-400">Clear All</button>}
+                </label>
                 <div className="bg-black border border-zinc-800 rounded-lg p-2 max-h-60 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-zinc-700">
                   {playlistTracks.map((t, idx) => (
                     <div 
@@ -2232,12 +2324,17 @@ ${hashtagLine}`.trim();
                           <span className="text-[10px] text-zinc-500 truncate">{t.artist_name || 'Anonymous'}</span>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
-                        <button onClick={() => movePlaylistTrack(idx, 'up')} disabled={idx === 0} className="text-zinc-500 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500 p-0.5">
-                           <ArrowUp size={14} />
-                        </button>
-                        <button onClick={() => movePlaylistTrack(idx, 'down')} disabled={idx === playlistTracks.length - 1} className="text-zinc-500 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500 p-0.5">
-                           <ArrowDown size={14} />
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+                        <div className="flex flex-col gap-0.5">
+                          <button onClick={() => movePlaylistTrack(idx, 'up')} disabled={idx === 0} className="text-zinc-500 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500 p-0.5">
+                             <ArrowUp size={14} />
+                          </button>
+                          <button onClick={() => movePlaylistTrack(idx, 'down')} disabled={idx === playlistTracks.length - 1} className="text-zinc-500 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500 p-0.5">
+                             <ArrowDown size={14} />
+                          </button>
+                        </div>
+                        <button onClick={() => removePlaylistTrack(idx)} className="text-red-500 opacity-60 hover:opacity-100 hover:bg-red-500/10 p-1.5 rounded-md transition-all">
+                           <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
