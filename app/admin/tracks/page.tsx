@@ -495,12 +495,12 @@ export default function AdminTracksPage() {
     }
     
     // Validate individual covers
-    if (coverImageMode === 'individual') {
-      const missingCount = Array.from({ length: bulkCount }).filter((_, i) => !bulkIndividualCovers[i]).length;
-      if (missingCount > 0) {
-        return toast.error(`개별 커버 모드: ${missingCount}개 이미지가 누락되었습니다.`);
-      }
-    }
+    // if (coverImageMode === 'individual') {
+    //   const missingCount = Array.from({ length: bulkCount }).filter((_, i) => !bulkIndividualCovers[i]).length;
+    //   if (missingCount > 0) {
+    //     return toast.error(`개별 커버 모드: ${missingCount}개 이미지가 누락되었습니다.`);
+    //   }
+    // }
 
     setIsBulkProcessing(true);
     try {
