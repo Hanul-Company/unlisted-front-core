@@ -323,7 +323,7 @@ export default function AdminTracksPage() {
     let selectedTracksForPlaylist = tracks.filter(t => selectedIds.has(t.id));
     if (selectedTracksForPlaylist.length !== selectedIds.size && selectedIds.size > 0) {
       const toastId = toast.loading('선택된 트랙을 확인 중...');
-      const { data, error } = await supabase.from('tracks').select('id, title, artist_name, audio_url, cover_image_url').in('id', Array.from(selectedIds));
+      const { data, error } = await supabase.from('tracks').select('id, title, artist_name, audio_url, cover_image_url, ai_metadata').in('id', Array.from(selectedIds));
       toast.dismiss(toastId);
       if (error) {
          toast.error('정보 확인 실패');
@@ -335,13 +335,27 @@ export default function AdminTracksPage() {
     setPlaylistTracks(selectedTracksForPlaylist);
     
     let trackListStr = '';
+    const rawArtists = new Set<string>();
+
     selectedTracksForPlaylist.forEach((t) => {
       const trackName = t.title || 'Untitled';
       const artistName = t.artist_name || 'Anonymous';
       trackListStr += `00:00 ${artistName} - ${trackName}\n`;
+      
+      if (t.ai_metadata?.ref_artists && Array.isArray(t.ai_metadata.ref_artists)) {
+        t.ai_metadata.ref_artists.forEach((a: string) => rawArtists.add(a));
+      }
     });
 
-    const defaultDesc = `🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n#playlist #chill #hiphop #rnb #emotional #study #work #cafemusic #focus #storemusic #latenight #作業用BGM #플리 #노동요 #플레이리스트 #느좋 #광고없음 #광고없는`;
+    const formattedArtists = Array.from(rawArtists).map(a => {
+      return a.charAt(0).toUpperCase() + a.slice(1).toLowerCase();
+    });
+    
+    const artistString = formattedArtists.length > 0 ? formattedArtists.join(' x ') : "Various Artists";
+    const titleArtistPrefix = formattedArtists.length > 0 ? `[${artistString}]` : "Chillin'";
+    const topCaption = formattedArtists.length > 0 ? `✨ Vibes of ${artistString}\n(이 플레이리스트는 위 아티스트들의 스타일을 모티브로 AI를 통해 생성되었습니다.)\n\n` : "";
+
+    const defaultDesc = `${topCaption}🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n#playlist #chill #hiphop #rnb #emotional #study #work #cafemusic #focus #storemusic #latenight #作業用BGM #플리 #노동요 #플레이리스트 #느좋 #광고없음 #광고없는`;
 
     const d = new Date();
     const hours = d.getHours();
@@ -354,7 +368,7 @@ export default function AdminTracksPage() {
                    (date === 3 || date === 23) ? 'rd' : 'th';
     const dayStr = `${date}${suffix}`;
     const monthStr = d.toLocaleString('en-US', { month: 'long' });
-    const defaultTitle = `𝐏𝐥𝐚𝐲𝐥𝐢𝐬𝐭 Chillin' ${timeStr} ${dayStr}, ${monthStr} | Emotional HipHop・Pop R&B | Ultimate BGM | Chill Groove Vibe`;
+    const defaultTitle = `𝐏𝐥𝐚𝐲𝐥𝐢𝐬𝐭 ${titleArtistPrefix} ${timeStr} ${dayStr}, ${monthStr} | Emotional HipHop・Pop R&B`;
 
     setPlaylistTitle(defaultTitle);
     setPlaylistDescription(defaultDesc);
