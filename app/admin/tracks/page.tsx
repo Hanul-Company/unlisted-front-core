@@ -347,15 +347,27 @@ export default function AdminTracksPage() {
       }
     });
 
-    const formattedArtists = Array.from(rawArtists).map(a => {
+    const formattedArtists = await Promise.all(Array.from(rawArtists).map(async (a) => {
+      try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(a)}&media=music&entity=musicArtist&limit=1`);
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+          return data.results[0].artistName;
+        }
+      } catch (e) {
+        console.warn("iTunes API search failed for artist", a);
+      }
       return a.charAt(0).toUpperCase() + a.slice(1).toLowerCase();
-    });
+    }));
     
     const artistString = formattedArtists.length > 0 ? formattedArtists.join(' x ') : "Various Artists";
-    const titleArtistPrefix = formattedArtists.length > 0 ? `[${artistString}]` : "Chillin'";
-    const topCaption = formattedArtists.length > 0 ? `✨ Vibes of ${artistString}\n(이 플레이리스트는 위 아티스트들의 스타일을 모티브로 AI를 통해 생성되었습니다.)\n\n` : "";
+    const titleArtistPrefix = formattedArtists.length > 0 ? `${artistString} vibe` : "Chillin'";
+    const topCaption = formattedArtists.length > 0 ? `This playlist is influenced by ${artistString} and re-created with AI.\n\n` : "";
 
-    const defaultDesc = `${topCaption}🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n#playlist #chill #hiphop #rnb #emotional #study #work #cafemusic #focus #storemusic #latenight #作業用BGM #플리 #노동요 #플레이리스트 #느좋 #광고없음 #광고없는`;
+    const artistHashtags = formattedArtists.map(a => `#${a.replace(/\s+/g, '').toLowerCase()}`).join(' ');
+    const userHashtags = formattedArtists.length > 0 ? `${artistHashtags} ` : "";
+
+    const defaultDesc = `${topCaption}🎧 unlisted — The music never existed\n\nMusic Stream Platform : 💙 || Only on Unlisted → https://unlisted.music\n\n[Tracklist]\n${trackListStr}\nThe songs in this playlist are all original creations by creators of 'unlisted', created using AI. The copyright is owned by unlisted and creators.\n\n© 2026 unlisted. All rights reserved.\n\n${userHashtags}#playlist #chill #hiphop #rnb #emotional #study #work #cafemusic #focus #storemusic #latenight #作業用BGM #플리 #노동요 #플레이리스트 #느좋 #광고없음 #광고없는`;
 
     const d = new Date();
     const hours = d.getHours();
