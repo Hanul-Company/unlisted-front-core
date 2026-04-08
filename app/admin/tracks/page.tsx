@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/utils/supabase';
 import {
   Search, Loader2, Edit, Trash2, X, Plus, Save,
@@ -170,6 +170,23 @@ export default function AdminTracksPage() {
   const [selectedGalleryThumb, setSelectedGalleryThumb] = useState<string | null>(null);
   const [isUploadingThumbnails, setIsUploadingThumbnails] = useState(false);
 
+  // Expanded Gallery & Overlay Compositing State
+  const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
+  const [overlayGallery, setOverlayGallery] = useState<{name: string, url: string}[]>([]);
+  const [selectedOverlay, setSelectedOverlay] = useState<string | null>(null);
+  const [isUploadingOverlay, setIsUploadingOverlay] = useState(false);
+  const [isCompositing, setIsCompositing] = useState(false);
+
+  // --- Cropper State ---
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [cropTarget, setCropTarget] = useState<'thumbnail'|'overlay'>('thumbnail');
+  const [aspectRatio, setAspectRatio] = useState<number>(16/9);
+
   // Random Playlist Settings
   const [randomCount, setRandomCount] = useState<number>(10);
   const [randomGenre, setRandomGenre] = useState('');
@@ -189,6 +206,162 @@ export default function AdminTracksPage() {
     } catch(e) {
       console.warn("Failed to load thumbnails", e);
     }
+  };
+
+  const loadOverlayGallery = async () => {
+    try {
+      const { data, error } = await supabase.storage.from('music_assets').list('playlist_overlays', { limit: 10, sortBy: { column: 'created_at', order: 'desc' } });
+      if (data) {
+        const urls = data.filter(f => f.name !== '.emptyFolderPlaceholder').map(f => ({
+          name: f.name,
+          url: supabase.storage.from('music_assets').getPublicUrl(`playlist_overlays/${f.name}`).data.publicUrl
+        }));
+        setOverlayGallery(urls);
+      }
+    } catch(e) {
+      console.warn("Failed to load overlays", e);
+    }
+  };
+
+  const handleDeleteStorageItem = async (folder: string, name: string) => {
+    if (!confirm("정말로 삭제하시겠습니까? (삭제 시 복구 불가)")) return;
+    const toastId = toast.loading("삭제 중...");
+    try {
+      const { data, error } = await supabase.storage.from('music_assets').remove([`${folder}/${name}`]);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("파일이 존재하지 않거나 Storage 삭제 권한(RLS Policy)이 없습니다.");
+      }
+      toast.success("이미지가 삭제되었습니다.", { id: toastId });
+      if (folder === 'playlist_thumbnails') {
+         if (selectedGalleryThumb?.includes(name)) setSelectedGalleryThumb(null);
+         loadThumbnailGallery();
+      }
+      else {
+         if (selectedOverlay?.includes(name)) setSelectedOverlay(null);
+         loadOverlayGallery();
+      }
+    } catch(e: any) {
+       toast.error("삭제 실패: " + e.message, { id: toastId });
+    }
+  };
+
+  const handleUploadOverlay = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    setIsUploadingOverlay(true);
+    const file = e.target.files[0];
+    const ts = Date.now();
+    const ext = file.name.split('.').pop() || 'png';
+    const fname = `playlist_overlays/${ts}_${Math.random().toString(36).slice(2)}.${ext}`;
+    toast.loading("오버레이 업로드 중...", { id: 'overlay-upload' });
+    const { error } = await supabase.storage.from('music_assets').upload(fname, file);
+    if (error) {
+       toast.error("업로드 실패: " + error.message, { id: 'overlay-upload' });
+    } else {
+       toast.success("오버레이가 성공적으로 업로드되었습니다!", { id: 'overlay-upload' });
+    }
+    setIsUploadingOverlay(false);
+    loadOverlayGallery();
+  };
+
+  const handleCompositeThumbnail = async (bgUrl: string, overlayUrl: string) => {
+    setIsCompositing(true);
+    toast.loading("썸네일 생성 중...", { id: 'compositing' });
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1600;
+      canvas.height = 900;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error("Failed to get canvas context");
+
+      const loadImg = (url: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+      });
+
+      const bgImg = await loadImg(bgUrl);
+      const ovImg = await loadImg(overlayUrl);
+
+      // Draw background (cover scale to fill)
+      const scale = Math.max(1600 / bgImg.width, 900 / bgImg.height);
+      const x = (1600 / 2) - (bgImg.width / 2) * scale;
+      const y = (900 / 2) - (bgImg.height / 2) * scale;
+      ctx.drawImage(bgImg, x, y, bgImg.width * scale, bgImg.height * scale);
+
+      // Draw overlay
+      ctx.drawImage(ovImg, 0, 0, 1600, 900);
+
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.95));
+      if (!blob) throw new Error("Failed to create blob");
+
+      const ts = Date.now();
+      const fname = `playlist_thumbnails/composited_${ts}.jpg`;
+      const { error } = await supabase.storage.from('music_assets').upload(fname, blob);
+      if (error) throw error;
+      
+      toast.success("오버레이가 적용된 썸네일 생성 및 업로드 완료!", { id: 'compositing' });
+      const newUrl = supabase.storage.from('music_assets').getPublicUrl(fname).data.publicUrl;
+      
+      await loadThumbnailGallery();
+      setSelectedGalleryThumb(newUrl);
+      setPlaylistThumbnail(null);
+      setSelectedOverlay(null);
+
+    } catch (e: any) {
+      toast.error("썸네일 생성 실패: " + e.message, { id: 'compositing' });
+    } finally {
+      setIsCompositing(false);
+    }
+  };
+
+  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const handleCropSave = async () => {
+    if (!cropImageSrc || !croppedAreaPixels) return;
+    const toastId = toast.loading("크롭된 이미지 저장 중...", { id: 'crop-save' });
+    try {
+      const croppedBlob = await getCroppedImg(cropImageSrc, croppedAreaPixels);
+      
+      const ts = Date.now();
+      const ext = cropFile?.name.split('.').pop() || 'jpg';
+      let fname = '';
+      if (cropTarget === 'thumbnail') {
+         fname = `playlist_thumbnails/cropped_${ts}.${ext}`;
+      } else {
+         fname = `playlist_overlays/cropped_${ts}.${ext}`;
+      }
+
+      const { error } = await supabase.storage.from('music_assets').upload(fname, croppedBlob);
+      if (error) throw error;
+      
+      toast.success("이미지가 성공적으로 크롭 및 업로드되었습니다!", { id: toastId });
+      
+      if (cropTarget === 'thumbnail') {
+         loadThumbnailGallery();
+      } else {
+         loadOverlayGallery();
+      }
+      setCropModalOpen(false);
+      setCropImageSrc(null);
+    } catch(e: any) {
+      toast.error("저장 실패: " + e.message, { id: toastId });
+    }
+  };
+
+  const handleOpenCropper = (e: React.ChangeEvent<HTMLInputElement>, target: 'thumbnail' | 'overlay') => {
+    if (!e.target.files?.length) return;
+    const file = e.target.files[0];
+    setCropFile(file);
+    setCropTarget(target);
+    const url = URL.createObjectURL(file);
+    setCropImageSrc(url);
+    setCropModalOpen(true);
+    e.target.value = ''; // reset
   };
 
   const handleBulkUploadThumbnails = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -389,6 +562,7 @@ export default function AdminTracksPage() {
     setSelectedGalleryThumb(null);
     setPlaylistOverlayConfig(JSON.stringify({ text: "Chillin", font_size: 128, color: "white" }, null, 2));
     loadThumbnailGallery();
+    loadOverlayGallery();
     setIsPlaylistModalOpen(true);
   };
 
@@ -2245,7 +2419,15 @@ ${hashtagLine}`.trim();
                 {/* Thumbnail Gallery Selection */}
                 {thumbnailGallery.length > 0 && (
                    <div className="mb-4">
-                      <p className="text-[10px] text-zinc-500 mb-2">Select an uploaded thumbnail from the gallery:</p>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-[10px] text-zinc-500">Select an uploaded thumbnail from the gallery:</p>
+                        <button 
+                          onClick={(e) => { e.preventDefault(); setIsGalleryExpanded(true); }}
+                          className="text-[10px] text-blue-400 font-bold hover:text-blue-300 transition underline underline-offset-2"
+                        >
+                          확장 및 관리 / 커버 제작 (Expand & Manage)
+                        </button>
+                      </div>
                       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-700">
                          {thumbnailGallery.map(img => (
                             <div 
@@ -2392,6 +2574,158 @@ ${hashtagLine}`.trim();
                 Submit to Worker
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {isGalleryExpanded && (
+        <div className="fixed inset-0 z-[110] bg-black/95 flex flex-col p-4 md:p-8 backdrop-blur-xl transition-all animate-in fade-in duration-200">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-black flex items-center gap-3 text-white tracking-tight">
+              <Wand2 className="text-purple-500" size={28} /> 커버 갤러리 및 오버레이 제작
+            </h2>
+            <button onClick={() => setIsGalleryExpanded(false)} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition shadow-lg">
+              <X size={24} />
+            </button>
+          </div>
+
+          <div className="flex flex-1 gap-6 overflow-hidden flex-col md:flex-row">
+            {/* Left: Thumbnail Gallery */}
+            <div className="flex-1 flex flex-col overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-white/[0.02] border border-white/[0.05] rounded-3xl p-6 shadow-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Disc size={20} className="text-blue-400" />
+                  업로드된 배경 (앨범 커버)
+                </h3>
+                
+                <label className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition shadow-lg shrink-0 flex items-center gap-1">
+                   <UploadCloud size={14} /> 커버 단일 업로드 (비율 자르기)
+                   <input type="file" accept="image/*" className="hidden" onChange={(e) => handleOpenCropper(e, 'thumbnail')} />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {thumbnailGallery.map(img => (
+                  <div key={img.url} className={`relative group rounded-xl border-2 overflow-hidden transition-all duration-300 cursor-pointer ${selectedGalleryThumb === img.url ? 'border-red-500 scale-[1.02] shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'border-white/10 hover:border-white/30'}`}>
+                    <img src={img.url} onClick={() => setSelectedGalleryThumb(img.url)} className="w-full aspect-video object-cover transition-transform duration-500 group-hover:scale-105" alt="cover" />
+                    
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteStorageItem('playlist_thumbnails', img.name); }} className="bg-red-500 hover:bg-red-400 p-2 rounded-full text-white transition shadow-lg shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    {selectedGalleryThumb === img.url && (
+                        <div className="absolute top-2 left-2 bg-red-500 rounded-full border-2 border-white shadow-xl shrink-0 p-0.5">
+                          <CheckCircle size={14} className="text-white fill-red-500" />
+                        </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {thumbnailGallery.length === 0 && (
+                <div className="flex flex-col items-center justify-center flex-1 text-zinc-500 space-y-4">
+                  <Disc size={48} className="opacity-20" />
+                  <p>업로드된 커버가 없습니다.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Overlays */}
+            <div className="w-full md:w-96 flex flex-col bg-white/[0.02] border border-white/[0.05] rounded-3xl p-6 overflow-y-auto text-sm shadow-2xl shrink-0">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Music size={20} className="text-purple-400" />
+                프레임 오버레이
+              </h3>
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 mb-6">
+                <p className="text-xs text-purple-200/70 leading-relaxed">
+                  투명 배경의 1600x900 PNG 이미지를 고정 업로드하여 언제든 커버 위에 씌울 수 있습니다.
+                </p>
+              </div>
+
+              <label className="group relative overflow-hidden bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.1] text-white rounded-xl p-4 text-center cursor-pointer transition-all duration-300 mb-6 shadow-lg shadow-black/20 flex flex-col items-center justify-center gap-2">
+                {isUploadingOverlay ? (
+                  <Loader2 size={24} className="animate-spin text-purple-400" />
+                ) : (
+                  <UploadCloud size={24} className="text-purple-400 group-hover:scale-110 transition-transform" />
+                )}
+                <span className="font-bold text-xs tracking-wide">{isUploadingOverlay ? '업로드 중...' : '새 오버레이 업로드'}</span>
+                <input type="file" accept="image/png" className="hidden" onChange={handleUploadOverlay} disabled={isUploadingOverlay} />
+              </label>
+
+              <div className="space-y-4 flex-1 scrollbar-thin scrollbar-thumb-white/10 pr-2">
+                {overlayGallery.map(img => (
+                  <div key={img.url} className={`relative group rounded-xl border-2 overflow-hidden transition-all duration-300 cursor-pointer ${selectedOverlay === img.url ? 'border-purple-500 scale-[1.02] shadow-[0_0_20px_rgba(168,85,247,0.2)]' : 'border-white/10 hover:border-white/30'}`}>
+                    {/* Checkerboard background for transparent PNG */}
+                    <div className="absolute inset-0 bg-zinc-900" style={{ backgroundImage: "linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%)", backgroundSize: "16px 16px", backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0" }}></div>
+                    
+                    <img src={img.url} onClick={() => setSelectedOverlay(img.url === selectedOverlay ? null : img.url)} className="w-full aspect-video object-contain relative z-10 transition-transform duration-500 group-hover:scale-105" alt="overlay" />
+
+                    <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteStorageItem('playlist_overlays', img.name); }} className="bg-red-500 hover:bg-red-400 p-2 rounded-full text-white transition shadow-lg shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    
+                    {selectedOverlay === img.url && (
+                        <div className="absolute top-2 left-2 z-20 bg-purple-500 rounded-full border-2 border-white shadow-xl shrink-0 p-0.5">
+                          <CheckCircle size={14} className="text-white fill-purple-500" />
+                        </div>
+                    )}
+                  </div>
+                ))}
+                {overlayGallery.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-8 text-zinc-500 space-y-3">
+                    <Wand2 size={32} className="opacity-20" />
+                    <p className="text-xs">저장된 오버레이가 없습니다.</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedGalleryThumb && selectedOverlay && (
+                <div className="mt-6 pt-6 border-t border-white/[0.05]">
+                  <button
+                    disabled={isCompositing} 
+                    onClick={() => handleCompositeThumbnail(selectedGalleryThumb, selectedOverlay)}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl py-4 font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-purple-900/40 transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
+                  >
+                    {isCompositing ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />} 
+                    선택한 커버에 프레임 씌우기
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {cropModalOpen && cropImageSrc && (
+        <div className="fixed inset-0 z-[120] bg-black/95 flex flex-col p-4 backdrop-blur-md">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white">이미지 크롭 (자르기)</h2>
+            <button onClick={() => setCropModalOpen(false)} className="text-white bg-zinc-800 p-2 rounded-full hover:bg-zinc-700 transition">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="flex justify-center gap-2 mb-4">
+             <button onClick={() => setAspectRatio(16/9)} className={`px-4 py-2 text-xs font-bold rounded-lg border transition ${aspectRatio === 16/9 ? 'bg-blue-500/20 border-blue-500 text-blue-300' : 'border-zinc-700 text-zinc-400'}`}>16:9 비율</button>
+             <button onClick={() => setAspectRatio(1/1)} className={`px-4 py-2 text-xs font-bold rounded-lg border transition ${aspectRatio === 1/1 ? 'bg-blue-500/20 border-blue-500 text-blue-300' : 'border-zinc-700 text-zinc-400'}`}>1:1 비율</button>
+             <button onClick={() => setAspectRatio(4/3)} className={`px-4 py-2 text-xs font-bold rounded-lg border transition ${aspectRatio === 4/3 ? 'bg-blue-500/20 border-blue-500 text-blue-300' : 'border-zinc-700 text-zinc-400'}`}>4:3 비율</button>
+          </div>
+
+          <div className="relative flex-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden mb-4 min-h-[400px]">
+            <Cropper
+              image={cropImageSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={aspectRatio}
+              onCropChange={setCrop}
+              onCropComplete={onCropComplete}
+              onZoomChange={setZoom}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pb-8">
+            <button onClick={() => setCropModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition">취소</button>
+            <button onClick={handleCropSave} className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black shadow-lg transition">크롭 및 업로드 완료</button>
           </div>
         </div>
       )}
