@@ -12,5 +12,12 @@ export const client = createThirdwebClient({
 });
 
 // Polygon Amoy Testnet 설정
-export const chain = defineChain({id:80002,rpc: "https://polygon-amoy.drpc.org"});
+// RPC 폴백 전략: thirdweb RPC (기본) → drpc.org (폴백)
+// /api/rpc 프록시를 통해 자동 폴백 처리
+const FALLBACK_RPC_PROXY =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/api/rpc`
+    : `https://80002.rpc.thirdweb.com/${clientId}`;
+
+export const chain = defineChain({ id: 80002, rpc: FALLBACK_RPC_PROXY });
 

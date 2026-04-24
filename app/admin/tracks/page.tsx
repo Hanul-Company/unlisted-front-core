@@ -1355,11 +1355,12 @@ export default function AdminTracksPage() {
 
     // ── 해시태그 풍부화 ──
     const toTag = (v: string) => `#${v.replace(/[^\w가-힣]/g, '').replace(/\s+/g, '')}`;
+    const toLowerTag = (v: string) => `#${v.toLowerCase().replace(/[^\w가-힣]/g, '').replace(/\s+/g, '')}`;
 
     const titleTag = toTag(songTitle.replace(/\s+/g, ''));
     const artistTag = toTag(artistName.replace(/\s+/g, ''));
 
-    const refArtistTags = (track.ai_metadata?.ref_artists || []).map(toTag);
+    const refArtistTags = (track.ai_metadata?.ref_artists || []).map(toLowerTag);
     const similarArtistTags = (track.ai_metadata?.similar_artists || []).map(toTag);
     const refTrackTags = (track.ai_metadata?.ref_tracks || []).map(toTag);
     const vibeTags = (track.ai_metadata?.vibe_tags || []).map(toTag);
@@ -1370,9 +1371,9 @@ export default function AdminTracksPage() {
 
     // 중복 제거 후 합치기
     const allTags = [
+      ...refArtistTags,
       titleTag,
       artistTag,
-      ...refArtistTags,
       ...similarArtistTags,
       ...refTrackTags,
       ...vibeTags,
